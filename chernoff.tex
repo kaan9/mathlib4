@@ -1,0 +1,416 @@
+\documentclass[12pt]{article}
+
+% --- Packages ---
+\usepackage{amsmath, amssymb, amsthm} % Math environments and symbols
+\usepackage{geometry}                 % Page layout
+
+% --- Theorem / Proof Environments ---
+% Number everything within sections
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% --- Document Starts ---
+\begin{document}
+
+\title{Cramer's Theorem}
+\author{Kaan Erdogmus}
+\date{\today}
+\maketitle
+
+\section{Objects and definitions to formalize}
+
+Let $(\Omega,\mathcal{F},\mathbb{P})$ be a probability space.  All random variables below are real-valued and measurable with respect to the given measurable structure on $\mathbb{R}$.
+
+\begin{definition}[i.i.d.\ sequence, sums and empirical means]
+Let $(X_i)_{i\ge 1}$ be an i.i.d.\ sequence of real-valued random variables on $(\Omega,\mathcal{F},\mathbb{P})$. For each $n\ge 1$ define
+\[
+S_n \;:=\; X_1 + X_2 + \cdots + X_n,\qquad
+\overline{X}_n \;:=\; \frac{S_n}{n}.
+\]
+\end{definition}
+
+\begin{definition}[moment generating function (mgf) and cumulant generating function (log-mgf)]
+For a single random variable $X_1$ define the \emph{moment generating function}
+\[
+M_{X}(t) \;:=\; \mathbb{E}\big[e^{t X_1}\big], \qquad t\in\mathbb{R},
+\]
+where the expectation may take the value $+\infty$.  Define the \emph{cumulant generating function} $\Lambda:\mathbb{R}\to(-\infty,+\infty]$ by
+\[
+\Lambda(t) \;:=\; \begin{cases}
+\log M_X(t), & M_X(t)<+\infty,\\[4pt]
++\infty, & M_X(t)=+\infty.
+\end{cases}
+\]
+We also set the domain
+\[
+\operatorname{dom}\Lambda \;:=\; \{t\in\mathbb{R} : M_X(t)<+\infty\}.
+\]
+\end{definition}
+
+\begin{remark}
+By independence,
+\[
+\mathbb{E}\big[e^{t S_n}\big] \;=\; \big(\mathbb{E}[e^{t X_1}]\big)^n
+       \;=\; \big(M_X(t)\big)^n,
+\]
+so $\Lambda$ controls exponential moments of $S_n$ in the obvious way: $\frac{1}{n}\log\mathbb{E}[e^{t S_n}] = \Lambda(t)$ whenever $t\in\operatorname{dom}\Lambda$.
+\end{remark}
+
+\begin{definition}[Legendre--Fenchel transform / rate function]
+Define the (convex) \emph{Legendre--Fenchel transform} (also called the \emph{rate function} in this context)
+\[
+I:\mathbb{R}\to[0,+\infty]\qquad\text{by}\qquad
+I(x) \;:=\; \sup_{t\in\mathbb{R}} \big( t x - \Lambda(t) \big),
+\]
+where the convention $\Lambda(t)=+\infty$ for $t\notin\operatorname{dom}\Lambda$ is used.  Equivalently $I=\Lambda^*$ is the convex conjugate of $\Lambda$.
+\end{definition}
+
+\begin{definition}[good rate function]
+A function $I:\mathbb{R}\to[0,+\infty]$ is a \emph{good rate function} if $I$ is lower semicontinuous and for every $a\ge 0$ the level set
+\[
+\{x\in\mathbb{R}\,:\, I(x)\le a\}
+\]
+is compact in $\mathbb{R}$.
+\end{definition}
+
+\begin{definition}[large deviation principle (LDP)]
+Let $(Y_n)_{n\ge1}$ be a sequence of $\mathbb{R}$-valued random variables and let $I:\mathbb{R}\to[0,+\infty]$ be a rate function.  We say that $(Y_n)$ satisfies a \emph{large deviation principle} (LDP) with rate function $I$ (and speed $n$) if the following two conditions hold:
+\begin{enumerate}
+\item (Upper bound) For every closed set $F\subseteq\mathbb{R}$,
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}(Y_n\in F)
+\;\le\; -\inf_{x\in F} I(x).
+\]
+\item (Lower bound) For every open set $G\subseteq\mathbb{R}$,
+\[
+\liminf_{n\to\infty}\frac{1}{n}\log \mathbb{P}(Y_n\in G)
+\;\ge\; -\inf_{x\in G} I(x).
+\]
+\end{enumerate}
+\end{definition}
+
+\begin{remark}[basic properties]
+The function $\Lambda$ is convex on its domain $\operatorname{dom}\Lambda$ (indeed $t\mapsto e^{tX_1}$ is convex and expectation preserves convexity), and $I=\Lambda^*$ is convex and lower semicontinuous (as a supremum of affine functions).  When the mgf is finite in a neighborhood of $0$ (see below) then $I$ is a good rate function; in particular the level sets $\{I\le a\}$ are compact in $\mathbb{R}$.
+\end{remark}
+
+\section{Statement of Cramér's theorem (target)}
+
+We record the classical form of Cramér's theorem for the empirical means of i.i.d.\ real-valued random variables.
+
+\begin{theorem}[Cramér's theorem --- classical version]\label{thm:cramer}
+Let $(X_i)_{i\ge 1}$ be an i.i.d.\ sequence of real-valued random variables on a probability space $(\Omega,\mathcal{F},\mathbb{P})$.  Assume the moment generating function is finite in a neighborhood of the origin: there exists $\delta>0$ such that
+\[
+M_X(t)=\mathbb{E}[e^{t X_1}] < +\infty \qquad\text{for all } t\in(-\delta,\delta).
+\]
+Let $\Lambda$ and $I$ be defined as above.  Then the sequence of empirical means $(\overline{X}_n)_{n\ge 1}$ satisfies a large deviation principle on $\mathbb{R}$ with good rate function $I$, i.e.:
+\begin{enumerate}
+\item For every closed set $F\subseteq\mathbb{R}$,
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}(\overline{X}_n\in F)
+\;\le\; -\inf_{x\in F} I(x).
+\]
+\item For every open set $G\subseteq\mathbb{R}$,
+\[
+\liminf_{n\to\infty}\frac{1}{n}\log \mathbb{P}(\overline{X}_n\in G)
+\;\ge\; -\inf_{x\in G} I(x).
+\]
+\end{enumerate}
+Moreover, $I$ is a good rate function and is given explicitly by the Legendre--Fenchel transform
+\[
+I(x) \;=\; \sup_{t\in\mathbb{R}} \big( t x - \Lambda(t) \big).
+\]
+\end{theorem}
+
+\begin{remark}
+The hypothesis `mgf finite in a neighborhood of $0$' is standard: it guarantees the differentiability/regularity properties of $\Lambda$ that are used in the lower bound (tilting) argument and implies that $I$ has compact level sets.  If one wishes to work in greater generality one can weaken this hypothesis, but additional convex-analytic and approximation arguments become necessary.
+\end{remark}
+
+
+\section{Upper bound of Cramér's theorem: detailed proof (lemma-by-lemma)}
+
+Throughout this section let $(\Omega,\mathcal F,\mathbb P)$ be a probability space and
+let $(X_i)_{i\ge 1}$ be an i.i.d.\ sequence of real-valued random variables.  Set
+\[
+S_n := X_1+\cdots+X_n,\qquad \overline X_n := S_n/n.
+\]
+
+\medskip
+
+\noindent\textbf{Global hypothesis (strong form used in this section).}
+Assume the moment generating function is finite for every real \(t\):
+\[
+M_X(t):=\mathbb{E}\big[e^{t X_1}\big] < +\infty \qquad\text{for all } t\in\mathbb R.
+\]
+Under this hypothesis the cumulant generating function
+\(\Lambda:\mathbb R\to\mathbb R\) given by \(\Lambda(t)=\log M_X(t)\) is finite-valued
+and convex on \(\mathbb R\).  Define the Legendre--Fenchel transform
+\[
+I(x) \;:=\; \sup_{t\in\mathbb R}\big( t x - \Lambda(t)\big)\qquad(x\in\mathbb R).
+\]
+
+We now record and prove the lemmas needed for the upper bound.
+
+\begin{lemma}[mgf factorization]\label{lem:mgf_factorization}
+For every $n\ge1$ and every $t\in\mathbb R$ one has
+\[
+\mathbb{E}\big[e^{t S_n}\big] \;=\; \big(\mathbb{E}\big[e^{t X_1}\big]\big)^n
+       \;=\; e^{n \Lambda(t)}.
+\]
+\end{lemma}
+
+\begin{proof}
+Independence of $X_1,\dots,X_n$ and Fubini/Tonelli (which is justified because
+$\mathbb{E}[e^{t X_1}]<\infty$) yield
+\(\mathbb{E}[e^{t S_n}] = \prod_{i=1}^n \mathbb{E}[e^{t X_i}] = ( \mathbb{E}[e^{t X_1}] )^n.\)
+Taking logarithms gives the displayed identity.
+\end{proof}
+
+\begin{lemma}[Chernoff / exponential Markov inequality for half-lines]\label{lem:chernoff_half_line}
+Fix $a\in\mathbb R$ and $t\in\mathbb R$.  Then
+\[
+\mathbb{P}\big( \overline X_n \ge a \big)
+\;\le\; \exp\big( -n( t a - \Lambda(t) )\big).
+\]
+If $t<0$ then the analogous inequality holds for the left tail:
+\[
+\mathbb{P}\big( \overline X_n \le a \big)
+\;\le\; \exp\big( -n( t a - \Lambda(t) )\big).
+\]
+\end{lemma}
+
+\begin{proof}
+For $t\in\mathbb R$ Markov's inequality applied to the nonnegative r.v.\ $e^{t S_n}$ gives
+\[
+\mathbb{P}(\overline X_n \ge a)
+= \mathbb{P}\big(e^{t S_n} \ge e^{n t a}\big)
+\le e^{-n t a} \mathbb{E}[e^{t S_n}]
+= \exp\big( -n( t a - \Lambda(t) )\big),
+\]
+where in the final equality we used Lemma \ref{lem:mgf_factorization}.
+The left-tail inequality is obtained by applying the same argument to $-X_i$ (or,
+equivalently, by using the inequality with $-t>0$ and noting that
+$\mathbb{E}[e^{-tS_n}] = e^{n\Lambda(-t)}$).
+\end{proof}
+
+\begin{lemma}[pointwise upper bound for a fixed point]\label{lem:upper_point}
+For every $a\in\mathbb R$,
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n \ge a\big)
+\;\le\; -I(a),
+\]
+and likewise
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n \le a\big)
+\;\le\; -I(a).
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $a\in\mathbb R$.  By Lemma \ref{lem:chernoff_half_line}, for each $t\in\mathbb R$
+we have
+\[
+\frac{1}{n}\log \mathbb{P}\big(\overline X_n \ge a\big)
+\;\le\; -\big( t a - \Lambda(t) \big).
+\]
+This holds for every $n$, hence passing to $\limsup_{n\to\infty}$ yields
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n \ge a\big)
+\;\le\; -\big( t a - \Lambda(t) \big)\qquad\text{for all }t\in\mathbb R.
+\]
+Taking the infimum over $t\in\mathbb R$ on the right-hand side gives
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n \ge a\big)
+\;\le\; -\sup_{t\in\mathbb R}\big( t a - \Lambda(t)\big)
+\;=\; -I(a),
+\]
+which proves the first displayed inequality.  The second is identical acting on
+$\overline X_n \le a$ (or applying the first to the sequence $-X_i$).
+\end{proof}
+
+\begin{lemma}[upper bound for a closed interval]\label{lem:upper_interval}
+Let $a\le b$ be real numbers.  Then
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big( \overline X_n \in [a,b] \big)
+\;\le\; -\inf_{x\in[a,b]} I(x).
+\]
+\end{lemma}
+
+\begin{proof}
+The event $\{\overline X_n\in[a,b]\}$ is contained both in $\{\overline X_n \ge a\}$
+and in $\{\overline X_n \le b\}$. Hence, for every $n$,
+\[
+\mathbb{P}\big(\overline X_n \in [a,b]\big)
+\le \min\big\{ \mathbb{P}(\overline X_n \ge a),\, \mathbb{P}(\overline X_n \le b)\big\}.
+\]
+Taking $\frac{1}{n}\log$ and $\limsup$ we obtain
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n \in [a,b]\big)
+\le \min\Big\{ \limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}(\overline X_n \ge a),\;
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}(\overline X_n \le b)\Big\}.
+\]
+By Lemma \ref{lem:upper_point} the two limits on the right are bounded by $-I(a)$
+and $-I(b)$ respectively. Therefore
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n \in [a,b]\big)
+\le \min\{ -I(a), -I(b)\} = -\max\{ I(a), I(b)\}.
+\]
+Because $I$ is convex, its minimum over the interval $[a,b]$ is attained at one of the
+endpoints; thus $\inf_{x\in[a,b]} I(x) = \min\{I(a),I(b)\}$. The displayed inequality
+is therefore equivalent to the stated claim.
+\end{proof}
+
+\begin{lemma}[upper bound for bounded closed sets]\label{lem:upper_bounded_closed}
+Let $F\subset\mathbb R$ be closed and bounded.  Then
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big( \overline X_n \in F \big)
+\;\le\; -\inf_{x\in F} I(x).
+\]
+\end{lemma}
+
+\begin{proof}
+Since $F$ is compact and $I$ is lower semicontinuous (indeed $I$ is convex and
+finite-valued under our global mgf hypothesis), $I$ attains its minimum on $F$:
+there exists $x_0\in F$ with $I(x_0)=\inf_{x\in F} I(x)$. Let $\varepsilon>0$ be
+arbitrary. By lower semicontinuity and finiteness of $I$ there is a closed interval
+$J=[x_0-\delta,x_0+\delta]$ such that
+\[
+\inf_{x\in J} I(x) \le I(x_0)+\varepsilon.
+\]
+(Indeed, $I(x_0)$ is the infimum on $F$, so for small $\delta$ the infimum on
+$J\cap F$ cannot be much larger than $I(x_0)$; one may take $J$ small enough that
+$J\cap F$ contains points whose $I$-value is within $\varepsilon$ of $I(x_0)$;
+for simplicity one can first choose $y\in F$ with $I(y)\le I(x_0)+\varepsilon$
+and then choose $\delta$ with $J$ containing that $y$.)
+
+As $F$ is compact, there exists a finite cover of $F$ by finitely many closed
+intervals $J_1,\dots,J_m$ each chosen so that
+\[
+\inf_{x\in J_k} I(x) \le \inf_{x\in F} I(x) + \varepsilon, \qquad k=1,\dots,m.
+\]
+(One can produce such a finite cover by choosing, for each point $y\in F$, a small
+interval $J_y$ containing $y$ with $\inf_{J_y} I \le \inf_F I + \varepsilon$;
+compactness yields a finite subcover.)
+
+Using the union bound,
+\[
+\mathbb{P}\big(\overline X_n\in F\big) \le \sum_{k=1}^m \mathbb{P}\big(\overline X_n\in J_k\big).
+\]
+Apply $\frac{1}{n}\log$ and then $\limsup$: the elementary estimate
+\(\limsup_{n}(1/n)\log\sum_{k} a_{n,k} = \max_k \limsup_{n}(1/n)\log a_{n,k}\) for
+nonnegative sequences gives
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n\in F\big)
+\le \max_{1\le k\le m} \limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n\in J_k\big).
+\]
+By Lemma \ref{lem:upper_interval} each term on the right is bounded by
+\(-\inf_{x\in J_k} I(x)\), hence
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n\in F\big)
+\le -\min_{1\le k\le m} \inf_{x\in J_k} I(x).
+\]
+But by the choice of the cover $\min_k \inf_{J_k} I \ge \inf_F I$ (indeed the
+infimum over the union equals the minimum of the infima), and each $\inf_{J_k} I$
+was chosen to be within $\varepsilon$ of $\inf_F I$. Thus
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n\in F\big)
+\le -\big( \inf_F I - \varepsilon \big).
+\]
+Since $\varepsilon>0$ was arbitrary the stated inequality follows.
+\end{proof}
+
+\begin{lemma}[control of tails]\label{lem:tail_control}
+There exist $t_+>0$ and $t_-<0$ such that
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big( \overline X_n \ge M \big) \to -\infty
+\quad\text{as }M\to+\infty,
+\]
+and
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big( \overline X_n \le -M \big) \to -\infty
+\quad\text{as }M\to+\infty.
+\]
+In particular, for each $\alpha\in\mathbb R$ there exists $M$ large enough such that
+$\mathbb{P}(\overline X_n \not\in [-M,M])$ decays exponentially fast (in the sense
+that its $n$-logarithm has limit supremum $<\alpha$).
+\end{lemma}
+
+\begin{proof}
+Because $\Lambda(t)=\log\mathbb{E}[e^{tX_1}]$ is finite for all $t$, we may choose
+$t_0>0$. By Lemma \ref{lem:chernoff_half_line},
+\[
+\frac{1}{n}\log \mathbb{P}(\overline X_n \ge M) \le -\big( t_0 M - \Lambda(t_0)\big).
+\]
+The right-hand side tends to $-\infty$ as $M\to\infty$, uniformly in $n$. The
+left-tail statement is identical with a negative tilt. This yields the desired
+control of tails.
+\end{proof}
+
+\begin{theorem}[upper bound for closed sets --- Cramér upper bound]\label{thm:cramer_upper}
+Let $F\subset\mathbb R$ be closed. Under the global mgf hypothesis,
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big( \overline X_n \in F \big)
+\;\le\; -\inf_{x\in F} I(x).
+\]
+\end{theorem}
+
+\begin{proof}
+If $F$ is bounded, Lemma \ref{lem:upper_bounded_closed} gives the result.
+If $F$ is unbounded, choose $M>0$ and write
+\[
+\mathbb{P}\big(\overline X_n\in F\big)
+\le \mathbb{P}\big(\overline X_n \in F\cap[-M,M]\big)
+      \;+\; \mathbb{P}\big(\overline X_n\notin[-M,M]\big).
+\]
+Apply $\frac{1}{n}\log$ and $\limsup$. By Lemma \ref{lem:upper_bounded_closed} the
+first term has $\limsup$ bounded by $-\inf_{x\in F\cap[-M,M]} I(x)$. By Lemma
+\ref{lem:tail_control} the second term can be made arbitrarily small (i.e.\ its
+$\limsup$ can be made arbitrarily negative) by choosing $M$ large. Therefore, for
+every $\varepsilon>0$ there exists $M$ such that
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n\in F\big)
+\le -\inf_{x\in F\cap[-M,M]} I(x) + \varepsilon.
+\]
+Letting $M\to\infty$ yields $\inf_{x\in F\cap[-M,M]} I(x)\downarrow \inf_{x\in F} I(x)$,
+hence
+\[
+\limsup_{n\to\infty}\frac{1}{n}\log \mathbb{P}\big(\overline X_n\in F\big)
+\le -\inf_{x\in F} I(x) + \varepsilon.
+\]
+As $\varepsilon>0$ was arbitrary the theorem follows.
+\end{proof}
+
+\begin{remark}[implementation notes for Lean] Note:
+
+\begin{itemize}
+\item \texttt{lem:mgf\_factorization} corresponds to a lemma asserting
+\[
+\mathbb{E}\big[e^{t S_n}\big] = \big(\mathbb{E}[e^{t X_1}]\big)^n
+\]
+using independence/factorization.
+\item \texttt{lem:chernoff\_half\_line} is a straightforward application of Markov's
+inequality; in Lean, one can use the \texttt{measure\_theory} Markov/Chebyshev lemmas.
+\item \texttt{lem:upper\_point} is the pointwise exponential bound (singleton bound).
+It is used repeatedly.
+\item \texttt{lem:upper\_interval} uses only the two-sided pointwise bounds and the
+convexity of \(I\) to reduce the interval case to its endpoints.
+\item \texttt{lem:upper\_bounded\_closed} uses compactness (Heine--Borel in \(\mathbb{R}\))
+to extract a finite cover; implement in Lean via \texttt{is\_compact} and the usual finite
+subcover lemma.
+\item \texttt{lem:tail\_control} uses the global mgf hypothesis to choose a tilt that
+forces arbitrarily fast exponential decay of tails; in Lean this is straightforward once
+\(\Lambda(t)\) is known finite.
+\item \texttt{thm:cramer\_upper} combines the bounded-case and tail control to yield the
+full upper bound for closed sets.
+\end{itemize}
+\end{remark}
+
+
+\end{document}
