@@ -24,7 +24,7 @@ This file proves Cramér's theorem on large deviations for i.i.d. random variabl
 open ProbabilityTheory MeasureTheory Filter Topology
 open scoped BigOperators ENNReal
 
-variable {Ω : Type*} [MeasureSpace Ω] [IsProbabilityMeasure (ℙ : Measure Ω)]
+variable {Ω : Type*} [MeasureSpace Ω]
 variable (X : ℕ → Ω → ℝ)
 
 /- Assumptions for Cramér's theorem -/
@@ -55,6 +55,8 @@ lemma integrable_exp_of_identDistrib
   have : IdentDistrib (fun ω => Real.exp (t * X i ω)) (fun ω => Real.exp (t * X 0 ω)) ℙ ℙ :=
     (h_ident i).comp hcomp
   exact this.integrable_iff.mpr (h_mgf t)
+
+variable [IsProbabilityMeasure (ℙ : Measure Ω)]
 
 lemma integrable_exp_sum
     (h_indep : iIndepFun X ℙ)
@@ -148,6 +150,32 @@ empirical mean exceeds a is bounded above by the negative rate function. -/
 theorem cramer_upper_bound (a : ℝ) :
     limsup (fun n : ℕ => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop
       ≤ - rateFunction X a := by
+  -- Use prob_mean_ge_le_exp with t = 0 to get an upper bound
+  unfold rateFunction
+  -- Apply the bound from prob_mean_ge_le_exp with t = 0
+  have : ∀ᶠ n : ℕ in atTop, (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
+      ≤ -(0 * a - cgf (X 0) ℙ 0) := by
+    filter_upwards [Filter.eventually_gt_atTop 0] with n hn_pos
+    have hbound := @prob_mean_ge_le_exp _ _ X h_indep h_ident h_meas h_mgf _
+        0 a (le_refl (0 : ℝ)) n hn_pos
+    -- From ℙ{...} ≤ exp(-n*(0*a - cgf 0)), take logs and divide by n
+    by_cases hprob : (ℙ {ω | empiricalMean X n ω ≥ a}).toReal ≤ 0
+    · -- If probability is ≤ 0, the bound holds since log is negative
+      sorry
+    · -- If probability > 0, take logs
+      push_neg at hprob
+      have hlog : Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
+          ≤ Real.log (Real.exp (- (n : ℝ) * (0 * a - cgf (X 0) ℙ 0))) := by
+        exact Real.log_le_log hprob hbound
+      rw [Real.log_exp] at hlog
+      have hn_pos' : (0 : ℝ) < n := Nat.cast_pos.mpr hn_pos
+      calc (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
+          ≤ (1 : ℝ) / n * (- (n : ℝ) * (0 * a - cgf (X 0) ℙ 0)) := by gcongr
+        _ = -(0 * a - cgf (X 0) ℙ 0) := by field_simp
+  -- TODO: Complete the proof by showing limsup ≤ -(0*a - cgf 0) ≤ -rateFunction
+  -- The key ingredients are:
+  -- 1. limsup_le_of_le to convert eventual bounds to limsup bounds
+  -- 2. Show -(0*a - cgf 0) = cgf 0 ≤ ⨆ t, (t*a - cgf t) for appropriate choice of t
   sorry
 
 include h_indep h_meas h_ident h_mgf in
