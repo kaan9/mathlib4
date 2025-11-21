@@ -344,10 +344,23 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     have h_log : ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}) ≤
         ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t)))) :=
       ENNReal.log_le_log h_ennreal
-    -- Apply logarithm: log(ofReal(exp(x))) = x in EReal
-    -- Then multiply by (1/n) and simplify: (1/n) * (-n * x) = -x
-    -- TODO: The EReal arithmetic with coercions is tricky, needs cleanup
-    sorry
+    -- Simplify: log(ofReal(exp(x))) = x in EReal
+    have h_log_exp : ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t)))) =
+        (-(n : ℝ) * (t * a - cgf (X 0) ℙ t) : EReal) := by
+      rw [ENNReal.log_ofReal_of_pos (Real.exp_pos _)]
+      rw [Real.log_exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))]
+      rfl
+    -- Prove the arithmetic simplification on the Real side first
+    have h_arith : ((1 : ℝ) / (n : ℝ)) * (-(n : ℝ) * (t * a - cgf (X 0) ℙ t)) =
+        -(t * a - cgf (X 0) ℙ t) := by
+      have hn_ne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp hn)
+      field_simp [hn_ne]
+    -- Now prove the inequality in EReal
+    trans ((1 : ℝ) / (n : ℝ) : EReal) * (-(n : ℝ) * (t * a - cgf (X 0) ℙ t) : EReal)
+    · rw [← h_log_exp]
+      gcongr
+    · simp only [← EReal.coe_mul]
+      exact le_of_eq (congrArg (fun x : ℝ => (x : EReal)) h_arith)
 
   -- The bound holds eventually (for all n ≥ 1)
   apply Filter.limsup_le_of_le
@@ -376,9 +389,10 @@ of the CGF. -/
 theorem cramers_theorem :
     LargeDeviationPrinciple (empiricalMean X) (rateFunction X) := by
   constructor
-  · exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd
-    -- TODO: Need to provide Integrable (X 0) ℙ and 𝔼[X 0] ≤ a
-    -- Integrability follows from h_mgf (finite MGF implies integrable)
-    -- For a < 𝔼[X 0], need to extend the proof or split cases
-
+  · -- Upper bound: currently proven only for a ≥ 𝔼[X 0]
+    -- Need to extend to all a or handle a < 𝔼[X 0] separately
+    intro a
+    by_cases h : 𝔼[X 0] ≤ a
+    · exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd a h
+    · sorry  -- TODO: Handle case a < 𝔼[X 0]
   · exact cramer_lower_bound X h_indep h_ident h_meas h_mgf
