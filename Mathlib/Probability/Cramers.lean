@@ -50,10 +50,7 @@ noncomputable def rateFunction (x : ℝ) : ℝ :=
 
 /- Helper lemmas -/
 
-lemma integrable_exp_of_identDistrib
-    (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
-    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
-    (i : ℕ) (t : ℝ) :
+include h_ident h_mgf in lemma integrable_exp_of_identDistrib (i : ℕ) (t : ℝ) :
     Integrable (fun ω => Real.exp (t * X i ω)) ℙ := by
   have hcomp : Measurable (fun x : ℝ => Real.exp (t * x)) :=
     (measurable_const.mul measurable_id).exp
@@ -87,7 +84,7 @@ lemma cgf_ge_mul_expect {Y : Ω → ℝ} (h_int : Integrable Y ℙ)
     _ ≤ Real.log (∫ (a : Ω), Real.exp (t * Y a) ∂ℙ) :=
         Real.log_le_log (Real.exp_pos _) jensen
 
-/-- When t < 0 and a ≥ E[X], we have t*a - cgf(t) ≤ 0. -/
+-- When t < 0 and a ≥ E[X], we have t*a - cgf(t) ≤ 0
 lemma rate_function_neg_param_le_zero {Y : Ω → ℝ} (h_int : Integrable Y ℙ)
     (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ)
     {t a : ℝ} (ht : t < 0) (ha : 𝔼[Y] ≤ a) :
@@ -103,12 +100,7 @@ lemma rate_function_neg_param_le_zero {Y : Ω → ℝ} (h_int : Integrable Y ℙ
         apply mul_nonpos_of_nonpos_of_nonneg (le_of_lt ht)
         linarith
 
-lemma integrable_exp_sum
-    (h_indep : iIndepFun X ℙ)
-    (h_meas : ∀ n, Measurable (X n))
-    (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
-    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
-    (t : ℝ) (n : ℕ) :
+include h_indep h_meas h_ident h_mgf in lemma integrable_exp_sum (t : ℝ) (n : ℕ) :
     Integrable (fun ω => Real.exp (t * S X n ω)) ℙ := by
     -- Move the scalar `t` inside the finite sum so we can use `Real.exp_sum`.
     rw [S]
@@ -167,12 +159,9 @@ lemma integrable_exp_sum
       -- Use IndepFun.integrable_mul
       exact h_indep_prod.integrable_mul (ih h_eq_n) h_integrable_n
 
-include h_bdd h_mgf in
-/--
-If the target `a` is greater than the mean, the supremum in the rate function
-is achieved by non-negative `t`.
--/
-lemma rateFunction_eq_sup_nonneg (a : ℝ)
+--If the target `a` is greater than the mean, the supremum in the rate function
+--is achieved by non-negative `t`.
+include h_bdd h_mgf in lemma rateFunction_eq_sup_nonneg (a : ℝ)
   (h_int : Integrable (X 0) ℙ) (h_mean : 𝔼[X 0] ≤ a) :
     rateFunction X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t := by
   rw [rateFunction]
@@ -213,6 +202,7 @@ lemma rateFunction_eq_sup_nonneg (a : ℝ)
 
 /- Main results -/
 
+-- Chernoff bound
 include h_indep h_meas h_mgf h_ident in
 lemma prob_mean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
   (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
@@ -239,7 +229,7 @@ lemma prob_mean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) 
 
   -- Step 1: show integrability hypothesis for S_n so we can call the Chernoff lemma
   have hinteg : Integrable (fun ω => Real.exp (t * S X n ω)) ℙ :=
-    integrable_exp_sum X h_indep h_meas h_ident h_mgf t n
+    integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
 
   -- Step 2: apply the standard Chernoff lemma in mathlib:
   -- `ProbabilityTheory.measure_ge_le_exp_cgf` says
@@ -321,10 +311,12 @@ theorem cramer_upper_bound (a : ℝ) (h_int : Integrable (X 0) ℙ) (h_mean : �
 
     -- Step 1: Show limsup ≤ -sup over t ≥ 0
     have h_neg_bound : - (⨆ t : {x : ℝ | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t) ≥
-        limsup (fun n => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop := by
+        limsup (fun n =>
+                        (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop := by
       -- If x ≤ -f(t) for all t, then -x ≥ f(t) for all t, so -x ≥ sup f
       have h_neg : ∀ t : {x : ℝ | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t ≤
-          -(limsup (fun n => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop) := by
+          -(limsup (fun n =>
+                       (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop) := by
         intro t
         have := h t.val t.property
         linarith
@@ -332,7 +324,8 @@ theorem cramer_upper_bound (a : ℝ) (h_int : Integrable (X 0) ℙ) (h_mean : �
       have h_nonempty : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
       -- Therefore sup (t*a - cgf t) ≤ -limsup
       have h_sup_bound : (⨆ t : {x : ℝ | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t) ≤
-          -(limsup (fun n => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop) :=
+          -(limsup (fun n =>
+                          (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop) :=
         ciSup_le (by intro t; exact h_neg t)
       linarith
 
