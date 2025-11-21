@@ -35,6 +35,7 @@ variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
 variable (h_meas : ∀ n, Measurable (X n))
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 -- Assume that this is a "good" rate function, bounded above.
+-- This is actually implied by h_mgf but this is difficult to prove.
 variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
 
 /-- The partial sum X_0 + ... + X_{n-1}. -/
@@ -62,8 +63,8 @@ lemma integrable_exp_of_identDistrib
 
 variable [IsProbabilityMeasure (ℙ : Measure Ω)]
 
-/-- For a random variable with finite MGF, the CGF satisfies cgf(t) ≥ t * E[X].
-This follows from Jensen's inequality applied to the convex function exp. -/
+-- For a random variable with finite MGF, the CGF satisfies cgf(t) ≥ t * E[X].
+-- This follows from Jensen's inequality applied to the convex function exp(tx) for fixed t.
 lemma cgf_ge_mul_expect {Y : Ω → ℝ} (h_int : Integrable Y ℙ)
     (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ) (t : ℝ) :
     cgf Y ℙ t ≥ t * 𝔼[Y] := by
@@ -109,7 +110,19 @@ lemma integrable_exp_sum
     (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
     (t : ℝ) (n : ℕ) :
     Integrable (fun ω => Real.exp (t * S X n ω)) ℙ := by
-  sorry  -- TODO: prove using independence
+    -- Move the scalar `t` inside the finite sum so we can use `Real.exp_sum`.
+    rw [S]
+    have : (fun ω => Real.exp (t * (∑ i ∈ Finset.range n, X i) ω)) =
+            fun ω => Real.exp (∑ i ∈ Finset.range n, t * X i ω) := by
+      funext ω
+      -- use `mul_sum` (or `Finset.mul_sum`) and `mul_comm` to commute scalar multiplication
+      simp [Finset.mul_sum]
+    rw [this]
+    conv =>
+      lhs
+      intro ω
+      rw [Real.exp_sum] -- now exp(∑ (t * X_i)) = ∏ exp(t * X_i)
+    sorry
 
 include h_bdd h_mgf in
 /--
