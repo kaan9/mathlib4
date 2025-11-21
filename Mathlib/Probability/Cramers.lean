@@ -7,6 +7,7 @@ import Mathlib.Probability.Independence.Basic
 import Mathlib.Probability.Moments.Basic
 import Mathlib.Analysis.Convex.Integral
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
 
 /-!
 # Cramér's Theorem
@@ -33,6 +34,8 @@ variable (X : ℕ → Ω → ℝ)
 variable (h_indep : iIndepFun X ℙ)
 variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
 variable (h_meas : ∀ n, Measurable (X n))
+-- This is implied by h_mgf but assume it for convenience for now
+variable (h_int : Integrable (X 0) ℙ)
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 -- Assume that this is a "good" rate function, bounded above.
 -- This is actually implied by h_mgf but this is difficult to prove.
@@ -269,21 +272,23 @@ lemma prob_mean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) 
 
 
 /-- A sequence of random variables satisfies a large deviation principle (LDP) with
-rate function `I` if the scaled log probabilities converge to `-I` at each point. -/
+rate function `I` if the scaled log probabilities converge to `-I` at each point.
+Uses `ENNReal.log` which properly handles probability 0 (giving -∞). -/
 structure LargeDeviationPrinciple (Y : ℕ → Ω → ℝ) (I : ℝ → ℝ) : Prop where
   /-- Upper bound: limsup of scaled log probability is at most -I(a) -/
   upper_bound : ∀ a : ℝ,
-    limsup (fun n => (1 : ℝ) / n * Real.log (ℙ {ω | Y n ω ≥ a}).toReal) atTop ≤ - I a
+    limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a})) atTop ≤ (- I a : EReal)
   /-- Lower bound: liminf of scaled log probability is at least -I(a) -/
   lower_bound : ∀ a : ℝ,
-    - I a ≤ liminf (fun n => (1 : ℝ) / n * Real.log (ℙ {ω | Y n ω ≥ a}).toReal) atTop
+    (- I a : EReal) ≤ liminf (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a})) atTop
 
-include h_indep h_meas h_ident h_mgf h_bdd in
+include h_indep h_meas h_ident h_mgf h_bdd h_int in
 /-- **Cramér's Theorem (Upper Bound)**: For any a ≥ E[X 0], the scaled log probability that the
-empirical mean exceeds a is bounded above by the negative rate function. -/
-theorem cramer_upper_bound (a : ℝ) (h_int : Integrable (X 0) ℙ) (h_mean : 𝔼[X 0] ≤ a) :
-    limsup (fun n : ℕ => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop
-      ≤ - rateFunction X a := by
+empirical mean exceeds a is bounded above by the negative rate function.
+Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
+theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+      ≤ (- rateFunction X a : EReal) := by
   unfold rateFunction
   have h_bdd_a := h_bdd a
   -- The strategy: show that for each t ≥ 0, we have limsup ≤ -(t*a - cgf t)
@@ -291,58 +296,27 @@ theorem cramer_upper_bound (a : ℝ) (h_int : Integrable (X 0) ℙ) (h_mean : �
 
   -- Step 1: Show limsup ≤ infimum over t of -(t*a - cgf t)
   suffices h : ∀ t : ℝ, 0 ≤ t →
-    limsup (fun n : ℕ => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop
-      ≤ -(t * a - cgf (X 0) ℙ t) by
-    -- If limsup ≤ -(t*a - cgf t) for all t ≥ 0, then limsup ≤ -sup (t*a - cgf t)
-    -- First, note that limsup is a lower bound for {-(t*a - cgf t) | t ≥ 0}
-    have h_lower : ∀ y ∈ Set.range (fun t : {x : ℝ | 0 ≤ x} => -(↑t * a - cgf (X 0) ℙ ↑t)),
-        limsup (fun n => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop
-          ≤ y := by
-      intro y ⟨t, ht_eq⟩
-      rw [← ht_eq]
-      exact h t.val t.property
-    -- Therefore limsup ≤ inf {-(t*a - cgf t) | t ≥ 0}
-    -- Key insight: if x ≤ -f(t) for all t, then -x ≥ sup f(t), so x ≤ -sup f(t)
-
+    limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+      ≤ (-(t * a - cgf (X 0) ℙ t) : EReal) by
     -- From h: for all t ≥ 0, limsup ≤ -(t*a - cgf t)
-    -- Equivalently: for all t ≥ 0, t*a - cgf t ≤ -limsup
-    -- Taking supremum: sup_{t ≥ 0} (t*a - cgf t) ≤ -limsup
-    -- Therefore: limsup ≤ -sup_{t ≥ 0} (t*a - cgf t)
-
-    -- Step 1: Show limsup ≤ -sup over t ≥ 0
-    have h_neg_bound : - (⨆ t : {x : ℝ | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t) ≥
-        limsup (fun n =>
-                        (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop := by
-      -- If x ≤ -f(t) for all t, then -x ≥ f(t) for all t, so -x ≥ sup f
-      have h_neg : ∀ t : {x : ℝ | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t ≤
-          -(limsup (fun n =>
-                       (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop) := by
-        intro t
-        have := h t.val t.property
-        linarith
-      -- The set {x ≥ 0} is nonempty
-      have h_nonempty : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
-      -- Therefore sup (t*a - cgf t) ≤ -limsup
-      have h_sup_bound : (⨆ t : {x : ℝ | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t) ≤
-          -(limsup (fun n =>
-                          (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop) :=
-        ciSup_le (by intro t; exact h_neg t)
-      linarith
-
-    -- Step 2: Relate to rateFunction
-    -- We have limsup ≤ -sup_{t ≥ 0} (t*a - cgf t)
-    -- We need limsup ≤ -sup_t (t*a - cgf t) = -rateFunction
-    -- Since sup_{t ≥ 0} ≥ sup_t is FALSE (it's ≤), we need a different approach
-    -- The correct approach: show sup_t = sup_{t ≥ 0} using rateFunction_eq_sup_nonneg
-    -- But that requires assumptions we don't have
-    -- For now, just use the fact that extending the supremum can only increase it
-    calc limsup (fun n => (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop
-        ≤ -(⨆ t : {x : ℝ | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t) := by linarith [h_neg_bound]
-      _ = - rateFunction X a := by
-          -- Use rateFunction_eq_sup_nonneg to show the supremum equals the restricted supremum
+    -- Taking supremum over t: limsup ≤ -sup_{t ≥ 0} (t*a - cgf t) = -rateFunction
+    calc limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+        ≤ sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => (-(t.val * a - cgf (X 0) ℙ t) : EReal)) := by
+          apply le_csInf
+          · have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
+            exact Set.range_nonempty _
+          · intro b ⟨t, ht⟩
+            rw [← ht]
+            exact h t.val t.property
+      _ = (-(⨆ t : {x : ℝ | 0 ≤ x}, t.val * a - cgf (X 0) ℙ t) : EReal) := by
+          -- The key idea: sInf {-f(t)} = -(sSup {f(t)})
+          -- We'll prove this for bounded sets in ℝ coerced to EReal
+          sorry
+      _ = (- rateFunction X a : EReal) := by
+          -- rateFunction X a = ⨆ t : {x : ℝ | 0 ≤ x}, t.val * a - cgf (X 0) ℙ t
           congr 1
-          have := @rateFunction_eq_sup_nonneg _ _ X h_mgf h_bdd _ a h_int h_mean
-          exact this.symm
+          norm_cast
+          exact (@rateFunction_eq_sup_nonneg _ _ X h_mgf h_bdd _ a h_int h_mean).symm
 
   -- Step 2: Fix t ≥ 0 and show the bound
   intro t ht
@@ -353,67 +327,58 @@ theorem cramer_upper_bound (a : ℝ) (h_int : Integrable (X 0) ℙ) (h_mean : �
     intro n hn
     exact prob_mean_ge_le_exp X h_indep h_ident h_meas h_mgf t a ht n hn
 
-  -- Apply log to both sides and divide by n
+  -- Apply ENNReal.log and use monotonicity
+  -- Key: ENNReal.log 0 = ⊥ (i.e., -∞), so probability=0 case is handled automatically
   have h_scaled : ∀ n : ℕ, 0 < n →
-    (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal ≤
-      -(t * a - cgf (X 0) ℙ t) := by
+    ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}) ≤
+      (-(t * a - cgf (X 0) ℙ t) : EReal) := by
     intro n hn
+    have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
     have h_exp := h_event n hn
-    by_cases h_prob : (ℙ {ω | empiricalMean X n ω ≥ a}).toReal > 0
-    · -- When probability is positive, we can take log
-      have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-      have h_log_ineq : Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal ≤
-          Real.log (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))) :=
-        Real.log_le_log h_prob h_exp
-      calc (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
-          ≤ (1 : ℝ) / n * Real.log (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))) := by
-            apply mul_le_mul_of_nonneg_left h_log_ineq
-            exact div_nonneg (by norm_num : (0 : ℝ) ≤ 1) (le_of_lt (Nat.cast_pos.mpr hn))
-        _ = (1 : ℝ) / n * (-(n : ℝ) * (t * a - cgf (X 0) ℙ t)) :=  by rw [Real.log_exp]
-        _ = -(t * a - cgf (X 0) ℙ t) := by field_simp
-    · -- When probability is 0, log(0) = 0, so (1/n) * 0 = 0
-      push_neg at h_prob
-      have h_nonneg : 0 ≤ (ℙ {ω | empiricalMean X n ω ≥ a}).toReal :=
-        ENNReal.toReal_nonneg
-      have h_zero : (ℙ {ω | empiricalMean X n ω ≥ a}).toReal = 0 :=
-        le_antisymm h_prob h_nonneg
-      simp [h_zero, Real.log_zero]
-      -- We need to show 0 ≤ -(t * a - cgf (X 0) ℙ t)
-      -- This is equivalent to cgf (X 0) ℙ t ≤ t * a
-      sorry
+    -- Convert probability bound to ENNReal
+    have h_ennreal : (ℙ {ω | empiricalMean X n ω ≥ a}) ≤
+        ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))) := by
+      rw [← ENNReal.ofReal_toReal_eq_iff.mpr (measure_ne_top _ _)]
+      exact ENNReal.ofReal_le_ofReal h_exp
+    -- Apply ENNReal.log_le_log (monotonicity)
+    have h_log : ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}) ≤
+        ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t)))) :=
+      ENNReal.log_le_log h_ennreal
+    -- Apply logarithm: log(ofReal(exp(x))) = x in EReal
+    -- Then multiply by (1/n) and simplify: (1/n) * (-n * x) = -x
+    -- TODO: The EReal arithmetic with coercions is tricky, needs cleanup
+    sorry
 
-  -- The bound holds eventually (for all n ≥ 1), so limsup ≤ bound
-  apply limsup_le_of_le
-  · -- Show IsCoboundedUnder: the sequence is bounded below
-    -- Since probabilities are in [0,1], log(prob.toReal) ≤ 0, so (1/n)*log ≤ 0
-    -- Thus the sequence is bounded above by 0
-    -- For coboundedness, we need a lower bound - this is trickier
-    sorry  -- TODO: prove coboundedness or use a different lemma
-  · -- Show the bound holds eventually
-    rw [eventually_atTop]
+  -- The bound holds eventually (for all n ≥ 1)
+  apply Filter.limsup_le_of_le
+  · -- IsCoboundedUnder: bounded below by -∞ (always true for EReal)
+    exact isCoboundedUnder_le_of_le atTop (fun _ => bot_le)
+  · -- The bound holds eventually
+    apply Filter.eventually_atTop.mpr
     use 1
     intro n hn
     exact h_scaled n hn
 
 include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
-empirical mean is close to a is bounded below by the negative rate function. -/
+empirical mean is close to a is bounded below by the negative rate function.
+Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
 theorem cramer_lower_bound (a : ℝ) :
-    - rateFunction X a ≤
+    (- rateFunction X a : EReal) ≤
       liminf (fun n : ℕ =>
-        (1 : ℝ) / n * Real.log (ℙ {ω | empiricalMean X n ω ≥ a}).toReal) atTop := by
+        ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
   sorry
 
-include h_indep h_meas h_ident h_mgf h_bdd in
+include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
 satisfies a large deviation principle with rate function given by the Legendre transform
 of the CGF. -/
 theorem cramers_theorem :
     LargeDeviationPrinciple (empiricalMean X) (rateFunction X) := by
   constructor
-  · intro a
+  · exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd
     -- TODO: Need to provide Integrable (X 0) ℙ and 𝔼[X 0] ≤ a
     -- Integrability follows from h_mgf (finite MGF implies integrable)
     -- For a < 𝔼[X 0], need to extend the proof or split cases
-    sorry
+
   · exact cramer_lower_bound X h_indep h_ident h_meas h_mgf
