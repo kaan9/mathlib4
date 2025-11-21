@@ -122,7 +122,50 @@ lemma integrable_exp_sum
       lhs
       intro ω
       rw [Real.exp_sum] -- now exp(∑ (t * X_i)) = ∏ exp(t * X_i)
-    sorry
+    -- Goal: Integrable (fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω)) ℙ
+    -- Strategy: Use induction and IndepFun.integrable_mul
+    induction n with
+    | zero =>
+      -- Empty product is 1, which is integrable
+      simp only [Finset.range_zero, Finset.prod_empty]
+      exact integrable_const 1
+    | succ n ih =>
+      -- Product over range (n+1) = (product over range n) * exp(t * X_n)
+      have h_eq : (fun ω => ∏ i ∈ Finset.range (n + 1), Real.exp (t * X i ω)) =
+          (fun ω => (∏ i ∈ Finset.range n, Real.exp (t * X i ω)) * Real.exp (t * X n ω)) := by
+        funext ω
+        rw [Finset.prod_range_succ]
+      rw [h_eq]
+      -- Show exp(t * X_n) is integrable
+      have h_integrable_n : Integrable (fun ω => Real.exp (t * X n ω)) ℙ := by
+        by_cases hn : n = 0
+        · rw [hn]; exact h_mgf t
+        · -- Use that X_n and X_0 are identically distributed
+          have h_ident_n := h_ident n
+          have h_comp : IdentDistrib (fun ω => Real.exp (t * X n ω))
+              (fun ω => Real.exp (t * X 0 ω)) ℙ ℙ :=
+            h_ident_n.comp (measurable_const.mul measurable_id).exp
+          exact h_comp.integrable_iff.2 (h_mgf t)
+      -- Establish independence for the composed functions
+      have h_indep_exp : iIndepFun (fun i ω => Real.exp (t * X i ω)) ℙ := by
+        have := h_indep.comp (fun _ x => Real.exp (t * x))
+          (fun _ => (measurable_const.mul measurable_id).exp)
+        simp only [Function.comp_def] at this
+        exact this
+      -- Show the product over range n is independent of exp(t * X_n)
+      have h_indep_prod : IndepFun (fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω))
+          (fun ω => Real.exp (t * X n ω)) ℙ := by
+        convert h_indep_exp.indepFun_finset_prod_of_notMem
+          (fun i => (h_meas i).const_mul t |>.exp)
+          (by simp : n ∉ Finset.range n) using 2
+        simp [Finset.prod_apply]
+      -- Need the equality for the inductive hypothesis
+      have h_eq_n : (fun ω => Real.exp (t * (∑ i ∈ Finset.range n, X i) ω)) =
+          fun ω => Real.exp (∑ i ∈ Finset.range n, t * X i ω) := by
+        funext ω
+        simp [Finset.mul_sum]
+      -- Use IndepFun.integrable_mul
+      exact h_indep_prod.integrable_mul (ih h_eq_n) h_integrable_n
 
 include h_bdd h_mgf in
 /--
