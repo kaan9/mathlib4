@@ -282,6 +282,38 @@ structure LargeDeviationPrinciple (Y : ℕ → Ω → ℝ) (I : ℝ → ℝ) : P
   lower_bound : ∀ a : ℝ,
     (- I a : EReal) ≤ liminf (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a})) atTop
 
+/-! ### Helper lemmas for the upper bound proof -/
+
+/-- For bounded sets in ℝ, the infimum of negations equals the negation of the supremum.
+This is a key property used in the Cramér upper bound proof. -/
+private lemma csInf_neg_eq_neg_csSup {ι : Type*} (f : ι → ℝ) (hne : (Set.range f).Nonempty)
+    (hbdd_above : BddAbove (Set.range f)) :
+    sInf (Set.range fun i => -f i) = -sSup (Set.range f) := by
+  have h_bdd_below : BddBelow (Set.range fun i => -f i) := by
+    obtain ⟨B, hB⟩ := hbdd_above
+    use -B
+    intro y ⟨i, hi⟩
+    rw [← hi]
+    exact neg_le_neg (hB ⟨i, rfl⟩)
+  have h_nonempty_neg : (Set.range fun i => -f i).Nonempty := by
+    obtain ⟨x, ⟨i, hi⟩⟩ := hne
+    use -x
+    use i
+    rw [← hi]
+  apply le_antisymm
+  · -- sInf {-f(i)} ≤ -sSup {f(i)}
+    suffices sSup (Set.range f) ≤ -sInf (Set.range fun i => -f i) by linarith
+    apply csSup_le hne
+    intro b ⟨i, hi⟩
+    rw [← hi]
+    have : sInf (Set.range fun j => -f j) ≤ -f i := csInf_le h_bdd_below ⟨i, rfl⟩
+    linarith
+  · -- -sSup {f(i)} ≤ sInf {-f(i)}
+    apply le_csInf h_nonempty_neg
+    intro b ⟨i, hi⟩
+    rw [← hi]
+    exact neg_le_neg (le_csSup hbdd_above ⟨i, rfl⟩)
+
 include h_indep h_meas h_ident h_mgf h_bdd h_int in
 /-- **Cramér's Theorem (Upper Bound)**: For any a ≥ E[X 0], the scaled log probability that the
 empirical mean exceeds a is bounded above by the negative rate function.
@@ -310,7 +342,22 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
             exact h t.val t.property
       _ = (-(⨆ t : {x : ℝ | 0 ≤ x}, t.val * a - cgf (X 0) ℙ t) : EReal) := by
           -- The key idea: sInf {-f(t)} = -(sSup {f(t)})
-          -- We'll prove this for bounded sets in ℝ coerced to EReal
+          -- Prove this for bounded sets in ℝ coerced to EReal
+          have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t) := by
+            obtain ⟨b, hb⟩ := h_bdd_a
+            use b
+            intro y ⟨t, ht⟩
+            rw [← ht]
+            exact hb ⟨t.val, rfl⟩
+          -- The supremum exists, so we can work with it
+          rw [show sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => (-(t.val * a - cgf (X 0) ℙ t) : EReal)) =
+                   (sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => -(t.val * a - cgf (X 0) ℙ t)) : EReal) by
+                rfl]
+          -- Use that sInf of negations equals negative of sSup
+          -- This follows from csInf_neg_eq_neg_csSup, but lifting the equality to EReal
+          -- encounters subtle coercion issues: the goal has ↑↑t (double coercion from subtype to ℝ to EReal)
+          -- while the lemma gives ↑t (single coercion). A proper fix would use a more general
+          -- lemma about how coercion commutes with sInf/sSup, or work entirely in EReal.
           sorry
       _ = (- rateFunction X a : EReal) := by
           -- rateFunction X a = ⨆ t : {x : ℝ | 0 ≤ x}, t.val * a - cgf (X 0) ℙ t
