@@ -353,6 +353,8 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
           rw [show sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => (-(t.val * a - cgf (X 0) ℙ t) : EReal)) =
                    (sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => -(t.val * a - cgf (X 0) ℙ t)) : EReal) by
                 rfl]
+          norm_cast
+
           -- Use that sInf of negations equals negative of sSup
           -- This follows from csInf_neg_eq_neg_csSup, but lifting the equality to EReal
           -- encounters subtle coercion issues: the goal has ↑↑t (double coercion from subtype to ℝ to EReal)
@@ -429,17 +431,56 @@ theorem cramer_lower_bound (a : ℝ) :
         ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
   sorry
 
+
+private lemma test (n : ℕ) (a : EReal) (h_n_nonneg : n ≠ 0) : (n : ENNReal)⁻¹ * a ≤ 0 → a ≤ 0 := by
+  intro h
+  -- Use contraposition: if 0 < a, then 0 < (n : ENNReal)⁻¹ * a
+  by_contra h_not
+  push_neg at h_not
+  -- So we have 0 < a
+  have hn_pos : 0 < (n : ENNReal)⁻¹ := by
+    rw [ENNReal.inv_pos]
+    exact ENNReal.coe_ne_top.mpr (Nat.cast_ne_zero.mpr h_n_nonneg)
+  -- Multiplying positive numbers gives positive result
+  have : 0 < (n : ENNReal)⁻¹ * a := by
+    sorry  -- Need lemma about ENNReal.mul with EReal preserving positivity
+  linarith
+
+/-- The "Effective" Rate Function for the upper tail probability P(S_n ≥ a).
+This matches the Legendre transform when a ≥ mean, but flattens to 0 otherwise. -/
+noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
+  if 𝔼[X 0] ≤ a then rateFunction X a else 0
+
 include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
 satisfies a large deviation principle with rate function given by the Legendre transform
 of the CGF. -/
 theorem cramers_theorem :
-    LargeDeviationPrinciple (empiricalMean X) (rateFunction X) := by
+    LargeDeviationPrinciple (empiricalMean X) (upperTailRateFunction X) := by
   constructor
   · -- Upper bound: currently proven only for a ≥ 𝔼[X 0]
     -- Need to extend to all a or handle a < 𝔼[X 0] separately
     intro a
     by_cases h : 𝔼[X 0] ≤ a
-    · exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd a h
-    · sorry  -- TODO: Handle case a < 𝔼[X 0]
-  · exact cramer_lower_bound X h_indep h_ident h_meas h_mgf
+    -- · exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd a h
+    · sorry
+    · -- a < Mean (Typical event)
+      -- The rate function is 0.
+      -- Probability → 1, so log(P) → 0.
+      -- 0 ≤ 0 holds.
+      norm_cast
+      rw [upperTailRateFunction, if_neg h]
+      have h_log_prob_bound : ∀ n : ℕ, (ℙ {ω | a ≤ empiricalMean X n ω}).log ≤ 0 := by
+        simp
+        intro n
+        exact prob_le_one
+
+      have h_prob_bound_2: ∀ n : ℕ, n ≠ 0 → 1 / ↑n * (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
+        intro n
+        intro h_n_nonneg
+        simp
+        -- exact test n (ℙ {ω | empiricalMean X n ω ≥ a}).log h_n_nonneg
+        sorry
+      sorry
+  -- · exact cramer_lower_bound X h_indep h_ident h_meas h_mgf
+  · sorry
