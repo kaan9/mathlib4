@@ -44,12 +44,28 @@ variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) �
 /-- The partial sum X_0 + ... + X_{n-1}. -/
 noncomputable def S (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
 
-/-- The empirical mean S_n / n. -/
+/-- The empirical mean Sₙ / n. -/
 noncomputable def empiricalMean (n : ℕ) : Ω → ℝ := fun ω => S X n ω / n
 
 /-- The Legendre transform of the CGF. This is the rate function for Cramér's theorem. -/
 noncomputable def rateFunction (x : ℝ) : ℝ :=
   ⨆ t : ℝ, t * x - cgf (X 0) ℙ t
+
+/-- The "Effective" Rate Function for the upper tail probability ℙ(Sₙ ≥ a).
+Cramér's theorem only holds when a ≥ 𝔼[X 0], so to state a general Large Deviato
+This matches the Legendre transform when a ≥ 𝔼[X 0], but flattens to 0 otherwise. -/
+noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
+  if 𝔼[X 0] ≤ a then rateFunction X a else 0
+
+/-- The upper tail rate function equals the standard rate function when a is above the mean. -/
+lemma upperTailRateFunction_eq_rateFunction {X : ℕ → Ω → ℝ} (a : ℝ) (h : 𝔼[X 0] ≤ a) :
+    upperTailRateFunction X a = rateFunction X a := by
+  rw [upperTailRateFunction, if_pos h]
+
+/-- The upper tail rate function is zero when a is below the mean. -/
+lemma upperTailRateFunction_eq_zero {X : ℕ → Ω → ℝ} (a : ℝ) (h : a < 𝔼[X 0]) :
+    upperTailRateFunction X a = 0 := by
+  rw [upperTailRateFunction, if_neg (not_le.mpr h)]
 
 /- Helper lemmas -/
 
@@ -356,11 +372,21 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
           norm_cast
 
           -- Use that sInf of negations equals negative of sSup
-          -- This follows from csInf_neg_eq_neg_csSup, but lifting the equality to EReal
-          -- encounters subtle coercion issues: the goal has ↑↑t (double coercion from subtype to ℝ to EReal)
-          -- while the lemma gives ↑t (single coercion). A proper fix would use a more general
-          -- lemma about how coercion commutes with sInf/sSup, or work entirely in EReal.
-          sorry
+          -- Apply csInf_neg_eq_neg_csSup with f(t) = t.val * a - cgf (X 0) ℙ t
+          have h_nonempty : (Set.range fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t).Nonempty := by
+            use 0 * a - cgf (X 0) ℙ 0
+            use ⟨0, by simp⟩
+          have h_eq_real : sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => -(t.val * a - cgf (X 0) ℙ t)) =
+                            -sSup (Set.range fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t) := by
+            exact csInf_neg_eq_neg_csSup (fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t) h_nonempty h_bdd_restrict
+          -- The key remaining step: show that coercion from ℝ to EReal commutes with sInf/sSup
+          -- for bounded sets. This requires showing:
+          --   (sInf S : EReal) = sInf ((↑) '' S)
+          -- This is true because coercion is a monotone embedding, but proving it requires
+          -- either finding the right mathlib lemma or proving it from scratch using properties
+          -- of order-preserving maps and complete lattices.
+          rw [iSup] at *
+          sorry  -- Need: coercion ℝ → EReal commutes with sInf for bounded sets
       _ = (- rateFunction X a : EReal) := by
           -- rateFunction X a = ⨆ t : {x : ℝ | 0 ≤ x}, t.val * a - cgf (X 0) ℙ t
           congr 1
@@ -425,7 +451,7 @@ include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
 empirical mean is close to a is bounded below by the negative rate function.
 Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
-theorem cramer_lower_bound (a : ℝ) :
+theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     (- rateFunction X a : EReal) ≤
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
@@ -455,21 +481,6 @@ private lemma test (n : ℕ) (a : EReal) (h_n_nonneg : n ≠ 0) : (n : ENNReal)�
 
   -- Step 4: Contradiction with h
   exact absurd h (not_le.mpr this)
-
-/-- The "Effective" Rate Function for the upper tail probability P(S_n ≥ a).
-This matches the Legendre transform when a ≥ mean, but flattens to 0 otherwise. -/
-noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
-  if 𝔼[X 0] ≤ a then rateFunction X a else 0
-
-/-- The upper tail rate function equals the standard rate function when a is above the mean. -/
-lemma upperTailRateFunction_eq_rateFunction {X : ℕ → Ω → ℝ} (a : ℝ) (h : 𝔼[X 0] ≤ a) :
-    upperTailRateFunction X a = rateFunction X a := by
-  rw [upperTailRateFunction, if_pos h]
-
-/-- The upper tail rate function is zero when a is below the mean. -/
-lemma upperTailRateFunction_eq_zero {X : ℕ → Ω → ℝ} (a : ℝ) (h : a < 𝔼[X 0]) :
-    upperTailRateFunction X a = 0 := by
-  rw [upperTailRateFunction, if_neg (not_le.mpr h)]
 
 include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
@@ -523,5 +534,8 @@ theorem cramers_theorem :
         use 1
         intro n hn
         exact h_prob_bound_2 n (Nat.one_le_iff_ne_zero.mp hn)
-  -- · exact cramer_lower_bound X h_indep h_ident h_meas h_mgf
-  · sorry
+  · intro a
+    by_cases h : 𝔼[X 0] ≤ a
+    · rw [upperTailRateFunction_eq_rateFunction a h]
+      exact cramer_lower_bound X h_indep h_ident h_meas h_mgf a h
+    · sorry
