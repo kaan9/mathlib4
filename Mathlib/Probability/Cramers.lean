@@ -437,19 +437,39 @@ private lemma test (n : ℕ) (a : EReal) (h_n_nonneg : n ≠ 0) : (n : ENNReal)�
   -- Use contraposition: if 0 < a, then 0 < (n : ENNReal)⁻¹ * a
   by_contra h_not
   push_neg at h_not
-  -- So we have 0 < a
-  have hn_pos : 0 < (n : ENNReal)⁻¹ := by
+  -- h_not : 0 < a
+  -- h : ↑((n : ENNReal)⁻¹) * a ≤ 0 in EReal
+
+  -- Step 1: Show 0 < (n : ENNReal)⁻¹ in ENNReal
+  have hn_ennreal_inv_pos : 0 < (n : ENNReal)⁻¹ := by
     rw [ENNReal.inv_pos]
-    exact ENNReal.coe_ne_top.mpr (Nat.cast_ne_zero.mpr h_n_nonneg)
-  -- Multiplying positive numbers gives positive result
-  have : 0 < (n : ENNReal)⁻¹ * a := by
-    sorry  -- Need lemma about ENNReal.mul with EReal preserving positivity
-  linarith
+    exact ENNReal.natCast_ne_top n
+
+  -- Step 2: Coerce to EReal: 0 < ↑((n : ENNReal)⁻¹)
+  have hn_ereal_inv_pos : (0 : EReal) < ↑((n : ENNReal)⁻¹) := by
+    exact EReal.coe_ennreal_pos.mpr hn_ennreal_inv_pos
+
+  -- Step 3: Multiply positive numbers
+  have : (0 : EReal) < ↑((n : ENNReal)⁻¹) * a := by
+    exact EReal.mul_pos hn_ereal_inv_pos h_not
+
+  -- Step 4: Contradiction with h
+  exact absurd h (not_le.mpr this)
 
 /-- The "Effective" Rate Function for the upper tail probability P(S_n ≥ a).
 This matches the Legendre transform when a ≥ mean, but flattens to 0 otherwise. -/
 noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
   if 𝔼[X 0] ≤ a then rateFunction X a else 0
+
+/-- The upper tail rate function equals the standard rate function when a is above the mean. -/
+lemma upperTailRateFunction_eq_rateFunction {X : ℕ → Ω → ℝ} (a : ℝ) (h : 𝔼[X 0] ≤ a) :
+    upperTailRateFunction X a = rateFunction X a := by
+  rw [upperTailRateFunction, if_pos h]
+
+/-- The upper tail rate function is zero when a is below the mean. -/
+lemma upperTailRateFunction_eq_zero {X : ℕ → Ω → ℝ} (a : ℝ) (h : a < 𝔼[X 0]) :
+    upperTailRateFunction X a = 0 := by
+  rw [upperTailRateFunction, if_neg (not_le.mpr h)]
 
 include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
@@ -462,25 +482,46 @@ theorem cramers_theorem :
     -- Need to extend to all a or handle a < 𝔼[X 0] separately
     intro a
     by_cases h : 𝔼[X 0] ≤ a
-    -- · exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd a h
-    · sorry
+    · rw [upperTailRateFunction_eq_rateFunction a h]
+      exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd a h
     · -- a < Mean (Typical event)
       -- The rate function is 0.
       -- Probability → 1, so log(P) → 0.
       -- 0 ≤ 0 holds.
       norm_cast
-      rw [upperTailRateFunction, if_neg h]
+      rw [upperTailRateFunction_eq_zero a (not_le.mp h)]
       have h_log_prob_bound : ∀ n : ℕ, (ℙ {ω | a ≤ empiricalMean X n ω}).log ≤ 0 := by
         simp
         intro n
         exact prob_le_one
 
       have h_prob_bound_2: ∀ n : ℕ, n ≠ 0 → 1 / ↑n * (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
-        intro n
-        intro h_n_nonneg
-        simp
-        -- exact test n (ℙ {ω | empiricalMean X n ω ≥ a}).log h_n_nonneg
-        sorry
-      sorry
+        intro n h_n_nonneg
+        -- Since ℙ(...) ≤ 1, we have log(ℙ(...)) ≤ 0
+        have h_log_nonpos : (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
+          rw [ENNReal.log_le_zero_iff]
+          exact prob_le_one
+        -- Since 1/n ≥ 0 and log(...) ≤ 0, the product is ≤ 0
+        rw [EReal.mul_nonpos_iff]
+        left
+        constructor
+        · -- Show 0 ≤ 1 / ↑n
+          rw [div_eq_mul_inv, one_mul]
+          apply EReal.inv_nonneg_of_nonneg
+          -- Show 0 ≤ (↑n : EReal)
+          have : 0 < (n : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero h_n_nonneg)
+          exact EReal.coe_nonneg.mpr (le_of_lt this)
+        · exact h_log_nonpos
+
+      -- Show limsup ≤ 0 from the bound
+      simp only [neg_zero]  -- Simplify -0 to 0
+      apply Filter.limsup_le_of_le
+      · -- IsCoboundedUnder: bounded below
+        exact isCoboundedUnder_le_of_le atTop (fun _ => bot_le)
+      · -- Eventually the bound holds
+        apply Filter.eventually_atTop.mpr
+        use 1
+        intro n hn
+        exact h_prob_bound_2 n (Nat.one_le_iff_ne_zero.mp hn)
   -- · exact cramer_lower_bound X h_indep h_ident h_meas h_mgf
   · sorry
