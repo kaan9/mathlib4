@@ -9,6 +9,7 @@ import Mathlib.Probability.StrongLaw
 import Mathlib.Analysis.Convex.Integral
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
+import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
 import Mathlib.Analysis.SpecificLimits.Basic
 
 /-!
@@ -592,7 +593,10 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
 private lemma ennreal_log_tendsto_zero_of_tendsto_one {f : ℕ → ℝ≥0∞}
     (h : Tendsto f atTop (𝓝 1)) :
     Tendsto (fun n => (f n).log) atTop (𝓝 0) := by
-  sorry
+  -- `ENNReal.log` is continuous, so compose its tendsto at `1` with `h`
+  have h' := (ENNReal.continuous_log.tendsto (1 : ℝ≥0∞)).comp h
+  convert h'
+  simp [ENNReal.log_one]
 
 /-- The sequence 1/n tends to 0 in EReal. -/
 private lemma ereal_inv_nat_tendsto_zero :
