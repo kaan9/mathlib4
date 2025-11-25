@@ -5,6 +5,7 @@ Authors: Kaan
 import Mathlib.Probability.IdentDistrib
 import Mathlib.Probability.Independence.Basic
 import Mathlib.Probability.Moments.Basic
+import Mathlib.Probability.StrongLaw
 import Mathlib.Analysis.Convex.Integral
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
@@ -57,6 +58,8 @@ This matches the Legendre transform when a ≥ 𝔼[X 0], but flattens to 0 othe
 noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
   if 𝔼[X 0] ≤ a then rateFunction X a else 0
 
+/- Helper lemmas -/
+
 /-- The upper tail rate function equals the standard rate function when a is above the mean. -/
 lemma upperTailRateFunction_eq_rateFunction {X : ℕ → Ω → ℝ} (a : ℝ) (h : 𝔼[X 0] ≤ a) :
     upperTailRateFunction X a = rateFunction X a := by
@@ -66,8 +69,6 @@ lemma upperTailRateFunction_eq_rateFunction {X : ℕ → Ω → ℝ} (a : ℝ) (
 lemma upperTailRateFunction_eq_zero {X : ℕ → Ω → ℝ} (a : ℝ) (h : a < 𝔼[X 0]) :
     upperTailRateFunction X a = 0 := by
   rw [upperTailRateFunction, if_neg (not_le.mpr h)]
-
-/- Helper lemmas -/
 
 include h_ident h_mgf in lemma integrable_exp_of_identDistrib (i : ℕ) (t : ℝ) :
     Integrable (fun ω => Real.exp (t * X i ω)) ℙ := by
@@ -482,6 +483,79 @@ private lemma test (n : ℕ) (a : EReal) (h_n_nonneg : n ≠ 0) : (n : ENNReal)�
   -- Step 4: Contradiction with h
   exact absurd h (not_le.mpr this)
 
+-- Helper lemma: iIndepFun implies pairwise IndepFun
+private lemma iIndepFun_pairwise (X : ℕ → Ω → ℝ) (h : iIndepFun X ℙ) (h_meas : ∀ n, Measurable (X n)) :
+    Pairwise (fun i j => IndepFun (X i) (X j) ℙ) := by
+  intro i j hij
+  -- Use that iIndepFun gives independence for disjoint finsets
+  -- For i ≠ j, {i} and {j} are disjoint singletons
+  have h_disj : Disjoint ({i} : Finset ℕ) {j} := by
+    rw [Finset.disjoint_singleton]
+    exact hij
+  -- Use that iIndepFun gives independence for disjoint finsets
+  -- For singleton finsets {i} and {j}, this gives IndepFun for X i and X j
+  -- The key is that (fun a k ↦ X k a) on a singleton {i} is essentially just X i
+  sorry  -- This requires showing that IndepFun on singleton finsets implies pairwise IndepFun
+
+include h_indep h_ident h_int h_meas in
+private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
+  Tendsto (fun n : ℕ => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
+  -- By the strong law of large numbers, empirical mean → 𝔼[X 0] almost surely
+  -- Since a < 𝔼[X 0], eventually (almost surely) empirical mean > a
+  -- Therefore ℙ{empirical mean ≥ a} → 1
+
+  -- First, convert iIndepFun to Pairwise independent
+  have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) ℙ) :=
+    iIndepFun_pairwise X h_indep h_meas
+
+  -- Apply the strong law of large numbers for real-valued random variables
+  have h_strong_law : ∀ᵐ ω ∂ℙ, Tendsto (fun n : ℕ => (∑ i ∈ Finset.range n, X i ω) / n) atTop (𝓝 𝔼[X 0]) :=
+    strong_law_ae_real X h_int h_pairwise h_ident
+
+  -- The empirical mean converges to 𝔼[X 0] almost surely
+  -- We need to show that ℙ{empirical mean ≥ a} → 1
+
+  -- Key insight: Since a < 𝔼[X 0], there exists ε > 0 such that a + ε < 𝔼[X 0]
+  have h_gap : 0 < 𝔼[X 0] - a := sub_pos.mpr h
+
+  -- Choose ε = (𝔼[X 0] - a) / 2
+  set ε := (𝔼[X 0] - a) / 2 with hε_def
+  have hε_pos : 0 < ε := by linarith
+  have hε_bound : a + ε < 𝔼[X 0] := by linarith
+
+  -- By strong law, for almost every ω, eventually |empiricalMean n ω - 𝔼[X 0]| < ε
+  -- This means empiricalMean n ω > 𝔼[X 0] - ε = a + ε > a
+
+  -- The set where empirical mean converges to 𝔼[X 0]
+  have h_conv_set : ∀ᵐ ω ∂ℙ, ∀ᶠ n in atTop, |empiricalMean X n ω - 𝔼[X 0]| < ε := by
+    filter_upwards [h_strong_law] with ω hω
+    rw [Metric.tendsto_atTop] at hω
+    obtain ⟨N, hN⟩ := hω ε hε_pos
+    rw [Filter.eventually_atTop]
+    use N
+    intro n hn
+    specialize hN n hn
+    rw [Real.dist_eq] at hN
+    convert hN using 2
+    rw [empiricalMean, S]
+    simp only [Finset.sum_apply, div_eq_mul_inv, mul_comm]
+
+  -- For such ω and large n, empiricalMean n ω > a
+  have h_eventually_large : ∀ᵐ ω ∂ℙ, ∀ᶠ n in atTop, a ≤ empiricalMean X n ω := by
+    filter_upwards [h_conv_set] with ω hω
+    filter_upwards [hω] with n hn
+    have : 𝔼[X 0] - ε < empiricalMean X n ω := by
+      rw [abs_sub_lt_iff] at hn
+      linarith
+    linarith
+
+  -- Convert almost sure eventual convergence to probability convergence
+  -- For almost every ω, eventually a ≤ empiricalMean X n ω
+  -- This means: for any ε > 0, ∃N, ∀n≥N, ℙ{a ≤ empiricalMean X n} > 1 - ε
+  -- Therefore ℙ{a ≤ empiricalMean X n} → 1
+
+  sorry  -- This final step requires showing that a.e. eventual convergence implies probability → 1
+
 include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
 satisfies a large deviation principle with rate function given by the Legendre transform
@@ -538,4 +612,40 @@ theorem cramers_theorem :
     by_cases h : 𝔼[X 0] ≤ a
     · rw [upperTailRateFunction_eq_rateFunction a h]
       exact cramer_lower_bound X h_indep h_ident h_meas h_mgf a h
-    · sorry
+    · -- a < Mean (Typical event)
+      -- The rate function is 0.
+      -- For typical events, probability → 1, so log(P) → 0.
+      -- Thus 1/n * log(P) → 0, and liminf ≥ 0.
+      rw [upperTailRateFunction_eq_zero a (not_le.mp h)]
+      norm_cast
+      rw [neg_zero]
+
+      -- By the strong law of large numbers, empirical mean converges to 𝔼[X 0] almost surely
+      -- Since a < 𝔼[X 0], the probability ℙ{empirical mean ≥ a} → 1
+      -- Therefore log(ℙ{...}) → 0, and 1/n * log(ℙ{...}) → 0
+      -- Thus liminf ≥ 0
+
+      -- Use the helper lemma: ℙ{empirical mean ≥ a} → 1
+      have h_a_lt_mean : a < 𝔼[X 0] := not_le.mp h
+      have h_prob_to_one : Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
+        -- Apply the helper lemma with all implicit arguments
+        -- The helper lemma needs: Ω, MeasureSpace, X, h_indep, h_ident, h_int, IsProbabilityMeasure, a, h
+        sorry -- Defer this to focus on the rest of the proof structure first
+
+      -- We'll show that the sequence 1/n * log(ℙ{...}) → 0
+      -- Then by Tendsto.liminf_eq, we get liminf = 0, so 0 ≤ liminf
+
+      have h_seq_to_zero : Tendsto (fun (n : ℕ) => 1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop (𝓝 (0 : EReal)) := by
+        -- The key steps:
+        -- 1. log(ℙ) → log(1) = 0 (requires continuity of log at 1, or similar)
+        -- 2. 1/n → 0
+        -- 3. (bounded sequence) * (sequence → 0) → 0
+        sorry
+
+      -- Now use that convergence implies liminf equals the limit
+      have h_lim_eq : liminf (fun (n : ℕ) => 1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = (0 : EReal) :=
+        Filter.Tendsto.liminf_eq h_seq_to_zero
+
+      -- The two liminf expressions are definitionally equal (both ↑n : EReal coerce from ℕ)
+      -- So we just need to show 0 ≤ 0, which holds by rfl after simplifying coercions
+      sorry -- This should follow from: ↑↑0 = 0 = liminf(...) after showing the functions are equal
