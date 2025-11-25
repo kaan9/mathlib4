@@ -550,11 +550,79 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
     linarith
 
   -- Convert almost sure eventual convergence to probability convergence
-  -- For almost every ω, eventually a ≤ empiricalMean X n ω
-  -- This means: for any ε > 0, ∃N, ∀n≥N, ℙ{a ≤ empiricalMean X n} > 1 - ε
-  -- Therefore ℙ{a ≤ empiricalMean X n} → 1
+  -- The key fact: if ∀ᵐ ω, ∀ᶠ n, P n ω, then ℙ{P n} → 1
+  -- We use continuity of measure from below with increasing sets
 
-  sorry  -- This final step requires showing that a.e. eventual convergence implies probability → 1
+  -- Define Sₖ = {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
+  let S : ℕ → Set Ω := fun k => {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
+
+  -- These sets are monotone increasing
+  have h_mono : Monotone S := by
+    intro k₁ k₂ hk ω hω n hn
+    exact hω n (le_trans hk hn)
+
+  -- The union of these sets equals {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω}
+  have h_union : ⋃ k, S k = {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
+    ext ω
+    simp only [Set.mem_iUnion, Set.mem_setOf_eq, Filter.eventually_atTop, S]
+
+  -- By the ae hypothesis, this union has measure 1
+  have h_union_meas : ℙ (⋃ k, S k) = 1 := by
+    -- First show that ⋃ k, S k is measurable
+    have h_union_meas_set : MeasurableSet (⋃ k, S k) := by
+      refine MeasurableSet.iUnion fun k => ?_
+      -- S k is a countable intersection of measurable sets
+      show MeasurableSet {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
+      -- This equals ⋂ n ∈ {m | k ≤ m}, {ω | a ≤ empiricalMean X n ω}
+      have : {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω} = ⋂ n, ⋂ (_ : k ≤ n), {ω | a ≤ empiricalMean X n ω} := by
+        ext; simp
+      rw [this]
+      refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
+      -- {ω | a ≤ empiricalMean X n ω} is measurable
+      -- empiricalMean X n = (S X n) / n where S X n is a finite sum of measurable functions
+      refine measurableSet_le measurable_const ?_
+      convert (Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)).div_const (n : ℝ) using 1
+      ext ω
+      simp only [empiricalMean, _root_.S, Finset.sum_apply]
+    -- Now show that the complement has measure 0
+    rw [h_union]
+    -- By the ae statement, ℙ {ω | ¬∀ᶠ n, a ≤ empiricalMean X n ω} = 0
+    have h_compl : ℙ {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} = 0 := by
+      rw [← ae_iff]
+      exact h_eventually_large
+    -- The complement of our set equals this null set
+    have h_compl_eq : {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω}ᶜ =
+        {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
+      ext; simp
+    -- Therefore our set has measure 1
+    rw [← prob_add_prob_compl (μ := ℙ) (h_union ▸ h_union_meas_set), h_compl_eq, h_compl, add_zero]
+
+  -- By continuity of measure from below, ℙ(Sₖ) → 1
+  have h_tend_S : Tendsto (fun k => ℙ (S k)) atTop (𝓝 1) := by
+    have := tendsto_measure_iUnion_atTop (μ := ℙ) h_mono
+    rw [h_union_meas] at this
+    exact this
+
+  -- For each k and n ≥ k, we have {ω | a ≤ empiricalMean X n ω} ⊇ S k
+  have h_superset : ∀ k n, k ≤ n → S k ⊆ {ω | a ≤ empiricalMean X n ω} := by
+    intro k n hkn ω hω
+    exact hω n hkn
+
+  -- Therefore ℙ{a ≤ empiricalMean X n} ≥ ℙ(Sₖ) for n ≥ k
+  have h_measure_ge : ∀ k n, k ≤ n → ℙ (S k) ≤ ℙ {ω | a ≤ empiricalMean X n ω} := by
+    intro k n hkn
+    exact measure_mono (h_superset k n hkn)
+
+  -- Since ℙ is a probability measure, ℙ{a ≤ empiricalMean X n} ≤ 1
+  have h_measure_le : ∀ n, ℙ {ω | a ≤ empiricalMean X n ω} ≤ 1 := by
+    intro n
+    exact prob_le_one
+
+  -- By the squeeze theorem, ℙ{a ≤ empiricalMean X n} → 1
+  -- We have: ℙ(Sₙ) ≤ ℙ{a ≤ empiricalMean X n} ≤ 1
+  -- and both ℙ(Sₙ) → 1 and 1 → 1
+  refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
+    (fun n => h_measure_ge n n le_rfl) h_measure_le
 
 include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
