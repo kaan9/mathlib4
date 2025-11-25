@@ -9,6 +9,7 @@ import Mathlib.Probability.StrongLaw
 import Mathlib.Analysis.Convex.Integral
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
+import Mathlib.Analysis.SpecificLimits.Basic
 
 /-!
 # Cramér's Theorem
@@ -483,20 +484,6 @@ private lemma test (n : ℕ) (a : EReal) (h_n_nonneg : n ≠ 0) : (n : ENNReal)�
   -- Step 4: Contradiction with h
   exact absurd h (not_le.mpr this)
 
--- Helper lemma: iIndepFun implies pairwise IndepFun
-private lemma iIndepFun_pairwise (X : ℕ → Ω → ℝ) (h : iIndepFun X ℙ) (h_meas : ∀ n, Measurable (X n)) :
-    Pairwise (fun i j => IndepFun (X i) (X j) ℙ) := by
-  intro i j hij
-  -- Use that iIndepFun gives independence for disjoint finsets
-  -- For i ≠ j, {i} and {j} are disjoint singletons
-  have h_disj : Disjoint ({i} : Finset ℕ) {j} := by
-    rw [Finset.disjoint_singleton]
-    exact hij
-  -- Use that iIndepFun gives independence for disjoint finsets
-  -- For singleton finsets {i} and {j}, this gives IndepFun for X i and X j
-  -- The key is that (fun a k ↦ X k a) on a singleton {i} is essentially just X i
-  sorry  -- This requires showing that IndepFun on singleton finsets implies pairwise IndepFun
-
 include h_indep h_ident h_int h_meas in
 private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
   Tendsto (fun n : ℕ => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
@@ -506,7 +493,7 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
 
   -- First, convert iIndepFun to Pairwise independent
   have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) ℙ) :=
-    iIndepFun_pairwise X h_indep h_meas
+    fun i j hij => h_indep.indepFun hij
 
   -- Apply the strong law of large numbers for real-valued random variables
   have h_strong_law : ∀ᵐ ω ∂ℙ, Tendsto (fun n : ℕ => (∑ i ∈ Finset.range n, X i ω) / n) atTop (𝓝 𝔼[X 0]) :=
@@ -624,6 +611,26 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
     (fun n => h_measure_ge n n le_rfl) h_measure_le
 
+-- Helper lemmas for the lower bound proof
+
+/-- If a sequence of ENNReal values tends to 1, then their logs tend to 0. -/
+private lemma ennreal_log_tendsto_zero_of_tendsto_one {f : ℕ → ℝ≥0∞}
+    (h : Tendsto f atTop (𝓝 1)) :
+    Tendsto (fun n => (f n).log) atTop (𝓝 0) := by
+  sorry
+
+/-- The sequence 1/n tends to 0 in EReal. -/
+private lemma ereal_inv_nat_tendsto_zero :
+    Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
+  -- prove using tendsto_one_div_add_atTop_nhds_zero_nat
+  sorry
+
+/-- Product of a sequence tending to 0 with a bounded sequence tends to 0 in EReal. -/
+private lemma ereal_mul_tendsto_zero_of_tendsto_zero_of_bounded
+    {f g : ℕ → EReal} (hf : Tendsto f atTop (𝓝 0)) (hg : Tendsto g atTop (𝓝 0)) :
+    Tendsto (fun n => f n * g n) atTop (𝓝 0) := by
+  sorry
+
 include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
 satisfies a large deviation principle with rate function given by the Legendre transform
@@ -695,25 +702,52 @@ theorem cramers_theorem :
 
       -- Use the helper lemma: ℙ{empirical mean ≥ a} → 1
       have h_a_lt_mean : a < 𝔼[X 0] := not_le.mp h
-      have h_prob_to_one : Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
-        -- Apply the helper lemma with all implicit arguments
-        -- The helper lemma needs: Ω, MeasureSpace, X, h_indep, h_ident, h_int, IsProbabilityMeasure, a, h
-        sorry -- Defer this to focus on the rest of the proof structure first
+      have h_prob_to_one :
+          Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
+        @less_exp_imp_limit_prob_less_mean_one Ω _ X h_indep h_ident h_meas h_int _ a
+          h_a_lt_mean
 
       -- We'll show that the sequence 1/n * log(ℙ{...}) → 0
       -- Then by Tendsto.liminf_eq, we get liminf = 0, so 0 ≤ liminf
 
-      have h_seq_to_zero : Tendsto (fun (n : ℕ) => 1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop (𝓝 (0 : EReal)) := by
+      have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
+          1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+          (𝓝 (0 : EReal)) := by
         -- The key steps:
-        -- 1. log(ℙ) → log(1) = 0 (requires continuity of log at 1, or similar)
+        -- 1. log(ℙ) → log(1) = 0 (since ℙ → 1 and log 1 = 0)
         -- 2. 1/n → 0
-        -- 3. (bounded sequence) * (sequence → 0) → 0
-        sorry
+        -- 3. Product of (sequence → 0) with bounded sequence → 0
+
+        -- Step 1: Show log(ℙ{...}) → 0
+        have h_log_to_zero : Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop (𝓝 0) :=
+          ennreal_log_tendsto_zero_of_tendsto_one h_prob_to_one
+
+        -- Step 2: Show 1/n → 0 in EReal
+        have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) :=
+          ereal_inv_nat_tendsto_zero
+
+        -- Step 3: Combine using Tendsto.mul for EReal
+        -- Cast log to EReal - since log returns EReal, this is just the identity
+        have h_log_ereal :
+            Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+              (𝓝 (0 : EReal)) := h_log_to_zero
+        exact ereal_mul_tendsto_zero_of_tendsto_zero_of_bounded h_inv_to_zero h_log_ereal
 
       -- Now use that convergence implies liminf equals the limit
-      have h_lim_eq : liminf (fun (n : ℕ) => 1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = (0 : EReal) :=
-        Filter.Tendsto.liminf_eq h_seq_to_zero
+      have h_lim_eq : liminf (fun (n : ℕ) =>
+          1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+          = (0 : EReal) := Filter.Tendsto.liminf_eq h_seq_to_zero
 
-      -- The two liminf expressions are definitionally equal (both ↑n : EReal coerce from ℕ)
-      -- So we just need to show 0 ≤ 0, which holds by rfl after simplifying coercions
-      sorry -- This should follow from: ↑↑0 = 0 = liminf(...) after showing the functions are equal
+      -- The two liminf expressions are equal, so we just need 0 ≤ liminf(...)
+      -- Show the functions are equal and rewrite
+      have h_fn_eq : (fun n : ℕ =>
+          1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) =
+          (fun n : ℕ => 1 / (n : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) := by
+        funext n
+        congr 1
+      have : liminf (fun n : ℕ =>
+          1 / (n : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = 0 := by
+        rw [← h_fn_eq]
+        exact h_lim_eq
+      rw [this]
+      norm_cast
