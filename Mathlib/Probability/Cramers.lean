@@ -333,6 +333,13 @@ private lemma csInf_neg_eq_neg_csSup {ι : Type*} (f : ι → ℝ) (hne : (Set.r
     rw [← hi]
     exact neg_le_neg (le_csSup hbdd_above ⟨i, rfl⟩)
 
+/-- For a bounded nonempty set in ℝ, sInf of negations equals negative of sSup, in EReal.
+This version handles the coercion from ℝ to EReal properly. -/
+private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
+    (hne : (Set.range f).Nonempty) (hbdd : BddAbove (Set.range f)) :
+    sInf (Set.range fun i => (-(f i) : EReal)) = -((sSup (Set.range f) : ℝ) : EReal) := by
+  sorry
+
 include h_indep h_meas h_ident h_mgf h_bdd h_int in
 /-- **Cramér's Theorem (Upper Bound)**: For any a ≥ E[X 0], the scaled log probability that the
 empirical mean exceeds a is bounded above by the negative rate function.
@@ -369,27 +376,15 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
             rw [← ht]
             exact hb ⟨t.val, rfl⟩
           -- The supremum exists, so we can work with it
-          rw [show sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => (-(t.val * a - cgf (X 0) ℙ t) : EReal)) =
-                   (sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => -(t.val * a - cgf (X 0) ℙ t)) : EReal) by
-                rfl]
-          norm_cast
-
           -- Use that sInf of negations equals negative of sSup
-          -- Apply csInf_neg_eq_neg_csSup with f(t) = t.val * a - cgf (X 0) ℙ t
+          -- Apply ereal_sInf_neg_eq_neg_sSup to lift the equality to EReal
           have h_nonempty : (Set.range fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t).Nonempty := by
             use 0 * a - cgf (X 0) ℙ 0
             use ⟨0, by simp⟩
-          have h_eq_real : sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => -(t.val * a - cgf (X 0) ℙ t)) =
-                            -sSup (Set.range fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t) := by
-            exact csInf_neg_eq_neg_csSup (fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t) h_nonempty h_bdd_restrict
-          -- The key remaining step: show that coercion from ℝ to EReal commutes with sInf/sSup
-          -- for bounded sets. This requires showing:
-          --   (sInf S : EReal) = sInf ((↑) '' S)
-          -- This is true because coercion is a monotone embedding, but proving it requires
-          -- either finding the right mathlib lemma or proving it from scratch using properties
-          -- of order-preserving maps and complete lattices.
-          rw [iSup] at *
-          sorry  -- Need: coercion ℝ → EReal commutes with sInf for bounded sets
+          -- Apply the lemma after unfolding iSup
+          simp only [iSup]
+          exact ereal_sInf_neg_eq_neg_sSup
+            (fun t : {x : ℝ | 0 ≤ x} => t.val * a - cgf (X 0) ℙ t) h_nonempty h_bdd_restrict
       _ = (- rateFunction X a : EReal) := by
           -- rateFunction X a = ⨆ t : {x : ℝ | 0 ≤ x}, t.val * a - cgf (X 0) ℙ t
           congr 1
