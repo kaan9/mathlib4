@@ -459,31 +459,6 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
         ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
   sorry
 
-
-private lemma test (n : ℕ) (a : EReal) (h_n_nonneg : n ≠ 0) : (n : ENNReal)⁻¹ * a ≤ 0 → a ≤ 0 := by
-  intro h
-  -- Use contraposition: if 0 < a, then 0 < (n : ENNReal)⁻¹ * a
-  by_contra h_not
-  push_neg at h_not
-  -- h_not : 0 < a
-  -- h : ↑((n : ENNReal)⁻¹) * a ≤ 0 in EReal
-
-  -- Step 1: Show 0 < (n : ENNReal)⁻¹ in ENNReal
-  have hn_ennreal_inv_pos : 0 < (n : ENNReal)⁻¹ := by
-    rw [ENNReal.inv_pos]
-    exact ENNReal.natCast_ne_top n
-
-  -- Step 2: Coerce to EReal: 0 < ↑((n : ENNReal)⁻¹)
-  have hn_ereal_inv_pos : (0 : EReal) < ↑((n : ENNReal)⁻¹) := by
-    exact EReal.coe_ennreal_pos.mpr hn_ennreal_inv_pos
-
-  -- Step 3: Multiply positive numbers
-  have : (0 : EReal) < ↑((n : ENNReal)⁻¹) * a := by
-    exact EReal.mul_pos hn_ereal_inv_pos h_not
-
-  -- Step 4: Contradiction with h
-  exact absurd h (not_le.mpr this)
-
 include h_indep h_ident h_int h_meas in
 private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
   Tendsto (fun n : ℕ => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
@@ -623,13 +598,22 @@ private lemma ennreal_log_tendsto_zero_of_tendsto_one {f : ℕ → ℝ≥0∞}
 private lemma ereal_inv_nat_tendsto_zero :
     Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
   -- prove using tendsto_one_div_add_atTop_nhds_zero_nat
-  sorry
+  -- identify `1 / ((n : ℝ) : EReal)` with `(1 : EReal) / n` and apply the existing lemma
+  have : (fun n : ℕ => 1 / ((n : ℝ) : EReal)) = fun (n : ℕ) => (1 : EReal) / n := by
+    funext n; rfl
+  rw [this]
+  -- `1 : EReal` is neither ⊥ nor ⊤, so we can apply the lemma
+  exact (EReal.tendsto_const_div_atTop_nhds_zero_nat (by decide) (by decide))
 
 /-- Product of a sequence tending to 0 with a bounded sequence tends to 0 in EReal. -/
 private lemma ereal_mul_tendsto_zero_of_tendsto_zero_of_bounded
     {f g : ℕ → EReal} (hf : Tendsto f atTop (𝓝 0)) (hg : Tendsto g atTop (𝓝 0)) :
     Tendsto (fun n => f n * g n) atTop (𝓝 0) := by
-  sorry
+  -- Use the `EReal` multiplication tendsto lemma: multiplication is continuous at (0,0)
+  -- because `(0 : EReal) ≠ ⊤` and `(0 : EReal) ≠ ⊥`.
+  simpa using EReal.Tendsto.mul hf hg (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
+    (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
+
 
 include h_indep h_meas h_ident h_mgf h_int h_bdd in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
