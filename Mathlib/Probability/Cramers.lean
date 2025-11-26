@@ -37,7 +37,7 @@ variable (X : ℕ → Ω → ℝ)
 variable (h_indep : iIndepFun X ℙ)
 variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
 variable (h_meas : ∀ n, Measurable (X n))
--- This is implied by h_mgf but assume it for convenience for now
+-- This is implied by h_mgf but we assume it for convenience
 variable (h_int : Integrable (X 0) ℙ)
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 -- Assume that this is a "good" rate function, bounded above.
@@ -333,17 +333,49 @@ private lemma csInf_neg_eq_neg_csSup {ι : Type*} (f : ι → ℝ) (hne : (Set.r
     rw [← hi]
     exact neg_le_neg (le_csSup hbdd_above ⟨i, rfl⟩)
 
+/-- For a nonempty bounded-below set in ℝ, sInf of its image under coercion to EReal
+equals the coercion of its sInf in ℝ. -/
+private lemma ereal_sInf_coe_eq_coe_sInf {s : Set ℝ} (hne : s.Nonempty) (hbdd : BddBelow s) :
+    sInf ((fun (x : ℝ) => (x : EReal)) '' s) = ↑(sInf s) := by
+  -- EReal = WithBot (WithTop ℝ), so coercion is: ℝ → WithTop ℝ → WithBot (WithTop ℝ)
+  -- Step 1: Use WithTop.coe_sInf' for ℝ → WithTop ℝ
+  -- Step 2: Use WithBot.coe_sInf' for WithTop ℝ → WithBot (WithTop ℝ)
+
+  -- First, show that the image under (ℝ → EReal) equals image under composition
+  have h_image : (fun (x : ℝ) => (x : EReal)) '' s =
+      (fun (y : WithTop ℝ) => (y : WithBot (WithTop ℝ))) '' ((fun (x : ℝ) => (x : WithTop ℝ)) '' s) := by
+    ext z
+    simp only [Set.mem_image]
+    constructor
+    · intro ⟨x, hx, hz⟩
+      use (x : WithTop ℝ)
+      constructor
+      · use x, hx
+      · exact hz
+    · intro ⟨y, ⟨x, hx, hy⟩, hz⟩
+      use x, hx
+      rw [← hz, ← hy]
+      rfl
+
+  rw [h_image]
+  -- Apply WithBot.coe_sInf' with α = WithTop ℝ
+  have h_bdd_withTop : BddBelow ((fun (x : ℝ) => (x : WithTop ℝ)) '' s) :=
+    Monotone.map_bddBelow (fun _ _ h => WithTop.coe_le_coe.mpr h) hbdd
+
+  calc sInf ((fun (y : WithTop ℝ) => (y : WithBot (WithTop ℝ))) '' ((fun (x : ℝ) => (x : WithTop ℝ)) '' s))
+      = (↑(sInf ((fun (x : ℝ) => (x : WithTop ℝ)) '' s)) : WithBot (WithTop ℝ)) :=
+          (WithBot.coe_sInf' h_bdd_withTop).symm
+    _ = (↑(↑(sInf s) : WithTop ℝ) : WithBot (WithTop ℝ)) := by
+          congr 1
+          exact (WithTop.coe_sInf' hne hbdd).symm
+    _ = ↑(sInf s) := rfl
+
 /-- For a bounded nonempty set in ℝ, sInf of negations equals negative of sSup, in EReal.
 This version handles the coercion from ℝ to EReal properly. -/
 private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
     (hne : (Set.range f).Nonempty) (hbdd : BddAbove (Set.range f)) :
     sInf (Set.range fun i => (-(f i) : EReal)) = -((sSup (Set.range f) : ℝ) : EReal) := by
-  -- Key facts:
-  -- 1. Negation is antitone in EReal (neg_strictAnti)
-  -- 2. sInf of negations equals negative of sSup for real numbers (csInf_neg_eq_neg_csSup)
-  -- 3. Coercion from ℝ to EReal is monotone and preserves sSup
-
-  -- First, establish that the range of negations in ℝ is bounded below and nonempty
+  -- Establish that the range of negations in ℝ is bounded below and nonempty
   have h_bdd_neg : BddBelow (Set.range fun i => -f i) := by
     obtain ⟨B, hB⟩ := hbdd
     use -B
@@ -355,51 +387,24 @@ private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
     use -x, i
     rw [← hi]
 
-  -- Apply the real version to get sInf {-f(i)} = -sSup {f(i)} in ℝ
+  -- Apply csInf_neg_eq_neg_csSup in ℝ
   have h_real := csInf_neg_eq_neg_csSup f hne hbdd
 
-  -- Now lift to EReal using coercion
-  -- First show that the set of coerced negations equals the image under coe
-  have h_set_eq : Set.range (fun i => (-(f i) : EReal)) = (fun (a : ℝ) => ↑a) '' Set.range (fun i => -f i) := by
+  -- Show that the set of coerced negations equals the image under coe
+  have h_set_eq : Set.range (fun i => (-(f i) : EReal)) =
+      (fun (a : ℝ) => ↑a) '' Set.range (fun i => -f i) := by
     ext x
     simp only [Set.mem_range, Set.mem_image]
     constructor
     · intro ⟨i, hi⟩
-      use -f i
-      constructor
-      · use i
-      · rw [← hi]; rfl
+      use -f i, ⟨i, rfl⟩
+      rw [← hi]; rfl
     · intro ⟨y, ⟨i, hi⟩, hx⟩
       use i
       rw [← hx, ← hi, EReal.coe_neg]
 
-  -- sInf in EReal of coerced values equals coerced sInf in ℝ
-  rw [h_set_eq]
-  -- Use Monotone lemmas to prove the equality
-  have h_mono : Monotone (fun (x : ℝ) => (x : EReal)) := fun _ _ h => EReal.coe_le_coe_iff.mpr h
-  have h_eq : sInf ((fun (x : ℝ) => (x : EReal)) '' Set.range fun i => -f i) =
-      (↑(sInf (Set.range fun i => -f i)) : EReal) := by
-    apply le_antisymm
-    · -- Use that sInf is the greatest lower bound
-      apply csInf_le
-      · -- Show the image is bounded below
-        obtain ⟨B, hB⟩ := h_bdd_neg
-        use (B : EReal)
-        intro y hy
-        obtain ⟨x, hx, rfl⟩ := hy
-        exact h_mono (hB hx)
-      · -- This direction needs: sInf (f '' s) ≤ f (sInf s)
-        -- Standard approach: show f (sInf s) ∈ f '' s, then use csInf_le
-        -- But sInf s might not be in s for ℝ (no WellFoundedLT ℝ instance)
-        -- Alternative: use density/approximation or complete lattice properties of EReal
-        -- This should follow from OrderIso/OrderEmbedding properties of Real.toEReal
-        sorry
-    · -- Use Monotone.le_csInf_image: f B ≤ sInf (f '' s) if B ∈ lowerBounds s
-      apply h_mono.le_csInf_image h_ne_neg
-      -- Show sInf is a lower bound
-      intro x hx
-      exact csInf_le h_bdd_neg hx
-  rw [h_eq, h_real, EReal.coe_neg]
+  -- Use the helper lemma and rewrite
+  rw [h_set_eq, ereal_sInf_coe_eq_coe_sInf h_ne_neg h_bdd_neg, h_real, EReal.coe_neg]
 
 include h_indep h_meas h_ident h_mgf h_bdd h_int in
 /-- **Cramér's Theorem (Upper Bound)**: For any a ≥ E[X 0], the scaled log probability that the
