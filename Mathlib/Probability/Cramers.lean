@@ -338,7 +338,68 @@ This version handles the coercion from ℝ to EReal properly. -/
 private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
     (hne : (Set.range f).Nonempty) (hbdd : BddAbove (Set.range f)) :
     sInf (Set.range fun i => (-(f i) : EReal)) = -((sSup (Set.range f) : ℝ) : EReal) := by
-  sorry
+  -- Key facts:
+  -- 1. Negation is antitone in EReal (neg_strictAnti)
+  -- 2. sInf of negations equals negative of sSup for real numbers (csInf_neg_eq_neg_csSup)
+  -- 3. Coercion from ℝ to EReal is monotone and preserves sSup
+
+  -- First, establish that the range of negations in ℝ is bounded below and nonempty
+  have h_bdd_neg : BddBelow (Set.range fun i => -f i) := by
+    obtain ⟨B, hB⟩ := hbdd
+    use -B
+    intro y ⟨i, hi⟩
+    rw [← hi]
+    exact neg_le_neg (hB ⟨i, rfl⟩)
+  have h_ne_neg : (Set.range fun i => -f i).Nonempty := by
+    obtain ⟨x, ⟨i, hi⟩⟩ := hne
+    use -x, i
+    rw [← hi]
+
+  -- Apply the real version to get sInf {-f(i)} = -sSup {f(i)} in ℝ
+  have h_real := csInf_neg_eq_neg_csSup f hne hbdd
+
+  -- Now lift to EReal using coercion
+  -- First show that the set of coerced negations equals the image under coe
+  have h_set_eq : Set.range (fun i => (-(f i) : EReal)) = (fun (a : ℝ) => ↑a) '' Set.range (fun i => -f i) := by
+    ext x
+    simp only [Set.mem_range, Set.mem_image]
+    constructor
+    · intro ⟨i, hi⟩
+      use -f i
+      constructor
+      · use i
+      · rw [← hi]; rfl
+    · intro ⟨y, ⟨i, hi⟩, hx⟩
+      use i
+      rw [← hx, ← hi, EReal.coe_neg]
+
+  -- sInf in EReal of coerced values equals coerced sInf in ℝ
+  rw [h_set_eq]
+  -- Use Monotone lemmas to prove the equality
+  have h_mono : Monotone (fun (x : ℝ) => (x : EReal)) := fun _ _ h => EReal.coe_le_coe_iff.mpr h
+  have h_eq : sInf ((fun (x : ℝ) => (x : EReal)) '' Set.range fun i => -f i) =
+      (↑(sInf (Set.range fun i => -f i)) : EReal) := by
+    apply le_antisymm
+    · -- Use that sInf is the greatest lower bound
+      apply csInf_le
+      · -- Show the image is bounded below
+        obtain ⟨B, hB⟩ := h_bdd_neg
+        use (B : EReal)
+        intro y hy
+        obtain ⟨x, hx, rfl⟩ := hy
+        exact h_mono (hB hx)
+      · -- This direction needs: sInf (f '' s) ≤ f (sInf s)
+        -- Standard approach: show f (sInf s) ∈ f '' s, then use csInf_le
+        -- But sInf s might not be in s for ℝ (no WellFoundedLT ℝ instance)
+        -- Alternative: use density/approximation or complete lattice properties of EReal
+        -- This should follow from OrderIso/OrderEmbedding properties of Real.toEReal
+        sorry
+    · -- Use Monotone.le_csInf_image: f B ≤ sInf (f '' s) if B ∈ lowerBounds s
+      apply h_mono.le_csInf_image h_ne_neg
+      -- Show sInf is a lower bound
+      intro x hx
+      exact csInf_le h_bdd_neg hx
+  rw [h_eq, h_real, EReal.coe_neg]
 
 include h_indep h_meas h_ident h_mgf h_bdd h_int in
 /-- **Cramér's Theorem (Upper Bound)**: For any a ≥ E[X 0], the scaled log probability that the
