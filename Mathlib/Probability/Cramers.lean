@@ -666,7 +666,13 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
     -- Integral of const on E equals const * measure(E)
     calc ∫ ω in E, Real.exp (-t * S X n ω) ∂(Measure.tilted ℙ (fun ω => t * S X n ω))
         ≥ ∫ ω in E, Real.exp (-t * n * (a + δ)) ∂(Measure.tilted ℙ (fun ω => t * S X n ω)) :=
-          setIntegral_mono_on (by sorry) (by sorry) hE h_ge  -- Integrability
+          setIntegral_mono_on
+            (by -- constant is integrable
+              apply Integrable.integrableOn
+              apply integrable_const)
+            (by -- exp(-t*S_n) is integrable under tilted measure
+              sorry)
+            hE h_ge
       _ = ((Measure.tilted ℙ (fun ω => t * S X n ω)).real E) •
             Real.exp (-t * n * (a + δ)) := setIntegral_const _
       _ = Real.exp (-t * n * (a + δ)) *
