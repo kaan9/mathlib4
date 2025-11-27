@@ -543,14 +543,16 @@ private lemma prod_mgf_eq_pow (n : ℕ) (t : ℝ) :
 private lemma mgf_pow_eq_exp_mul_cgf (n : ℕ) (t : ℝ)
     (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
     mgf (X 0) ℙ t ^ n = Real.exp (n * cgf (X 0) ℙ t) := by
-  rw [cgf, ← Real.exp_nat_mul, Real.exp_log]
-  exact integral_exp_pos h_int
+  rw [cgf, mgf]
+  conv_lhs => rw [← Real.exp_log (integral_exp_pos h_int)]
+  rw [← Real.exp_nsmul, nsmul_eq_mul]
 
 /-- **Helper: CGF of the sum equals n times CGF of X_0**. -/
 private lemma cgf_sum_eq (n : ℕ) (t : ℝ)
     (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
     ∫ ω, Real.exp (t * S X n ω) ∂ℙ = Real.exp (n * cgf (X 0) ℙ t) := by
-  rw [mgf_sum_eq_prod, prod_mgf_eq_pow, mgf_pow_eq_exp_mul_cgf n t h_int]
+  rw [mgf_sum_eq_prod, prod_mgf_eq_pow]
+  exact @mgf_pow_eq_exp_mul_cgf _ _ X _ n t h_int
 
 /-- **Helper: Bound the Radon-Nikodym derivative on the set E**.
 For ω in E where S_n(ω) ≤ n(a+δ), we have exp(-t*S_n(ω)) ≥ exp(-t*n(a+δ)). -/
@@ -586,6 +588,17 @@ Mathematical proof:
 3. On E: S_n ≤ n(a+δ), so exp(-t*S_n) ≥ exp(-t*n(a+δ)) for t ≥ 0
 4. Pull out: P(E) ≥ exp(n(cgf(t) - t(a+δ))) * Q(E)
 -/
+
+-- Helper: Express P(E) using the tilted measure Q.
+-- Key relationship: P(E) = (∫ exp(f) dP) * ∫_E exp(-f) dQ where Q = P.tilted(f)
+-- This follows from the definition of tilted measure and basic algebra.
+private lemma measure_eq_integral_exp_neg_tilted (f : Ω → ℝ) (E : Set Ω)
+    (h_int : Integrable (fun ω => Real.exp (f ω)) ℙ)
+    (hE : MeasurableSet E) :
+    (ℙ E).toReal =
+      (∫ ω, Real.exp (f ω) ∂ℙ) * (∫ ω in E, Real.exp (-f ω) ∂(Measure.tilted ℙ f)) := by
+  sorry
+
 private lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ)
     (hδ : 0 < δ) (ht : 0 < t)
     (h_int : Integrable (fun ω => Real.exp (t * S X n ω)) ℙ) :
@@ -593,6 +606,35 @@ private lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ)
     (ℙ E).toReal ≥
       Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
       ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal := by
+  intro E
+  -- Step 1: Express P(E) using the tilted measure
+  have hE : MeasurableSet E := by
+    -- E is the preimage of the closed interval [a, a+δ] under empiricalMean
+    show MeasurableSet {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+    apply (Measurable.div_const _ _).preimage measurableSet_Icc
+    -- S is measurable as a sum of measurable functions
+    apply Measurable.sum
+    intro i _
+    exact h_meas i
+
+  have h_int' : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ := h_mgf t
+
+  rw [measure_eq_integral_exp_neg_tilted (fun ω => t * S X n ω) E h_int hE]
+
+  -- Step 2: Apply cgf_sum_eq to simplify ∫ exp(t*S_n)
+  rw [@cgf_sum_eq _ _ X _ n t h_int']
+
+  -- Step 3: Bound ∫_E exp(-t*S_n) dQ from below
+  have h_bound : ∫ ω in E, Real.exp (-t * S X n ω) ∂(Measure.tilted ℙ (fun ω => t * S X n ω)) ≥
+      Real.exp (-t * n * (a + δ)) * ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal := by
+    sorry -- Use exp_neg_mul_S_ge_on_set to pull out the constant
+
+  -- Step 4: Combine to get the final inequality
+  -- After step 1, we have: (ℙ E).toReal = exp(n*cgf) * ∫_E exp(-t*S_n) dQ
+  -- From h_bound: ∫_E exp(-t*S_n) dQ ≥ exp(-t*n*(a+δ)) * Q(E)
+  -- Therefore: (ℙ E).toReal ≥ exp(n*cgf) * exp(-t*n*(a+δ)) * Q(E)
+  --                          = exp(n*cgf - t*n*(a+δ)) * Q(E)
+  --                          = exp(-n*(t*(a+δ) - cgf)) * Q(E)
   sorry
 
 /-- **Lemma 2: Tilted empirical moments**.
