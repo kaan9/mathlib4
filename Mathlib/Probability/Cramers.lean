@@ -711,6 +711,21 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
   ext ω; ring_nf
 
 include h_indep h_ident h_meas h_mgf in
+/-- **Helper: CGF of the sum equals n times CGF of X_0**.
+This follows from the MGF relationship mgf(S_n) = exp(n * cgf(X_0)). -/
+private lemma cgf_sum_eq_n_mul_cgf (t : ℝ) (n : ℕ)
+    (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
+    cgf (S X n) ℙ t = n * cgf (X 0) ℙ t := by
+  -- Use cgf_sum_eq: mgf (S X n) ℙ t = exp(n * cgf (X 0) ℙ t)
+  have h_mgf := @cgf_sum_eq _ _ X h_indep h_ident h_meas h_mgf _ n t h_int
+  -- mgf (S X n) ℙ t = ∫ exp(t * S_n) = exp(n * cgf (X 0) ℙ t)
+  rw [mgf] at h_mgf
+  -- cgf (S X n) ℙ t = log(mgf (S X n) ℙ t)
+  rw [cgf, mgf, h_mgf]
+  -- log(exp(n * cgf)) = n * cgf
+  rw [Real.log_exp (n * cgf (X 0) ℙ t)]
+
+include h_indep h_ident h_meas h_mgf in
 /-- Sub-goal 1a: First derivative of CGF scales by n for the sum -/
 private lemma deriv_cgf_sum (t : ℝ) (n : ℕ)
     (ht : t ∈ interior (integrableExpSet (X 0) ℙ)) :
