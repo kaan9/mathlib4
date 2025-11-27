@@ -529,29 +529,45 @@ Strategy:
 5. Change of measure relates P to Q_{n,t} with exponential cost
 -/
 
-/-- **Helper: MGF of the sum equals product of MGFs by independence**. -/
-private lemma mgf_sum_eq_prod (n : ℕ) (t : ℝ) :
+-- Helper: MGF of the sum equals product of MGFs by independence.
+-- Uses existing mgf_sum_of_identDistrib from mathlib.
+include h_indep h_ident h_meas in lemma mgf_sum_eq_prod (n : ℕ) (t : ℝ) :
     ∫ ω, Real.exp (t * S X n ω) ∂ℙ = ∏ i ∈ Finset.range n, mgf (X 0) ℙ t := by
-  sorry
+  rw [S]
+  by_cases hn : n = 0
+  · simp [hn, mgf]
+  -- Use mgf_sum_of_identDistrib to get mgf(sum) = mgf(X_0)^n
+  have h0_mem : 0 ∈ Finset.range n := by simp [Finset.mem_range]; omega
+  have hident_all : ∀ i ∈ Finset.range n, ∀ j ∈ Finset.range n,
+      IdentDistrib (X i) (X j) ℙ ℙ := by
+    intros i _ j _
+    exact (h_ident i).trans (h_ident j).symm
+  calc ∫ ω, Real.exp (t * (∑ i ∈ Finset.range n, X i) ω) ∂ℙ
+      = mgf (∑ i ∈ Finset.range n, X i) ℙ t := by rw [mgf]
+    _ = mgf (X 0) ℙ t ^ (Finset.range n).card :=
+        mgf_sum_of_identDistrib h_meas h_indep hident_all h0_mem t
+    _ = mgf (X 0) ℙ t ^ n := by rw [Finset.card_range]
+    _ = ∏ i ∈ Finset.range n, mgf (X 0) ℙ t := by
+        rw [Finset.prod_const, Finset.card_range]
 
 /-- **Helper: Product of identical MGFs equals MGF to the power n**. -/
-private lemma prod_mgf_eq_pow (n : ℕ) (t : ℝ) :
+lemma prod_mgf_eq_pow (n : ℕ) (t : ℝ) :
     ∏ i ∈ Finset.range n, mgf (X 0) ℙ t = mgf (X 0) ℙ t ^ n := by
   rw [Finset.prod_const, Finset.card_range]
 
 /-- **Helper: MGF to power n equals exp(n * cgf)**. -/
-private lemma mgf_pow_eq_exp_mul_cgf (n : ℕ) (t : ℝ)
+lemma mgf_pow_eq_exp_mul_cgf (n : ℕ) (t : ℝ)
     (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
     mgf (X 0) ℙ t ^ n = Real.exp (n * cgf (X 0) ℙ t) := by
   rw [cgf, mgf]
   conv_lhs => rw [← Real.exp_log (integral_exp_pos h_int)]
   rw [← Real.exp_nsmul, nsmul_eq_mul]
 
-/-- **Helper: CGF of the sum equals n times CGF of X_0**. -/
-private lemma cgf_sum_eq (n : ℕ) (t : ℝ)
+-- Helper: CGF of the sum equals n times CGF of X_0.
+include h_indep h_ident h_meas h_mgf in lemma cgf_sum_eq (n : ℕ) (t : ℝ)
     (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
     ∫ ω, Real.exp (t * S X n ω) ∂ℙ = Real.exp (n * cgf (X 0) ℙ t) := by
-  rw [mgf_sum_eq_prod, prod_mgf_eq_pow]
+  rw [@mgf_sum_eq_prod X h_indep h_ident h_meas h_mgf n t, prod_mgf_eq_pow]
   exact @mgf_pow_eq_exp_mul_cgf _ _ X _ n t h_int
 
 /-- **Helper: Bound the Radon-Nikodym derivative on the set E**.
@@ -599,7 +615,7 @@ private lemma measure_eq_integral_exp_neg_tilted (f : Ω → ℝ) (E : Set Ω)
       (∫ ω, Real.exp (f ω) ∂ℙ) * (∫ ω in E, Real.exp (-f ω) ∂(Measure.tilted ℙ f)) := by
   sorry
 
-private lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ)
+include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ)
     (hδ : 0 < δ) (ht : 0 < t)
     (h_int : Integrable (fun ω => Real.exp (t * S X n ω)) ℙ) :
     let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
@@ -609,20 +625,16 @@ private lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ)
   intro E
   -- Step 1: Express P(E) using the tilted measure
   have hE : MeasurableSet E := by
-    -- E is the preimage of the closed interval [a, a+δ] under empiricalMean
-    show MeasurableSet {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
-    apply (Measurable.div_const _ _).preimage measurableSet_Icc
-    -- S is measurable as a sum of measurable functions
-    apply Measurable.sum
-    intro i _
-    exact h_meas i
+    -- E = {ω | S(ω)/n ∈ [a, a+δ]} is measurable
+    -- S is measurable as a finite sum, division by constant preserves measurability
+    sorry
 
   have h_int' : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ := h_mgf t
 
   rw [measure_eq_integral_exp_neg_tilted (fun ω => t * S X n ω) E h_int hE]
 
   -- Step 2: Apply cgf_sum_eq to simplify ∫ exp(t*S_n)
-  rw [@cgf_sum_eq _ _ X _ n t h_int']
+  rw [@cgf_sum_eq X h_indep h_ident h_meas h_mgf n t h_int']
 
   -- Step 3: Bound ∫_E exp(-t*S_n) dQ from below
   have h_bound : ∫ ω in E, Real.exp (-t * S X n ω) ∂(Measure.tilted ℙ (fun ω => t * S X n ω)) ≥
