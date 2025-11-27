@@ -5,12 +5,15 @@ Authors: Kaan
 import Mathlib.Probability.IdentDistrib
 import Mathlib.Probability.Independence.Basic
 import Mathlib.Probability.Moments.Basic
+import Mathlib.Probability.Moments.IntegrableExpMul
+import Mathlib.Probability.Moments.Tilted
 import Mathlib.Probability.StrongLaw
 import Mathlib.Analysis.Convex.Integral
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
 import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
 import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Analysis.Calculus.Deriv.Basic
 
 /-!
 # Cramér's Theorem
@@ -510,6 +513,98 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     use 1
     intro n hn
     exact h_scaled n hn
+
+/-! ### Helper lemmas for the lower bound
+
+The lower bound proof uses the change of measure technique with tilted measures.
+The key insight is to tilt by the sum S_n rather than by X_0, which automatically
+preserves the i.i.d. structure and allows us to use CGF derivatives to compute
+moments under the tilted measure.
+
+Strategy:
+1. For a > E[X], find t > 0 such that cgf'(t) = a (the "exposed" assumption)
+2. Define the tilted measure Q_{n,t} = P.tilted(t * S_n)
+3. Use CGF derivatives to show E_Q[S_n/n] = a and Var_Q[S_n/n] → 0
+4. Apply Chebyshev to show Q_{n,t}(empirical mean ≈ a) → 1
+5. Change of measure relates P to Q_{n,t} with exponential cost
+-/
+
+/-- **Helper: CGF of the sum equals n times CGF of X_0**. -/
+private lemma cgf_sum_eq (n : ℕ) (t : ℝ)
+    (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
+    ∫ ω, Real.exp (t * S X n ω) ∂ℙ = Real.exp (n * cgf (X 0) ℙ t) := by
+  sorry
+
+/-- **Helper: Bound the Radon-Nikodym derivative on the set E**.
+For ω in E where S_n(ω) ≤ n(a+δ), we have exp(-t*S_n(ω)) ≥ exp(-t*n(a+δ)). -/
+private lemma exp_neg_mul_S_ge_on_set (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
+    (ω : Ω) (hω : empiricalMean X n ω ∈ Set.Icc a (a + δ)) :
+    Real.exp (-t * S X n ω) ≥ Real.exp (-t * n * (a + δ)) := by
+  apply Real.exp_le_exp.mpr
+  apply mul_le_mul_of_nonpos_left _ (neg_nonpos.mpr (mul_nonneg ht _))
+  · -- Show S X n ω ≤ n * (a + δ)
+    rw [empiricalMean, S] at hω
+    have := hω.2
+    calc S X n ω = (S X n ω / n) * n := by
+        by_cases hn : n = 0
+        · simp [hn, S]
+        · field_simp
+      _ ≤ (a + δ) * n := by
+          apply mul_le_mul_of_nonneg_right this
+          exact Nat.cast_nonneg n
+      _ = n * (a + δ) := by ring
+  · exact Nat.cast_nonneg n
+
+/-- **Lemma 1: Change of measure lower bound**.
+The probability under P can be bounded below using the tilted measure.
+On the set where S_n ≈ n*a, the density factor is roughly constant.
+
+Mathematical proof:
+1. By Radon-Nikodym: P(E) = ∫_E (dP/dQ) dQ where Q = P.tilted(t*S_n)
+2. The derivative is: dP/dQ = exp(-t*S_n + n*cgf(t))
+3. On E: S_n ≤ n(a+δ), so exp(-t*S_n) ≥ exp(-t*n(a+δ)) for t ≥ 0
+4. Pull out: P(E) ≥ exp(n(cgf(t) - t(a+δ))) * Q(E)
+-/
+private lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ)
+    (hδ : 0 < δ) (ht : 0 < t)
+    (h_int : Integrable (fun ω => Real.exp (t * S X n ω)) ℙ) :
+    let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+    (ℙ E).toReal ≥
+      Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+      ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal := by
+  sorry
+
+/-- **Lemma 2: Tilted empirical moments**.
+Under the tilted measure, the mean is the CGF derivative and variance is the second derivative.
+Uses `integral_tilted_mul_self` and `variance_tilted_mul` from Mathlib. -/
+private lemma tilted_empirical_moments (t : ℝ) (n : ℕ) (hn : n ≠ 0)
+    (ht : t ∈ interior (integrableExpSet (X 0) ℙ)) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * S X n ω)
+    (∫ ω, empiricalMean X n ω ∂μ_t) = deriv (cgf (X 0) ℙ) t ∧
+    variance (empiricalMean X n) μ_t = (1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t := by
+  sorry
+
+/-- **Lemma 3: Tilted measure concentration**.
+If t is chosen so that cgf'(t) = a, then under the tilted measure,
+the empirical mean concentrates at a by the weak law of large numbers.
+Uses Chebyshev's inequality with the variance from Lemma 2. -/
+private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
+    (ht : t ∈ interior (integrableExpSet (X 0) ℙ))
+    (h_match : deriv (cgf (X 0) ℙ) t = a) :
+    Tendsto (fun n => ((Measure.tilted ℙ (fun ω => t * S X n ω))
+      {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal) atTop (𝓝 1) := by
+  sorry
+
+/-- **Lemma 4: Lower bound via tilted measure**.
+Combining the change of measure and concentration lemmas,
+we get the lower bound on the scaled log probability. -/
+private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
+    (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    liminf (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+    ≥ (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal) := by
+  sorry
 
 include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
