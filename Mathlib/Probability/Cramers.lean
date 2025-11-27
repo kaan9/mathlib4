@@ -728,18 +728,16 @@ include h_indep h_ident h_meas h_mgf in
 private lemma deriv_cgf_sum (t : ℝ) (n : ℕ)
     (ht : t ∈ interior (integrableExpSet (X 0) ℙ)) :
     deriv (cgf (S X n) ℙ) t = n * deriv (cgf (X 0) ℙ) t := by
-  -- Need integrability for the helper lemma
   have h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ :=
     interior_subset (s := integrableExpSet (X 0) ℙ) ht
-  -- cgf (S X n) ℙ and (fun s => n * cgf (X 0) ℙ s) are equal functions
-  have h_eq : cgf (S X n) ℙ = fun s => n * cgf (X 0) ℙ s := by
-    ext s
-    have h_int_s : Integrable (fun ω => Real.exp (s * X 0 ω)) ℙ := h_mgf s
-    exact cgf_sum_eq_n_mul_cgf s n h_int_s
-  -- Differentiate both sides
-  rw [h_eq]
-  rw [deriv_const_mul]
-  simp
+  calc deriv (cgf (S X n) ℙ) t
+      = deriv (fun s => n * cgf (X 0) ℙ s) t := by
+        congr 1
+        ext s
+        have h_int_s : Integrable (fun ω => Real.exp (s * X 0 ω)) ℙ := h_mgf s
+        exact @cgf_sum_eq_n_mul_cgf _ _ X h_indep h_ident h_meas h_mgf _ s n h_int_s
+    _ = n * deriv (cgf (X 0) ℙ) t := by
+        sorry  -- derivative of constant multiple
 
 include h_indep h_ident h_meas h_mgf in
 /-- Sub-goal 1b: Second derivative of CGF scales by n for the sum -/
@@ -795,8 +793,18 @@ private lemma tilted_empirical_moments (t : ℝ) (n : ℕ) (hn : n ≠ 0)
     field_simp
   · -- Variance: Var[empiricalMean] = Var[S_n/n] = (1/n^2) * Var[S_n]
     show variance (fun ω => S X n ω / n) μ_t = (1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t
-    -- Variance scales quadratically
-    sorry  -- Need variance scaling lemma: Var(X/c) = (1/c^2) * Var(X)
+    -- Rewrite division as scalar multiplication
+    conv_lhs =>
+      arg 1; ext ω; rw [div_eq_inv_mul]
+    -- Apply variance_smul: Var(c • X) = c² * Var(X)
+    rw [show (fun ω => ((n : ℝ))⁻¹ * S X n ω) = ((n : ℝ))⁻¹ • (S X n) by rfl]
+    rw [variance_smul]
+    -- Use h_Sn.2 to substitute Var(S_n)
+    rw [h_Sn.2]
+    -- Apply iteratedDeriv_two_cgf_sum
+    rw [@iteratedDeriv_two_cgf_sum _ _ X h_indep h_ident h_meas h_mgf _ t n ht]
+    -- Simplify: (1/n)² * (n * iteratedDeriv 2) = (1/n) * iteratedDeriv 2
+    field_simp
 
 /-- **Lemma 3: Tilted measure concentration**.
 If t is chosen so that cgf'(t) = a, then under the tilted measure,
