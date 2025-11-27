@@ -613,7 +613,20 @@ private lemma measure_eq_integral_exp_neg_tilted (f : Ω → ℝ) (E : Set Ω)
     (hE : MeasurableSet E) :
     (ℙ E).toReal =
       (∫ ω, Real.exp (f ω) ∂ℙ) * (∫ ω in E, Real.exp (-f ω) ∂(Measure.tilted ℙ f)) := by
-  sorry
+  -- Use setIntegral_tilted' to express the integral under the tilted measure
+  rw [setIntegral_tilted' f (fun ω => Real.exp (-f ω)) hE]
+  -- Now we have: ∫_E (exp(f) / ∫exp(f)) • exp(-f) dP
+  simp only [smul_eq_mul]
+  -- Simplify the integrand using exp(f) * exp(-f) = 1
+  have h_pos : 0 < ∫ x, Real.exp (f x) ∂ℙ := integral_exp_pos h_int
+  have h_ne : (∫ x, Real.exp (f x) ∂ℙ) ≠ 0 := ne_of_gt h_pos
+  conv_rhs => arg 2; arg 2; ext ω; rw [div_mul_eq_mul_div, ← Real.exp_add, neg_add_self,
+    Real.exp_zero, one_mul, one_div]
+  -- Now: ∫_E (1 / ∫exp(f)) dP = (1 / ∫exp(f)) * P(E)
+  rw [setIntegral_const, smul_eq_mul, mul_comm, mul_one_div]
+  -- Convert ENNReal to Real
+  have h_finite : (ℙ E) ≠ ⊤ := measure_ne_top ℙ E
+  rw [ENNReal.toReal_div h_finite, ENNReal.toReal_ofReal (le_of_lt h_pos)]
 
 include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ)
     (hδ : 0 < δ) (ht : 0 < t)
