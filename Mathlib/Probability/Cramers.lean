@@ -674,12 +674,22 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
           rw [Measure.real, smul_eq_mul]; ring
 
   -- Step 4: Combine to get the final inequality
-  -- After step 1, we have: (ℙ E).toReal = exp(n*cgf) * ∫_E exp(-t*S_n) dQ
+  -- After steps 1-2 (the two rw's above), the goal is:
+  --   (ℙ E).toReal = exp(n*cgf) * ∫_E exp(-t*S_n) dQ
   -- From h_bound: ∫_E exp(-t*S_n) dQ ≥ exp(-t*n*(a+δ)) * Q(E)
   -- Therefore: (ℙ E).toReal ≥ exp(n*cgf) * exp(-t*n*(a+δ)) * Q(E)
-  --                          = exp(n*cgf - t*n*(a+δ)) * Q(E)
-  --                          = exp(-n*(t*(a+δ) - cgf)) * Q(E)
-  sorry
+  have key : Real.exp (n * cgf (X 0) ℙ t) *
+      (Real.exp (-t * n * (a + δ)) * ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal) =
+    Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+      ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal := by
+    ring_nf
+    have : n * cgf (X 0) ℙ t + (-(n * t * a) - n * t * δ) =
+        -n * (t * (a + δ) - cgf (X 0) ℙ t) := by ring
+    rw [← Real.exp_add, this]; ring
+  rw [← key]
+  gcongr
+  convert h_bound.le using 2
+  ext ω; ring_nf
 
 /-- **Lemma 2: Tilted empirical moments**.
 Under the tilted measure, the mean is the CGF derivative and variance is the second derivative.
