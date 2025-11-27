@@ -1,0 +1,68 @@
+Comprehensive Summary of Tilted Measure Results in Mathlib
+
+  1. Core Definition & Basic Properties (Mathlib/MeasureTheory/Measure/Tilted.lean)
+
+  Definition (line 42-43):
+  def Measure.tilted (μ : Measure α) (f : α → ℝ) : Measure α :=
+    μ.withDensity (fun x ↦ ENNReal.ofReal (exp (f x) / ∫ x, exp (f x) ∂μ))
+
+  Key Properties:
+  - Line 126-136: isProbabilityMeasure_tilted - When exp(f) is integrable, μ.tilted f is a probability measure
+  - Line 74-75: tilted_const - For constant c: μ.tilted (const c) = μ (when μ is probability)
+  - Line 82: tilted_zero - μ.tilted 0 = μ
+  - Line 84-92: tilted_congr - AE equality of functions gives equal tilted measures
+
+  Composition & Inversion:
+  - Line 251-264: tilted_tilted - CRUCIAL: (μ.tilted f).tilted g = μ.tilted (f+g)
+  - Line 272-278: tilted_neg_same - (μ.tilted f).tilted (-f) = μ (inverse!)
+
+  Integration Formulas:
+  - Line 230-232: integral_tilted - General integration formula
+  - Line 236-249: integral_exp_tilted - KEY FOR MGF:
+  ∫ exp(g) d(μ.tilted f) = (∫ exp(f+g) dμ) / (∫ exp(f) dμ)
+
+  Absolute Continuity:
+  - Line 280-281: tilted_absolutelyContinuous - μ.tilted f ≪ μ always
+  - Line 283-291: absolutelyContinuous_tilted - μ ≪ μ.tilted f when exp(f) integrable
+
+  2. Probability-Specific Results (Mathlib/Probability/Moments/Tilted.lean)
+
+  Integration with MGF/CGF:
+  - Line 119-121: integral_tilted_mul_eq_mgf
+  - Line 123-128: integral_tilted_mul_eq_cgf - Express integrals using CGF
+
+  CRITICAL RESULTS FOR CRAMÉR LOWER BOUND:
+
+  - Line 132-136: integral_tilted_mul_self - THIS IS KEY:
+  (μ.tilted (t * X ·))[X] = deriv (cgf X μ) t
+  - The expectation of X under the tilted measure equals the derivative of CGF!
+  - Line 159-167: variance_tilted_mul:
+  Var[X; μ.tilted (t * X ·)] = iteratedDeriv 2 (cgf X μ) t
+  - Variance under tilted measure equals second derivative of CGF!
+  - Line 140-155: memLp_tilted_mul - X has all moments under tilted measure
+
+  3. CGF Derivative Results (Mathlib/Probability/Moments/MGFAnalytic.lean)
+
+  - Line 188-189: deriv_cgf:
+  deriv (cgf X μ) v = μ[X * exp(v*X)] / mgf X μ v
+  - Line 200-201: deriv_cgf_zero - Derivative at 0 is the mean
+  - Line 205+: Second derivative formula (related to variance)
+
+  4. Key Insights for Cramér Lower Bound
+
+  The standard proof strategy for the lower bound is:
+
+  1. Change of measure: For fixed a > E[X], choose t^* such that deriv (cgf X μ) t^* = a
+  2. Use tilted measure: Under μ.tilted (t^* * X ·), we have E[X] = a by integral_tilted_mul_self
+  3. Apply Chebyshev/concentration: Use that under the tilted measure, X concentrates near a
+  4. Relate probabilities: Use the density formula to relate probabilities under original and tilted measures
+  5. Optimize: The rate function emerges from the optimization over t
+
+  Most Useful Lemmas:
+  - integral_tilted_mul_self - Connects tilted expectation to CGF derivative
+  - tilted_tilted - Composition property
+  - integral_exp_tilted - MGF under tilted measure
+  - tilted_apply_eq_ofReal_integral_cgf - Explicit formula for tilted measure of sets
+  - integrable_tilted_iff - Integrability characterization
+
+  The tilted measure essentially "re-centers" the distribution around the point a we care about, making the lower bound proof more tractable!
