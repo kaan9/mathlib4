@@ -716,11 +716,9 @@ This follows from the MGF relationship mgf(S_n) = exp(n * cgf(X_0)). -/
 private lemma cgf_sum_eq_n_mul_cgf (t : ℝ) (n : ℕ)
     (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
     cgf (S X n) ℙ t = n * cgf (X 0) ℙ t := by
-  -- Use cgf_sum_eq: mgf (S X n) ℙ t = exp(n * cgf (X 0) ℙ t)
+  -- Use cgf_sum_eq: ∫ exp(t * S_n) = exp(n * cgf (X 0) ℙ t)
   have h_mgf := @cgf_sum_eq _ _ X h_indep h_ident h_meas h_mgf _ n t h_int
-  -- mgf (S X n) ℙ t = ∫ exp(t * S_n) = exp(n * cgf (X 0) ℙ t)
-  rw [mgf] at h_mgf
-  -- cgf (S X n) ℙ t = log(mgf (S X n) ℙ t)
+  -- cgf (S X n) ℙ t = log(mgf (S X n) ℙ t) = log(∫ exp(t * S_n))
   rw [cgf, mgf, h_mgf]
   -- log(exp(n * cgf)) = n * cgf
   rw [Real.log_exp (n * cgf (X 0) ℙ t)]
@@ -730,7 +728,18 @@ include h_indep h_ident h_meas h_mgf in
 private lemma deriv_cgf_sum (t : ℝ) (n : ℕ)
     (ht : t ∈ interior (integrableExpSet (X 0) ℙ)) :
     deriv (cgf (S X n) ℙ) t = n * deriv (cgf (X 0) ℙ) t := by
-  sorry
+  -- Need integrability for the helper lemma
+  have h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ :=
+    interior_subset (s := integrableExpSet (X 0) ℙ) ht
+  -- cgf (S X n) ℙ and (fun s => n * cgf (X 0) ℙ s) are equal functions
+  have h_eq : cgf (S X n) ℙ = fun s => n * cgf (X 0) ℙ s := by
+    ext s
+    have h_int_s : Integrable (fun ω => Real.exp (s * X 0 ω)) ℙ := h_mgf s
+    exact cgf_sum_eq_n_mul_cgf s n h_int_s
+  -- Differentiate both sides
+  rw [h_eq]
+  rw [deriv_const_mul]
+  simp
 
 include h_indep h_ident h_meas h_mgf in
 /-- Sub-goal 1b: Second derivative of CGF scales by n for the sum -/
