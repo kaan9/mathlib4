@@ -529,31 +529,52 @@ Strategy:
 5. Change of measure relates P to Q_{n,t} with exponential cost
 -/
 
+/-- **Helper: MGF of the sum equals product of MGFs by independence**. -/
+private lemma mgf_sum_eq_prod (n : ℕ) (t : ℝ) :
+    ∫ ω, Real.exp (t * S X n ω) ∂ℙ = ∏ i ∈ Finset.range n, mgf (X 0) ℙ t := by
+  sorry
+
+/-- **Helper: Product of identical MGFs equals MGF to the power n**. -/
+private lemma prod_mgf_eq_pow (n : ℕ) (t : ℝ) :
+    ∏ i ∈ Finset.range n, mgf (X 0) ℙ t = mgf (X 0) ℙ t ^ n := by
+  rw [Finset.prod_const, Finset.card_range]
+
+/-- **Helper: MGF to power n equals exp(n * cgf)**. -/
+private lemma mgf_pow_eq_exp_mul_cgf (n : ℕ) (t : ℝ)
+    (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
+    mgf (X 0) ℙ t ^ n = Real.exp (n * cgf (X 0) ℙ t) := by
+  rw [cgf, ← Real.exp_nat_mul, Real.exp_log]
+  exact integral_exp_pos h_int
+
 /-- **Helper: CGF of the sum equals n times CGF of X_0**. -/
 private lemma cgf_sum_eq (n : ℕ) (t : ℝ)
     (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
     ∫ ω, Real.exp (t * S X n ω) ∂ℙ = Real.exp (n * cgf (X 0) ℙ t) := by
-  sorry
+  rw [mgf_sum_eq_prod, prod_mgf_eq_pow, mgf_pow_eq_exp_mul_cgf n t h_int]
 
 /-- **Helper: Bound the Radon-Nikodym derivative on the set E**.
 For ω in E where S_n(ω) ≤ n(a+δ), we have exp(-t*S_n(ω)) ≥ exp(-t*n(a+δ)). -/
 private lemma exp_neg_mul_S_ge_on_set (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
     (ω : Ω) (hω : empiricalMean X n ω ∈ Set.Icc a (a + δ)) :
     Real.exp (-t * S X n ω) ≥ Real.exp (-t * n * (a + δ)) := by
+  -- exp is monotone, so we need: -t * S X n ω ≥ -t * n * (a + δ)
+  -- Equivalently: t * n * (a + δ) ≥ t * S X n ω
   apply Real.exp_le_exp.mpr
-  apply mul_le_mul_of_nonpos_left _ (neg_nonpos.mpr (mul_nonneg ht _))
-  · -- Show S X n ω ≤ n * (a + δ)
-    rw [empiricalMean, S] at hω
-    have := hω.2
-    calc S X n ω = (S X n ω / n) * n := by
-        by_cases hn : n = 0
-        · simp [hn, S]
-        · field_simp
-      _ ≤ (a + δ) * n := by
-          apply mul_le_mul_of_nonneg_right this
-          exact Nat.cast_nonneg n
-      _ = n * (a + δ) := by ring
-  · exact Nat.cast_nonneg n
+  -- Show: -t * n * (a + δ) ≤ -t * S X n ω
+  rw [empiricalMean, S] at hω
+  have h_upper := hω.2  -- S X n ω / n ≤ a + δ
+  by_cases hn : n = 0
+  · simp [hn, S]
+  · have h_S_bound : S X n ω ≤ n * (a + δ) := by
+      calc S X n ω = (S X n ω / n) * n := by field_simp
+        _ ≤ (a + δ) * n := mul_le_mul_of_nonneg_right h_upper (Nat.cast_nonneg n)
+        _ = n * (a + δ) := by ring
+    calc -t * n * (a + δ) = -(t * n * (a + δ)) := by ring
+      _ ≤ -(t * S X n ω) := by
+          apply neg_le_neg
+          calc t * S X n ω ≤ t * (n * (a + δ)) := mul_le_mul_of_nonneg_left h_S_bound ht
+            _ = t * n * (a + δ) := by ring
+      _ = -t * S X n ω := by ring
 
 /-- **Lemma 1: Change of measure lower bound**.
 The probability under P can be bounded below using the tilted measure.
