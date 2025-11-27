@@ -671,7 +671,20 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
               apply Integrable.integrableOn
               apply integrable_const)
             (by -- exp(-t*S_n) is integrable under tilted measure
-              sorry)
+              apply Integrable.integrableOn
+              rw [integrable_tilted_iff h_int]
+              -- Need to show: Integrable (fun ω ↦ exp(t*S_n) • exp(-t*S_n))
+              -- This simplifies to: Integrable (const 1)
+              have : (fun ω ↦ Real.exp (t * S X n ω) • Real.exp (-t * S X n ω)) = fun ω ↦ 1 := by
+                ext ω
+                simp only [smul_eq_mul]
+                rw [← Real.exp_add]
+                ring_nf
+                norm_num
+              rw [this]
+              rw [integrable_const_iff]
+              right
+              infer_instance)
             hE h_ge
       _ = ((Measure.tilted ℙ (fun ω => t * S X n ω)).real E) •
             Real.exp (-t * n * (a + δ)) := setIntegral_const _
