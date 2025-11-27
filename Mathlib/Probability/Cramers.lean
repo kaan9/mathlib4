@@ -639,9 +639,15 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
   intro E
   -- Step 1: Express P(E) using the tilted measure
   have hE : MeasurableSet E := by
-    -- E = {ω | S(ω)/n ∈ [a, a+δ]} is measurable
-    -- S is measurable as a finite sum, division by constant preserves measurability
-    sorry
+    -- E = {ω | empiricalMean(ω) ∈ [a, a+δ]} is measurable
+    -- empiricalMean = S/n where S is a finite sum of measurable functions
+    have hS : Measurable (S X n) := by
+      rw [S]
+      convert Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i) using 2
+      exact Finset.sum_apply _ _ _
+    have : E = {ω | S X n ω / (n : ℝ) ∈ Set.Icc a (a + δ)} := by rfl
+    rw [this]
+    exact (hS.div_const (n : ℝ)) measurableSet_Icc
 
   have h_int' : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ := h_mgf t
 
@@ -653,7 +659,19 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
   -- Step 3: Bound ∫_E exp(-t*S_n) dQ from below
   have h_bound : ∫ ω in E, Real.exp (-t * S X n ω) ∂(Measure.tilted ℙ (fun ω => t * S X n ω)) ≥
       Real.exp (-t * n * (a + δ)) * ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal := by
-    sorry -- Use exp_neg_mul_S_ge_on_set to pull out the constant
+    -- Use exp_neg_mul_S_ge_on_set: on E, exp(-t*S_n) ≥ exp(-t*n*(a+δ))
+    have h_ge : ∀ ω ∈ E, Real.exp (-t * n * (a + δ)) ≤ Real.exp (-t * S X n ω) := by
+      intro ω hω
+      exact exp_neg_mul_S_ge_on_set X t n a δ (le_of_lt ht) ω hω
+    -- Integral of const on E equals const * measure(E)
+    calc ∫ ω in E, Real.exp (-t * S X n ω) ∂(Measure.tilted ℙ (fun ω => t * S X n ω))
+        ≥ ∫ ω in E, Real.exp (-t * n * (a + δ)) ∂(Measure.tilted ℙ (fun ω => t * S X n ω)) :=
+          setIntegral_mono_on (by sorry) (by sorry) hE h_ge  -- Integrability
+      _ = ((Measure.tilted ℙ (fun ω => t * S X n ω)).real E) •
+            Real.exp (-t * n * (a + δ)) := setIntegral_const _
+      _ = Real.exp (-t * n * (a + δ)) *
+            ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal := by
+          rw [Measure.real, smul_eq_mul]; ring
 
   -- Step 4: Combine to get the final inequality
   -- After step 1, we have: (ℙ E).toReal = exp(n*cgf) * ∫_E exp(-t*S_n) dQ
