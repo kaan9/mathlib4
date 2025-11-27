@@ -567,7 +567,7 @@ lemma mgf_pow_eq_exp_mul_cgf (n : ℕ) (t : ℝ)
 include h_indep h_ident h_meas h_mgf in lemma cgf_sum_eq (n : ℕ) (t : ℝ)
     (h_int : Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) :
     ∫ ω, Real.exp (t * S X n ω) ∂ℙ = Real.exp (n * cgf (X 0) ℙ t) := by
-  rw [@mgf_sum_eq_prod X h_indep h_ident h_meas h_mgf n t, prod_mgf_eq_pow]
+  rw [@mgf_sum_eq_prod _ _ X h_indep h_ident h_meas _ n t, prod_mgf_eq_pow]
   exact @mgf_pow_eq_exp_mul_cgf _ _ X _ n t h_int
 
 /-- **Helper: Bound the Radon-Nikodym derivative on the set E**.
@@ -634,7 +634,7 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
   rw [measure_eq_integral_exp_neg_tilted (fun ω => t * S X n ω) E h_int hE]
 
   -- Step 2: Apply cgf_sum_eq to simplify ∫ exp(t*S_n)
-  rw [@cgf_sum_eq X h_indep h_ident h_meas h_mgf n t h_int']
+  rw [@cgf_sum_eq _ _ X h_indep h_ident h_meas h_mgf _ n t h_int']
 
   -- Step 3: Bound ∫_E exp(-t*S_n) dQ from below
   have h_bound : ∫ ω in E, Real.exp (-t * S X n ω) ∂(Measure.tilted ℙ (fun ω => t * S X n ω)) ≥
