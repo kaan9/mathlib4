@@ -710,6 +710,44 @@ include h_indep h_ident h_meas h_mgf in lemma change_of_measure_lower_bound (a �
   convert h_bound.le using 2
   ext ω; ring_nf
 
+include h_indep h_ident h_meas h_mgf in
+/-- Sub-goal 1a: First derivative of CGF scales by n for the sum -/
+private lemma deriv_cgf_sum (t : ℝ) (n : ℕ)
+    (ht : t ∈ interior (integrableExpSet (X 0) ℙ)) :
+    deriv (cgf (S X n) ℙ) t = n * deriv (cgf (X 0) ℙ) t := by
+  sorry
+
+include h_indep h_ident h_meas h_mgf in
+/-- Sub-goal 1b: Second derivative of CGF scales by n for the sum -/
+private lemma iteratedDeriv_two_cgf_sum (t : ℝ) (n : ℕ)
+    (ht : t ∈ interior (integrableExpSet (X 0) ℙ)) :
+    iteratedDeriv 2 (cgf (S X n) ℙ) t = n * iteratedDeriv 2 (cgf (X 0) ℙ) t := by
+  sorry
+
+include h_indep h_ident h_meas h_mgf in
+/-- Sub-goal 2: Apply Mathlib lemmas to S_n directly -/
+private lemma tilted_Sn_moments (t : ℝ) (n : ℕ)
+    (ht : t ∈ interior (integrableExpSet (X 0) ℙ)) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * S X n ω)
+    (∫ ω, S X n ω ∂μ_t) = deriv (cgf (S X n) ℙ) t ∧
+    variance (S X n) μ_t = iteratedDeriv 2 (cgf (S X n) ℙ) t := by
+  intro μ_t
+  constructor
+  · -- Mean: Apply integral_tilted_mul_self to S_n
+    have hS_meas : Measurable (S X n) := by
+      unfold S
+      convert Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i) using 2
+      exact Finset.sum_apply _ _ _
+    -- Need to show t is in interior of integrableExpSet for S_n
+    have ht_Sn : t ∈ interior (integrableExpSet (S X n) ℙ) := by
+      sorry  -- This requires showing integrableExpSet scales properly
+    exact integral_tilted_mul_self ht_Sn
+  · -- Variance: Apply variance_tilted_mul to S_n
+    have ht_Sn : t ∈ interior (integrableExpSet (S X n) ℙ) := by
+      sorry
+    exact variance_tilted_mul ht_Sn
+
+include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 2: Tilted empirical moments**.
 Under the tilted measure, the mean is the CGF derivative and variance is the second derivative.
 Uses `integral_tilted_mul_self` and `variance_tilted_mul` from Mathlib. -/
@@ -718,7 +756,23 @@ private lemma tilted_empirical_moments (t : ℝ) (n : ℕ) (hn : n ≠ 0)
     let μ_t := Measure.tilted ℙ (fun ω => t * S X n ω)
     (∫ ω, empiricalMean X n ω ∂μ_t) = deriv (cgf (X 0) ℙ) t ∧
     variance (empiricalMean X n) μ_t = (1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t := by
-  sorry
+  intro μ_t
+  -- Get the moments of S_n under the tilted measure
+  have h_Sn := @tilted_Sn_moments _ _ X h_indep h_ident h_meas h_mgf _ t n ht
+  constructor
+  · -- Mean: E[empiricalMean] = E[S_n/n] = (1/n) * E[S_n]
+    show ∫ ω, (S X n ω / n) ∂μ_t = deriv (cgf (X 0) ℙ) t
+    -- Linearity of integral
+    rw [integral_div]
+    rw [h_Sn.1]
+    -- Apply deriv_cgf_sum to rewrite deriv(cgf(S_n))
+    rw [@deriv_cgf_sum _ _ X h_indep h_ident h_meas h_mgf _ t n ht]
+    -- Simplify: (1/n) * (n * deriv) = deriv
+    field_simp
+  · -- Variance: Var[empiricalMean] = Var[S_n/n] = (1/n^2) * Var[S_n]
+    show variance (fun ω => S X n ω / n) μ_t = (1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t
+    -- Variance scales quadratically
+    sorry  -- Need variance scaling lemma: Var(X/c) = (1/c^2) * Var(X)
 
 /-- **Lemma 3: Tilted measure concentration**.
 If t is chosen so that cgf'(t) = a, then under the tilted measure,
