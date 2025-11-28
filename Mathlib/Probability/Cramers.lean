@@ -909,6 +909,7 @@ private lemma variance_term_tendsto_zero (C : ℝ) (δ : ℝ) (hδ : 0 < δ) :
     ext n
     ring
 
+include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 3: Tilted measure concentration**.
 If t is chosen so that cgf'(t) = a, then under the tilted measure,
 the empirical mean concentrates at a by the weak law of large numbers.
@@ -923,7 +924,24 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
   -- First, we show the complement event has probability going to 0
   have h_complement_to_zero : Tendsto (fun n => ((Measure.tilted ℙ (fun ω => t * S X n ω))
       {ω | δ ≤ |empiricalMean X n ω - a|}).toReal) atTop (𝓝 0) := by
-    sorry
+    -- Use tendsto_toReal_zero_iff to convert to ENNReal
+    rw [ENNReal.tendsto_toReal_zero_iff]
+    -- Use tilted_deviation_bound to get upper bound
+    have h_bound : ∀ n : ℕ, n ≠ 0 →
+        (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | δ ≤ |empiricalMean X n ω - a|} ≤
+        ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) := by
+      intro n hn
+      exact tilted_deviation_bound t a n hn δ hδ ht h_match
+    -- The bound goes to 0 by variance_term_tendsto_zero
+    have h_bound_to_zero := variance_term_tendsto_zero (iteratedDeriv 2 (cgf (X 0) ℙ) t) δ hδ
+    -- Apply squeeze: eventually 0 ≤ μ_t{...} ≤ bound, and bound → 0
+    refine ENNReal.tendsto_nhds_zero.2 (fun ε hε => ?_)
+    obtain ⟨N, hN⟩ := (ENNReal.tendsto_atTop_zero.1 h_bound_to_zero) ε hε
+    filter_upwards [eventually_ge_atTop (max N 1)] with n hn
+    calc (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | δ ≤ |empiricalMean X n ω - a|}
+        ≤ ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) :=
+          h_bound n (by omega)
+      _ < ε := hN n (by omega)
   -- Convert to toReal and use 1 - P(complement) = P(event)
   sorry
 
