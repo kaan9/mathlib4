@@ -959,7 +959,6 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
     have h_prob_n : IsProbabilityMeasure (Measure.tilted ℙ (fun ω => t * S X n ω)) := by
       apply isProbabilityMeasure_tilted
       exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
-    rw [← h_compl]
     have h_meas : MeasurableSet {ω | |empiricalMean X n ω - a| < δ} := by
       -- Show that |empiricalMean X n - a| is measurable, then apply measurableSet_lt
       have h_emp_meas : Measurable (empiricalMean X n) := by
@@ -972,7 +971,16 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
         continuous_abs.measurable.comp h_sub_meas
       exact measurableSet_lt h_abs_meas measurable_const
     haveI := h_prob_n
-    exact @prob_compl_eq_one_sub _ _ (Measure.tilted ℙ (fun ω => t * S X n ω)) _ h_meas
+    have h_prob_eq : (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| < δ}ᶜ =
+        1 - (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| < δ} :=
+      prob_compl_eq_one_sub h_meas
+    calc (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| < δ}
+        = 1 - (1 - (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| < δ}) := by
+          rw [ENNReal.sub_sub_cancel ENNReal.one_ne_top prob_le_one]
+      _ = 1 - (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| < δ}ᶜ := by
+          rw [← h_prob_eq]
+      _ = 1 - (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | δ ≤ |empiricalMean X n ω - a|} := by
+          rw [h_compl]
   -- Apply tendsto for (1 - x).toReal where x → 0
   -- Rewrite using h_eq
   simp_rw [h_eq]
