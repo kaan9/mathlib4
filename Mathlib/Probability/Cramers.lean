@@ -1035,10 +1035,9 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
   have h_subset : ∀ n, {ω | empiricalMean X n ω ≥ a + δ} ⊆ {ω | |empiricalMean X n ω - a| ≥ δ} := by
     intro n ω hω
     simp only [Set.mem_setOf_eq] at hω ⊢
-    rw [abs_sub_comm]
-    calc
-      δ ≤ empiricalMean X n ω - a := by linarith [hω]
-      _ ≤ |empiricalMean X n ω - a| := le_abs_self _
+    have : δ ≤ empiricalMean X n ω - a := by linarith [hω]
+    have : empiricalMean X n ω - a ≤ |empiricalMean X n ω - a| := le_abs_self _
+    linarith
 
   -- Therefore P(X ≥ a+δ).toReal → 0 by concentration
   have h_tail_vanish : Tendsto (fun n =>
@@ -1058,16 +1057,22 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
           exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
         let μ_n := Measure.tilted ℙ (fun ω => t * S X n ω)
         let s_n := {ω | |empiricalMean X n ω - a| < δ}
+        have h_emp_meas : Measurable (empiricalMean X n) := by
+          convert (Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)).div_const (n : ℝ) using 1
+          ext ω
+          simp only [empiricalMean, _root_.S, Finset.sum_apply]
         have h_meas_n : MeasurableSet s_n := by
           refine measurableSet_lt ?_ measurable_const
-          exact Measurable.abs (Measurable.sub (measurable_empiricalMean h_meas n) measurable_const)
-        have := @prob_compl_eq_one_sub _ _ μ_n h_prob_n s_n h_meas_n
-        convert this using 2
-        ext ω
-        simp [s_n]
-        constructor
-        · intro h; push_neg at h; exact le_of_not_lt h
-        · intro h; push_neg; exact h
+          exact Measurable.abs (h_emp_meas.sub_const a)
+        have h_compl_eq : s_nᶜ = {ω | |empiricalMean X n ω - a| ≥ δ} := by
+          ext ω
+          simp only [s_n, Set.mem_setOf_eq, Set.mem_compl_iff]
+          push_neg
+          rfl
+        have : μ_n s_nᶜ = 1 - μ_n s_n := prob_compl_eq_one_sub h_meas_n
+        rw [h_compl_eq] at this
+        congr 1
+        exact this
       simp_rw [h_eq]
       -- Now (1 - p_n) → (1 - 1) = 0 as p_n → 1
       have : Tendsto (fun n => 1 - ((Measure.tilted ℙ (fun ω => t * S X n ω))
