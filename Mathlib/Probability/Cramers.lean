@@ -987,8 +987,20 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
   -- Show that (1 - x).toReal → 1 when x.toReal → 0
   have h_one_sub : Tendsto (fun n => (1 - (Measure.tilted ℙ (fun ω => t * S X n ω))
       {ω | δ ≤ |empiricalMean X n ω - a|}).toReal) atTop (𝓝 1) := by
-    -- Use continuity of toReal and subtraction
-    sorry
+    -- First convert toReal convergence to ENNReal convergence
+    have h_measure_to_zero : Tendsto (fun n => (Measure.tilted ℙ (fun ω => t * S X n ω))
+        {ω | δ ≤ |empiricalMean X n ω - a|}) atTop (𝓝 0) := by
+      rw [← ENNReal.tendsto_toReal_zero_iff (fun n => measure_ne_top _ _)]
+      exact h_complement_to_zero
+    -- Then use ENNReal.Tendsto.sub to get 1 - measure → 1
+    have h_sub_to_one : Tendsto (fun n => 1 - (Measure.tilted ℙ (fun ω => t * S X n ω))
+        {ω | δ ≤ |empiricalMean X n ω - a|}) atTop (𝓝 1) := by
+      convert ENNReal.Tendsto.sub tendsto_const_nhds h_measure_to_zero (Or.inl ENNReal.one_ne_top) using 1
+      simp
+    -- Finally apply toReal to get the result
+    rw [← ENNReal.toReal_one]
+    refine (ENNReal.tendsto_toReal ?_).comp h_sub_to_one
+    simp only [ne_eq, ENNReal.sub_eq_top_iff, ENNReal.one_ne_top, false_and, or_false, not_false_eq_true]
   exact h_one_sub
 
 /-- **Lemma 4: Lower bound via tilted measure**.
