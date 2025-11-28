@@ -874,7 +874,9 @@ private lemma tilted_deviation_bound (t a : ℝ) (n : ℕ) (hn : n ≠ 0) (δ : 
     -- empiricalMean = (1/n) * S, use const_mul
     show MemLp (fun ω => S X n ω / n) 2 μ_t
     have : (fun ω => S X n ω / n) = (fun ω => (1 / (n : ℝ)) * S X n ω) := by
-      ext ω; simp [div_eq_inv_mul, inv_eq_one_div]
+      ext ω
+      have hn_cast : (n : ℝ) ≠ 0 := by simp [hn]
+      field_simp [hn_cast]
     rw [this]
     exact h_S_memLp.const_mul (1 / (n : ℝ))
   -- Apply Chebyshev's inequality
