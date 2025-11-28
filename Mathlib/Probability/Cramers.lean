@@ -786,11 +786,23 @@ private lemma tilted_Sn_moments (t : ℝ) (n : ℕ)
       exact Finset.sum_apply _ _ _
     -- Need to show t is in interior of integrableExpSet for S_n
     have ht_Sn : t ∈ interior (integrableExpSet (S X n) ℙ) := by
-      sorry  -- This requires showing integrableExpSet scales properly
+      -- Since h_mgf gives integrability for all t, integrableExpSet (S X n) ℙ = univ
+      have h_univ : integrableExpSet (S X n) ℙ = Set.univ := by
+        ext s
+        simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+        exact integrable_exp_sum X h_indep h_ident h_meas h_mgf s n
+      rw [h_univ, interior_univ]
+      exact Set.mem_univ t
     exact integral_tilted_mul_self ht_Sn
   · -- Variance: Apply variance_tilted_mul to S_n
     have ht_Sn : t ∈ interior (integrableExpSet (S X n) ℙ) := by
-      sorry
+      -- Since h_mgf gives integrability for all t, integrableExpSet (S X n) ℙ = univ
+      have h_univ : integrableExpSet (S X n) ℙ = Set.univ := by
+        ext s
+        simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+        exact integrable_exp_sum X h_indep h_ident h_meas h_mgf s n
+      rw [h_univ, interior_univ]
+      exact Set.mem_univ t
     exact variance_tilted_mul ht_Sn
 
 include h_indep h_ident h_meas h_mgf in
