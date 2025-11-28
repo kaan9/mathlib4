@@ -842,15 +842,89 @@ private lemma tilted_empirical_moments (t : ℝ) (n : ℕ) (hn : n ≠ 0)
     -- Simplify: (1/n)² * (n * iteratedDeriv 2) = (1/n) * iteratedDeriv 2
     field_simp
 
+include h_indep h_ident h_meas h_mgf in
+/-- Helper: Bound deviation probability using Chebyshev's inequality -/
+private lemma tilted_deviation_bound (t a : ℝ) (n : ℕ) (hn : n ≠ 0) (δ : ℝ) (hδ : 0 < δ)
+    (ht : t ∈ interior (integrableExpSet (X 0) ℙ))
+    (h_match : deriv (cgf (X 0) ℙ) t = a) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * S X n ω)
+    μ_t {ω | δ ≤ |empiricalMean X n ω - a|} ≤
+      ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) := by
+  intro μ_t
+  -- Get moments from Lemma 2
+  have h_moments := @tilted_empirical_moments _ _ X h_indep h_ident h_meas h_mgf _ t n hn ht
+  -- The mean under μ_t is a
+  have h_mean : μ_t[empiricalMean X n] = a := by
+    rw [h_moments.1, h_match]
+  -- Show μ_t is a probability measure
+  have h_prob : IsProbabilityMeasure μ_t := by
+    apply isProbabilityMeasure_tilted
+    exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
+  -- Show empiricalMean X n is in L^2(μ_t)
+  have h_memLp : MemLp (empiricalMean X n) 2 μ_t := by
+    -- First show S X n is in L^2(μ_t)
+    have ht_Sn : t ∈ interior (integrableExpSet (S X n) ℙ) := by
+      have h_univ : integrableExpSet (S X n) ℙ = Set.univ := by
+        ext s
+        simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+        exact integrable_exp_sum X h_indep h_ident h_meas h_mgf s n
+      rw [h_univ, interior_univ]
+      exact Set.mem_univ t
+    have h_S_memLp : MemLp (S X n) 2 μ_t := memLp_tilted_mul ht_Sn 2
+    -- empiricalMean = S / n, use const_smul
+    sorry
+  -- Apply Chebyshev's inequality
+  calc μ_t {ω | δ ≤ |empiricalMean X n ω - a|}
+      = μ_t {ω | δ ≤ |empiricalMean X n ω - μ_t[empiricalMean X n]|} := by
+        congr 1
+        ext ω
+        simp only [h_mean]
+    _ ≤ ENNReal.ofReal (variance (empiricalMean X n) μ_t / δ ^ 2) :=
+        meas_ge_le_variance_div_sq h_memLp hδ
+    _ = ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) := by
+        rw [h_moments.2]
+
+include h_indep h_ident h_meas h_mgf in
+/-- Helper: The variance term goes to zero as n → ∞ -/
+private lemma variance_term_tendsto_zero (C : ℝ) (δ : ℝ) (hδ : 0 < δ) :
+    Tendsto (fun n : ℕ => ENNReal.ofReal ((1 / n) * C / δ ^ 2)) atTop (𝓝 0) := by
+  -- Rewrite as constant times (1/n)
+  have h_eq : (fun n : ℕ => ENNReal.ofReal ((1 / n) * C / δ ^ 2)) =
+              (fun n : ℕ => ENNReal.ofReal ((C / δ ^ 2) * (1 / n))) := by
+    ext n
+    ring_nf
+  rw [h_eq]
+  -- Use continuity of ofReal and tendsto of 1/n → 0
+  by_cases hC : C / δ ^ 2 ≤ 0
+  · have : ∀ n : ℕ, ENNReal.ofReal ((C / δ ^ 2) * (1 / n)) = 0 := by
+      intro n
+      apply ENNReal.ofReal_of_nonpos
+      exact mul_nonpos_of_nonpos_of_nonneg hC (by positivity)
+    simp only [this]
+    exact tendsto_const_nhds
+  · push_neg at hC
+    rw [← ENNReal.ofReal_zero]
+    refine ENNReal.continuous_ofReal.continuousAt.tendsto.comp ?_
+    convert (tendsto_const_div_atTop_nhds_zero_nat (C / δ ^ 2)) using 1
+    ext n
+    ring
+
 /-- **Lemma 3: Tilted measure concentration**.
 If t is chosen so that cgf'(t) = a, then under the tilted measure,
 the empirical mean concentrates at a by the weak law of large numbers.
-Uses Chebyshev's inequality with the variance from Lemma 2. -/
+Uses Chebyshev's inequality with the variance from Lemma 2.
+We prove concentration on the ball {|mean - a| < δ}, which is sufficient for the lower bound. -/
 private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
     (ht : t ∈ interior (integrableExpSet (X 0) ℙ))
     (h_match : deriv (cgf (X 0) ℙ) t = a) :
     Tendsto (fun n => ((Measure.tilted ℙ (fun ω => t * S X n ω))
-      {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal) atTop (𝓝 1) := by
+      {ω | |empiricalMean X n ω - a| < δ}).toReal) atTop (𝓝 1) := by
+  -- Strategy: Show P(|mean - a| ≥ δ) → 0, then P(|mean - a| < δ) → 1
+  -- First, we show the complement event has probability going to 0
+  have h_complement_to_zero : Tendsto (fun n => ((Measure.tilted ℙ (fun ω => t * S X n ω))
+      {ω | δ ≤ |empiricalMean X n ω - a|}).toReal) atTop (𝓝 0) := by
+    sorry
+  -- Convert to toReal and use 1 - P(complement) = P(event)
   sorry
 
 /-- **Lemma 4: Lower bound via tilted measure**.
