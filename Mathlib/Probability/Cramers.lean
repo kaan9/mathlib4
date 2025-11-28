@@ -1003,6 +1003,37 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
     simp only [ne_eq, ENNReal.one_ne_top, not_false_eq_true]
   exact h_one_sub
 
+include h_indep h_ident h_meas h_mgf in
+/-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
+This follows from the concentration lemma and the CLT-type argument that the tilted
+distribution concentrates symmetrically around a. -/
+private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 < δ)
+    (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    ∃ c > 0, ∀ᶠ n in atTop,
+      c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+  -- Since the tilted mean is exactly a, and we have concentration around a,
+  -- the interval [a, a+δ] captures a positive fraction of the mass
+  -- This could be proven rigorously using CLT, but we'll skip the details for now
+  sorry
+
+include h_indep h_ident h_meas h_mgf in
+/-- Helper: The error term (1/n) * log(tilted prob on window) → 0. -/
+private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
+    (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    Tendsto (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω))
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})) atTop (𝓝 0) := by
+  -- Since the tilted probability is bounded away from 0 and bounded by 1,
+  -- its log is bounded, so (1/n) * log(prob) → 0
+  obtain ⟨c, hc_pos, h_bounded⟩ := @tilted_prob_window_bounded_away_from_zero _ _ X h_indep h_ident
+    h_meas h_mgf _ a t δ hδ ht_int ht_deriv
+  -- The tilted probability is in [c, 1] eventually, so log is in [log c, 0]
+  -- Therefore (1/n) * log is in [(1/n) * log c, 0] → 0
+  sorry
+
+include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 4: Lower bound via tilted measure**.
 Combining the change of measure and concentration lemmas,
 we get the lower bound on the scaled log probability. -/
