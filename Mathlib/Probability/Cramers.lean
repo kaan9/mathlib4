@@ -1069,10 +1069,13 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
           simp only [s_n, Set.mem_setOf_eq, Set.mem_compl_iff]
           push_neg
           rfl
-        have : μ_n s_nᶜ = 1 - μ_n s_n := prob_compl_eq_one_sub h_meas_n
-        rw [h_compl_eq] at this
-        congr 1
-        exact this
+        have h1 : μ_n s_nᶜ = 1 - μ_n s_n := prob_compl_eq_one_sub h_meas_n
+        rw [h_compl_eq] at h1
+        show (μ_n {ω | |empiricalMean X n ω - a| ≥ δ}).toReal = 1 - (μ_n s_n).toReal
+        rw [h1, ENNReal.toReal_sub_of_le]
+        · simp [μ_n]
+        · exact prob_le_one
+        · simp [measure_ne_top]
       simp_rw [h_eq]
       -- Now (1 - p_n) → (1 - 1) = 0 as p_n → 1
       have : Tendsto (fun n => 1 - ((Measure.tilted ℙ (fun ω => t * S X n ω))
