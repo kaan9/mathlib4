@@ -1004,17 +1004,95 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
   exact h_one_sub
 
 include h_indep h_ident h_meas h_mgf in
+/-- Helper: The tilted measure gives positive probability to [a, ∞).
+This follows from the fact that the tilted mean is a, so there must be mass ≥ a. -/
+private lemma tilted_prob_ge_mean_pos (a t : ℝ)
+    (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (n : ℕ) :
+    0 < (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | a ≤ empiricalMean X n ω} := by
+  -- If this probability were 0, then all mass would be strictly below a,
+  -- making the expected value < a, contradicting ht_deriv
+  -- For now we'll use sorry, as this requires more detailed analysis of the tilted expectation
+  sorry
+
+include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
-This follows from the concentration lemma and the CLT-type argument that the tilted
-distribution concentrates symmetrically around a. -/
+This follows from the concentration lemma and the fact that the tilted mean is a. -/
 private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 < δ)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
     ∃ c > 0, ∀ᶠ n in atTop,
       c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-  -- Since the tilted mean is exactly a, and we have concentration around a,
-  -- the interval [a, a+δ] captures a positive fraction of the mass
-  -- This could be proven rigorously using CLT, but we'll skip the details for now
+  -- Strategy: P([a, a+δ]) = P([a, ∞)) - P([a+δ, ∞))
+  -- By concentration, P([a+δ, ∞)) → 0
+  -- By tilted_prob_ge_mean_pos, P([a, ∞)) > 0
+  -- Therefore P([a, a+δ]) is eventually > c for some c > 0
+
+  -- First, use concentration to show that P(|X - a| ≥ δ) → 0
+  have h_conc := @tilted_measure_concentrates _ _ X h_indep h_ident h_meas h_mgf _ t a δ hδ ht_int ht_deriv
+
+  -- The set {ω | empiricalMean X n ω ≥ a + δ} ⊆ {ω | |empiricalMean X n ω - a| ≥ δ}
+  have h_subset : ∀ n, {ω | empiricalMean X n ω ≥ a + δ} ⊆ {ω | |empiricalMean X n ω - a| ≥ δ} := by
+    intro n ω hω
+    simp only [Set.mem_setOf_eq] at hω ⊢
+    rw [abs_sub_comm]
+    calc
+      δ ≤ empiricalMean X n ω - a := by linarith [hω]
+      _ ≤ |empiricalMean X n ω - a| := le_abs_self _
+
+  -- Therefore P(X ≥ a+δ).toReal → 0 by concentration
+  have h_tail_vanish : Tendsto (fun n =>
+      ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ≥ a + δ}).toReal)
+      atTop (𝓝 0) := by
+    -- Since P(|X - a| < δ) → 1, we have P(|X - a| ≥ δ) → 0
+    -- First, convert the concentration to a statement about the complement
+    have h_compl_vanish : Tendsto (fun n =>
+        ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| ≥ δ}).toReal)
+        atTop (𝓝 0) := by
+      -- P(|X - a| ≥ δ) = 1 - P(|X - a| < δ)
+      have h_eq : ∀ n, ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| ≥ δ}).toReal =
+          1 - ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| < δ}).toReal := by
+        intro n
+        have h_prob_n : IsProbabilityMeasure (Measure.tilted ℙ (fun ω => t * S X n ω)) := by
+          apply isProbabilityMeasure_tilted
+          exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
+        let μ_n := Measure.tilted ℙ (fun ω => t * S X n ω)
+        let s_n := {ω | |empiricalMean X n ω - a| < δ}
+        have h_meas_n : MeasurableSet s_n := by
+          refine measurableSet_lt ?_ measurable_const
+          exact Measurable.abs (Measurable.sub (measurable_empiricalMean h_meas n) measurable_const)
+        have := @prob_compl_eq_one_sub _ _ μ_n h_prob_n s_n h_meas_n
+        convert this using 2
+        ext ω
+        simp [s_n]
+        constructor
+        · intro h; push_neg at h; exact le_of_not_lt h
+        · intro h; push_neg; exact h
+      simp_rw [h_eq]
+      -- Now (1 - p_n) → (1 - 1) = 0 as p_n → 1
+      have : Tendsto (fun n => 1 - ((Measure.tilted ℙ (fun ω => t * S X n ω))
+          {ω | |empiricalMean X n ω - a| < δ}).toReal) atTop (𝓝 (1 - 1)) :=
+        Tendsto.sub tendsto_const_nhds h_conc
+      simp at this
+      exact this
+
+    -- Now P(X ≥ a+δ) ≤ P(|X - a| ≥ δ) → 0
+    have h_bound : ∀ n, ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ≥ a + δ}).toReal ≤
+        ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| ≥ δ}).toReal := by
+      intro n
+      apply ENNReal.toReal_mono (measure_ne_top _ _)
+      apply measure_mono
+      exact h_subset n
+    refine tendsto_of_tendsto_of_tendsto_of_le_of_le tendsto_const_nhds h_compl_vanish (fun n => ?_) h_bound
+    simp
+
+  -- For each n, P([a, a+δ]) = P([a, ∞)) - P([a+δ, ∞))
+  -- We'll show that P([a, ∞)) is bounded away from 0, and P([a+δ, ∞)) → 0
+  -- The key issue is that we need P([a, ∞)) to be uniformly bounded away from 0,
+  -- which is non-trivial. For now, we'll assume this can be proven.
+
+  -- Let c be half of the infimum of P([a, ∞)) over all n
+  -- (In a full proof, we'd show this infimum is > 0)
   sorry
 
 include h_indep h_ident h_meas h_mgf in
