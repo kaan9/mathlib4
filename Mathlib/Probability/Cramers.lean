@@ -737,7 +737,16 @@ private lemma deriv_cgf_sum (t : ℝ) (n : ℕ)
         have h_int_s : Integrable (fun ω => Real.exp (s * X 0 ω)) ℙ := h_mgf s
         exact @cgf_sum_eq_n_mul_cgf _ _ X h_indep h_ident h_meas h_mgf _ s n h_int_s
     _ = n * deriv (cgf (X 0) ℙ) t := by
-        sorry  -- derivative of constant multiple
+        -- Use deriv_const_mul: deriv (fun y => c * d y) x = c * deriv d x
+        -- CGF is analytic on interior, hence differentiable at t
+        have h_diff : DifferentiableAt ℝ (cgf (X 0) ℙ) t := by
+          have h_analytic := @analyticOn_cgf _ _ (X 0) ℙ t ht
+          have h_nhds : interior (integrableExpSet (X 0) ℙ) ∈ 𝓝 t := isOpen_interior.mem_nhds ht
+          have : insert t (interior (integrableExpSet (X 0) ℙ)) ∈ 𝓝 t := by
+            simp only [Set.insert_eq_of_mem ht]
+            exact h_nhds
+          exact h_analytic.differentiableWithinAt.differentiableAt this
+        exact deriv_const_mul (n : ℝ) h_diff
 
 include h_indep h_ident h_meas h_mgf in
 /-- Sub-goal 1b: Second derivative of CGF scales by n for the sum -/
