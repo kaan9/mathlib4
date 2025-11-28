@@ -871,8 +871,12 @@ private lemma tilted_deviation_bound (t a : ℝ) (n : ℕ) (hn : n ≠ 0) (δ : 
       rw [h_univ, interior_univ]
       exact Set.mem_univ t
     have h_S_memLp : MemLp (S X n) 2 μ_t := memLp_tilted_mul ht_Sn 2
-    -- empiricalMean = S / n, use const_smul
-    sorry
+    -- empiricalMean = (1/n) * S, use const_mul
+    show MemLp (fun ω => S X n ω / n) 2 μ_t
+    have : (fun ω => S X n ω / n) = (fun ω => (1 / (n : ℝ)) * S X n ω) := by
+      ext ω; simp [div_eq_inv_mul, inv_eq_one_div]
+    rw [this]
+    exact h_S_memLp.const_mul (1 / (n : ℝ))
   -- Apply Chebyshev's inequality
   calc μ_t {ω | δ ≤ |empiricalMean X n ω - a|}
       = μ_t {ω | δ ≤ |empiricalMean X n ω - μ_t[empiricalMean X n]|} := by
@@ -884,7 +888,6 @@ private lemma tilted_deviation_bound (t a : ℝ) (n : ℕ) (hn : n ≠ 0) (δ : 
     _ = ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) := by
         rw [h_moments.2]
 
-include h_indep h_ident h_meas h_mgf in
 /-- Helper: The variance term goes to zero as n → ∞ -/
 private lemma variance_term_tendsto_zero (C : ℝ) (δ : ℝ) (hδ : 0 < δ) :
     Tendsto (fun n : ℕ => ENNReal.ofReal ((1 / n) * C / δ ^ 2)) atTop (𝓝 0) := by
@@ -926,24 +929,48 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
       {ω | δ ≤ |empiricalMean X n ω - a|}).toReal) atTop (𝓝 0) := by
     -- Use tendsto_toReal_zero_iff to convert to ENNReal
     rw [ENNReal.tendsto_toReal_zero_iff]
-    -- Use tilted_deviation_bound to get upper bound
-    have h_bound : ∀ n : ℕ, n ≠ 0 →
-        (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | δ ≤ |empiricalMean X n ω - a|} ≤
-        ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) := by
-      intro n hn
-      exact tilted_deviation_bound t a n hn δ hδ ht h_match
-    -- The bound goes to 0 by variance_term_tendsto_zero
-    have h_bound_to_zero := variance_term_tendsto_zero (iteratedDeriv 2 (cgf (X 0) ℙ) t) δ hδ
-    -- Apply squeeze: eventually 0 ≤ μ_t{...} ≤ bound, and bound → 0
+    -- Apply Chebyshev bound and squeeze theorem
     refine ENNReal.tendsto_nhds_zero.2 (fun ε hε => ?_)
-    obtain ⟨N, hN⟩ := (ENNReal.tendsto_atTop_zero.1 h_bound_to_zero) ε hε
+    -- Use the fact that variance/n → 0
+    have h_var_to_zero : Tendsto (fun n : ℕ =>
+        ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2)) atTop (𝓝 0) := by
+      convert variance_term_tendsto_zero (iteratedDeriv 2 (cgf (X 0) ℙ) t) δ hδ using 2
+    obtain ⟨N, hN⟩ := (ENNReal.tendsto_atTop_zero.1 h_var_to_zero) ε hε
     filter_upwards [eventually_ge_atTop (max N 1)] with n hn
+    have hn_ne : n ≠ 0 := by omega
+    -- Apply Chebyshev: μ_t{|mean - a| ≥ δ} ≤ variance/δ²
     calc (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | δ ≤ |empiricalMean X n ω - a|}
         ≤ ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) :=
-          h_bound n (by omega)
-      _ < ε := hN n (by omega)
+          tilted_deviation_bound (X := X) (h_indep := h_indep) (h_ident := h_ident)
+            (h_meas := h_meas) (h_mgf := h_mgf) t a n hn_ne δ hδ ht h_match
+      _ ≤ ε := hN n (by omega)
   -- Convert to toReal and use 1 - P(complement) = P(event)
-  sorry
+  -- Show that {|mean - a| < δ} and {δ ≤ |mean - a|} are complements
+  have h_compl : ∀ n, {ω | |empiricalMean X n ω - a| < δ}ᶜ = {ω | δ ≤ |empiricalMean X n ω - a|} := by
+    intro n
+    ext ω
+    simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+  -- Use 1 - P(complement) = P(event)
+  have h_eq : ∀ n, (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | |empiricalMean X n ω - a| < δ} =
+      1 - (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | δ ≤ |empiricalMean X n ω - a|} := by
+    intro n
+    have h_prob_n : IsProbabilityMeasure (Measure.tilted ℙ (fun ω => t * S X n ω)) := by
+      apply isProbabilityMeasure_tilted
+      exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
+    rw [← h_compl]
+    have h_meas : MeasurableSet {ω | |empiricalMean X n ω - a| < δ} := by
+      sorry  -- empiricalMean is measurable, so this set is measurable
+    haveI := h_prob_n
+    exact prob_compl_eq_one_sub h_meas
+  -- Apply tendsto for (1 - x).toReal where x → 0
+  -- Rewrite using h_eq
+  simp_rw [h_eq]
+  -- Show that (1 - x).toReal → 1 when x.toReal → 0
+  have h_one_sub : Tendsto (fun n => (1 - (Measure.tilted ℙ (fun ω => t * S X n ω))
+      {ω | δ ≤ |empiricalMean X n ω - a|}).toReal) atTop (𝓝 1) := by
+    -- Use continuity of toReal and subtraction
+    sorry
+  exact h_one_sub
 
 /-- **Lemma 4: Lower bound via tilted measure**.
 Combining the change of measure and concentration lemmas,
