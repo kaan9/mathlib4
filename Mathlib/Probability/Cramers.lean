@@ -961,9 +961,18 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
       exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
     rw [← h_compl]
     have h_meas : MeasurableSet {ω | |empiricalMean X n ω - a| < δ} := by
-      sorry  -- empiricalMean is measurable, so this set is measurable
+      -- Show that |empiricalMean X n - a| is measurable, then apply measurableSet_lt
+      have h_emp_meas : Measurable (empiricalMean X n) := by
+        convert (Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)).div_const (n : ℝ) using 1
+        ext ω
+        simp only [empiricalMean, _root_.S, Finset.sum_apply]
+      have h_sub_meas : Measurable (fun ω => empiricalMean X n ω - a) :=
+        h_emp_meas.sub_const a
+      have h_abs_meas : Measurable (fun ω => |empiricalMean X n ω - a|) :=
+        continuous_abs.measurable.comp h_sub_meas
+      exact measurableSet_lt h_abs_meas measurable_const
     haveI := h_prob_n
-    exact prob_compl_eq_one_sub h_meas
+    exact @prob_compl_eq_one_sub _ _ (Measure.tilted ℙ (fun ω => t * S X n ω)) _ h_meas
   -- Apply tendsto for (1 - x).toReal where x → 0
   -- Rewrite using h_eq
   simp_rw [h_eq]
