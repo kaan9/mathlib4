@@ -765,7 +765,9 @@ private lemma iteratedDeriv_two_cgf_sum (t : ℝ) (n : ℕ)
         -- Use iteratedDeriv_const_mul: iteratedDeriv n (fun z => c * f z) x = c * iteratedDeriv n f x
         -- Need to show CGF is C^2 at t (follows from analyticity)
         have h_contDiff : ContDiffAt ℝ 2 (cgf (X 0) ℙ) t := by
-          sorry  -- CGF is analytic, hence C^∞, hence C^2
+          have h_analytic := @analyticOn_cgf _ _ (X 0) ℙ t ht
+          have h_nhds : interior (integrableExpSet (X 0) ℙ) ∈ 𝓝 t := isOpen_interior.mem_nhds ht
+          exact h_analytic.contDiffWithinAt.contDiffAt h_nhds
         exact iteratedDeriv_const_mul h_contDiff (n : ℝ)
 
 include h_indep h_ident h_meas h_mgf in
