@@ -1000,7 +1000,7 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
     -- Finally apply toReal to get the result
     rw [← ENNReal.toReal_one]
     refine (ENNReal.tendsto_toReal ?_).comp h_sub_to_one
-    simp only [ne_eq, ENNReal.sub_eq_top_iff, ENNReal.one_ne_top, false_and, or_false, not_false_eq_true]
+    simp only [ne_eq, ENNReal.one_ne_top, not_false_eq_true]
   exact h_one_sub
 
 /-- **Lemma 4: Lower bound via tilted measure**.
