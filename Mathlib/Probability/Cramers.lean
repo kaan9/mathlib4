@@ -1326,6 +1326,15 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
   exact @tilted_window_lower_bound_from_concentration _ _ X h_indep h_ident h_meas h_mgf _
     a t δ hδ ht_int ht_deriv h_var_pos
 
+/-- Helper: (1/n) * const → 0 in EReal when lifted from ℝ. -/
+private lemma ereal_inv_nat_mul_const_tendsto_zero (c : ℝ) :
+    Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * (c : EReal)) atTop (𝓝 0) := by
+  sorry -- Follows from: (1/n) → 0 in ℝ, multiplication by const, and EReal.tendsto_coe
+
+/-- Helper: 0 ≤ a and b ≤ 0 implies a * b ≤ 0 in EReal. -/
+private lemma ereal_mul_nonneg_nonpos {a b : EReal} (ha : 0 ≤ a) (hb : b ≤ 0) : a * b ≤ 0 := by
+  sorry -- Standard EReal multiplication property
+
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The error term (1/n) * log(tilted prob on window) → 0. -/
 private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
@@ -1349,7 +1358,66 @@ private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
   -- Therefore: (1/n) * log c ≤ (1/n) * log P ≤ 0
   -- As n → ∞: (1/n) * log c → 0 and 0 → 0
   -- By squeeze: (1/n) * log P → 0
-  sorry -- Requires squeeze theorem for EReal with ENNReal.log properties
+
+  -- 1. Obtain the uniform lower bound c > 0
+  obtain ⟨c, hc_pos, h_bounded⟩ := @tilted_prob_window_bounded_away_from_zero _ _ X h_indep h_ident
+    h_meas h_mgf _ a t δ hδ ht_int ht_deriv h_var_pos
+
+  -- 2. Define the constant log(c) which acts as the lower bound coefficient
+  let log_c : EReal := ENNReal.log (ENNReal.ofReal c)
+
+  -- 3. Apply the Squeeze Theorem
+  -- We have: c ≤ P_n ≤ 1 eventually
+  -- So: log c ≤ log P_n ≤ 0
+  -- Therefore: (1/n) * log c ≤ (1/n) * log P_n ≤ 0
+  -- Both bounds → 0, so middle term → 0 by squeeze theorem
+
+  -- Convert ENNReal.log c to EReal constant
+  have h_log_c_real : ENNReal.log (ENNReal.ofReal c) = ((Real.log c) : EReal) := by
+    have : 0 < c := hc_pos
+    simp [ENNReal.log_ofReal, this]
+
+  -- Lower bound: (1/n) * log c → 0
+  have h_lower_tendsto : Tendsto (fun m : ℕ => ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)) atTop (𝓝 0) := by
+    rw [h_log_c_real]
+    exact ereal_inv_nat_mul_const_tendsto_zero (Real.log c)
+
+  -- Upper bound: 0 → 0
+  have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
+
+  -- Eventually: (1/m) * log c ≤ (1/m) * log P_m ≤ 0
+  have h_eventually : ∀ᶠ m in atTop,
+      ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)
+      ≤ ((1 : ℝ) / m : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X m ω))
+          {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
+      ∧ ((1 : ℝ) / m : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X m ω))
+          {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
+      ≤ 0 := by
+    have h1 := h_bounded
+    have h2 := Filter.eventually_gt_atTop (0 : ℕ)
+    filter_upwards [h1, h2]
+    intro (m : ℕ) (hm_bound : c ≤ ((Measure.tilted ℙ (fun ω => t * S X m ω))
+        {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)}).toReal) (hm_pos : 0 < m)
+    constructor
+    · -- (1/m) * log c ≤ (1/m) * log P
+      have h_div_nn : 0 ≤ ((1 : ℝ) / m : EReal) := by
+        exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg m))
+      apply mul_le_mul_of_nonneg_left _ h_div_nn
+      apply EReal.coe_ennreal_le_coe_ennreal_iff.mpr
+      apply ENNReal.log_le_log
+      rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
+      exact hm_bound
+    · -- (1/m) * log P ≤ 0
+      apply ereal_mul_nonneg_nonpos
+      · exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg m))
+      · apply EReal.coe_ennreal_le_coe_ennreal_iff.mpr
+        apply ENNReal.log_le_zero_iff.mpr
+        left
+        exact prob_le_one
+
+  -- Apply squeeze theorem
+  exact tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
+    (h_eventually.mono fun m h => h.1) (h_eventually.mono fun m h => h.2)
 
 include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 4: Lower bound via tilted measure**.
