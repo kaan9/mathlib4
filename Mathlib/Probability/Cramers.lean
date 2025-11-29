@@ -1780,23 +1780,44 @@ private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
 /-- In EReal, if x - ε ≤ y for all positive ε, then x ≤ y. -/
 private lemma EReal.le_of_forall_pos_sub_le {x y : EReal}
     (h : ∀ ε : ℝ, 0 < ε → x - (ε : EReal) ≤ y) : x ≤ y := by
-  -- Use the density of ℝ in EReal
-  rw [← EReal.le_of_forall_lt_iff_le]
-  intro z hz
-  -- We have z < y, need to show z < x
-  -- Strategy: Show that if x - ε ≤ y for all ε > 0, then x ≤ y
-  -- This is equivalent to showing: for all z < y, we have z < x
-  -- Case 1: If y = ⊤, then trivially z < x since x ≤ y = ⊤
-  -- Case 2: If y is finite, say y = (r : ℝ), and z < r
-  --   Then z is either -∞ or finite, say z = (s : ℝ) with s < r
-  --   We have x - ε ≤ r for all ε > 0
-  --   Take ε = (r - s)/2 > 0
-  --   Then x - (r - s)/2 ≤ r, so x ≤ r + (r - s)/2 = (3r - s)/2
-  --   Thus if x = (u : ℝ), then u ≤ (3r - s)/2... but this doesn't directly give s < u
-  -- Better approach: Use that EReal.le_of_forall_lt_iff_le already captures this
-  -- Actually, the lemma statement might be incorrect or needs refinement
-  -- Alternative: Use le_antisymm with x ≤ y and y ≤ x
-  sorry
+  -- Case split on x
+  induction x using EReal.rec
+  case bot =>
+    -- Case 1: x = -∞. Trivial.
+    exact bot_le
+  case coe x_val =>
+    -- Case 2: x is finite. Now split on y.
+    induction y using EReal.rec
+    case bot =>
+      -- Case 2a: y = -∞.
+      -- Hypothesis implies x - 1 ≤ -∞, which is impossible.
+      specialize h 1 zero_lt_one
+      simp only [EReal.coe_one] at h
+      -- x - 1 ≤ ⊥ implies x - 1 = ⊥
+      have h_eq_bot : (x_val - 1 : EReal) = ⊥ := le_bot_iff.mp h
+      -- But a coerced real is never bottom
+      exact absurd h_eq_bot (EReal.coe_ne_bot _)
+    case coe y_val =>
+      -- Case 2b: y is finite. Reduce to ℝ logic.
+      norm_cast
+      -- Prove x_val ≤ y_val from ∀ ε > 0, x_val - ε ≤ y_val
+      by_contra h_not_le
+      push_neg at h_not_le
+      -- If x_val > y_val, take ε = (x_val - y_val)/2 > 0
+      have hε_pos : 0 < (x_val - y_val) / 2 := by linarith
+      specialize h ((x_val - y_val) / 2) hε_pos
+      -- The hypothesis h is in EReal, force it back to ℝ
+      norm_cast at h
+      linarith
+    case top =>
+      -- Case 2c: y = +∞. Trivial.
+      exact le_top
+  case top =>
+    -- Case 3: x = +∞.
+    -- Hypothesis implies ∞ - 1 ≤ y, so ∞ ≤ y.
+    specialize h 1 zero_lt_one
+    rw [EReal.top_sub_coe] at h
+    exact h
 
 include h_indep h_meas h_ident h_int h_mgf h_bdd h_non_deg h_exposed in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
@@ -1827,7 +1848,7 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   -- Case split: if t = 0 (a = Mean), the bound is trivial.
   by_cases ht_zero : t = 0
   · subst ht_zero
-    simp only [zero_mul, cgf_zero, sub_zero, neg_zero]
+    simp only [zero_mul, cgf_zero, sub_zero]
     -- Need to show 0 ≤ LHS_val
     -- When t=0, we have deriv(cgf)(0) = a = E[X], so a is the mean
     -- By the Law of Large Numbers, the empirical mean converges to E[X]
