@@ -1135,6 +1135,20 @@ private lemma tilted_prob_ge_mean_pos (a t : ℝ)
   norm_num at h_false_ae
 
 include h_indep h_ident h_meas h_mgf in
+/-- Helper lemma: If a random variable concentrates around its mean `a`, and the mean is exactly `a`,
+then the probability of being in `[a, a+δ]` cannot vanish. This uses that if the probability
+of `[a, a+δ]` went to zero, most mass would be in `[a-δ, a)`, making the mean less than `a`. -/
+private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ : 0 < δ)
+    (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    ∃ c > 0, ∀ᶠ n in atTop,
+      c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+  -- Key idea: concentration says μ({|X - a| < δ}) → 1
+  -- If μ([a, a+δ]) → 0, then almost all concentrated mass is in [a-δ, a), pushing mean below a
+  -- This contradicts that the mean is exactly a under the tilted measure
+  sorry
+
+include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
 This follows from the concentration lemma and the fact that the tilted mean is a. -/
 private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 < δ)
@@ -1240,100 +1254,10 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
         _ < 1/4 := hN
     linarith
 
-  -- P([a, a+δ]) = P([a, ∞)) - P([a+δ, ∞))
-  -- We need to show this is eventually ≥ some c > 0
-  use 1/4
-  constructor
-  · norm_num
-  · -- Eventually P([a, a+δ]).toReal ≥ 1/4
-    filter_upwards [h_tail_small] with n h_small
-
-    -- The measure of [a, ∞) minus the measure of [a+δ, ∞)
-    let μ_n := Measure.tilted ℙ (fun ω => t * S X n ω)
-
-    -- Decompose: {x ≥ a} = {x ∈ [a, a+δ]} ∪ {x > a+δ}
-    have h_union : {ω | a ≤ empiricalMean X n ω} =
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} ∪ {ω | a + δ < empiricalMean X n ω} := by
-      ext ω
-      simp only [Set.mem_setOf_eq, Set.Icc, Set.mem_union]
-      constructor
-      · intro h
-        by_cases h' : empiricalMean X n ω ≤ a + δ
-        · left; exact ⟨h, h'⟩
-        · right; push_neg at h'; exact h'
-      · intro h
-        cases h with
-        | inl h => exact h.1
-        | inr h => linarith
-
-    -- The sets are disjoint
-    have h_disj : Disjoint {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
-        {ω | a + δ < empiricalMean X n ω} := by
-      rw [Set.disjoint_iff]
-      intro ω ⟨h1, h2⟩
-      simp only [Set.Icc, Set.mem_setOf_eq] at h1 h2
-      linarith
-
-    -- By measure additivity: μ({x ≥ a}) = μ({x ∈ [a, a+δ]}) + μ({x > a+δ})
-    -- Therefore: μ({x ∈ [a, a+δ]}) = μ({x ≥ a}) - μ({x > a+δ})
-
-    -- First, get measurability
-    have h_emp_meas : Measurable (empiricalMean X n) := by
-      convert (Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)).div_const (n : ℝ) using 1
-      ext ω; simp only [empiricalMean, _root_.S, Finset.sum_apply]
-    have h_meas_ge : MeasurableSet {ω | a ≤ empiricalMean X n ω} :=
-      measurableSet_le measurable_const h_emp_meas
-    have h_meas_icc : MeasurableSet {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} := by
-      exact measurableSet_le measurable_const h_emp_meas |>.inter
-        (measurableSet_le h_emp_meas measurable_const)
-    have h_meas_gt : MeasurableSet {ω | a + δ < empiricalMean X n ω} :=
-      measurableSet_lt measurable_const h_emp_meas
-
-    -- Apply measure additivity
-    have h_add : μ_n {ω | a ≤ empiricalMean X n ω} =
-        μ_n {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} +
-        μ_n {ω | a + δ < empiricalMean X n ω} := by
-      rw [← h_union]
-      exact measure_union h_disj h_meas_gt
-
-    -- Now use tilted_prob_ge_mean_pos to get uniform lower bound
-    have h_pos : 0 < μ_n {ω | a ≤ empiricalMean X n ω} := by
-      exact tilted_prob_ge_mean_pos a t ht_int ht_deriv n (Nat.pos_iff_ne_zero.mp (Nat.pos_of_ne_zero hn))
-      where hn : n ≠ 0 := by omega
-
-    -- Extract: μ_n([a, a+δ]) = μ_n([a, ∞)) - μ_n((a+δ, ∞))
-    have h_diff : μ_n {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} =
-        μ_n {ω | a ≤ empiricalMean X n ω} - μ_n {ω | a + δ < empiricalMean X n ω} := by
-      rw [← h_add]
-      have : μ_n {ω | a + δ < empiricalMean X n ω} ≤ μ_n {ω | a ≤ empiricalMean X n ω} := by
-        apply measure_mono
-        intro ω hω
-        simp only [Set.mem_setOf_eq] at hω ⊢
-        linarith
-      exact (ENNReal.add_sub_cancel_of_le this).symm
-
-    -- Convert to toReal and bound
-    calc (μ_n {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal
-        = (μ_n {ω | a ≤ empiricalMean X n ω} - μ_n {ω | a + δ < empiricalMean X n ω}).toReal := by
-          rw [h_diff]
-      _ = (μ_n {ω | a ≤ empiricalMean X n ω}).toReal -
-          (μ_n {ω | a + δ < empiricalMean X n ω}).toReal := by
-          apply ENNReal.toReal_sub_of_le
-          · apply measure_mono; intro ω hω; simp at hω ⊢; linarith
-          · exact measure_ne_top _ _
-      _ ≥ (μ_n {ω | a ≤ empiricalMean X n ω}).toReal - 1/4 := by
-          gcongr
-          -- {x > a+δ} ⊆ {x ≥ a+δ}, so use h_small
-          have : μ_n {ω | a + δ < empiricalMean X n ω} ≤ μ_n {ω | a + δ ≤ empiricalMean X n ω} := by
-            apply measure_mono; intro ω hω; simp at hω ⊢; linarith
-          calc (μ_n {ω | a + δ < empiricalMean X n ω}).toReal
-              ≤ (μ_n {ω | a + δ ≤ empiricalMean X n ω}).toReal := ENNReal.toReal_mono (measure_ne_top _ _) this
-            _ < 1/4 := h_small
-      _ > 0 - 1/4 := by
-          gcongr
-          exact ENNReal.toReal_pos h_pos.ne' (measure_ne_top _ _)
-      _ = -1/4 := by ring
-      _ ≥ 1/4 := by sorry -- This is wrong! Need to fix the logic
+  -- Use the helper lemma to get the lower bound
+  -- Note: {x ∈ [a, a+δ]} = {a ≤ x ∧ x < a+δ} ∪ {x = a+δ}
+  -- Since {x = a+δ} has measure 0 (continuous distribution), we can use the open interval version
+  exact @tilted_window_lower_bound_from_concentration _ _ X h_indep h_ident h_meas h_mgf _ a t δ hδ ht_int ht_deriv
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The error term (1/n) * log(tilted prob on window) → 0. -/
