@@ -1851,18 +1851,20 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     simp only [zero_mul, cgf_zero, sub_zero]
     -- Need to show 0 ≤ LHS_val
     -- When t=0, we have deriv(cgf)(0) = a = E[X], so a is the mean
-    -- By the Law of Large Numbers, the empirical mean converges to E[X]
-    -- So P(empirical mean ≥ E[X]) → 1/2 (by symmetry for continuous distributions)
-    -- More precisely: P(empirical mean ≥ mean) is bounded away from 0
-    -- So ENNReal.log(P) is bounded (doesn't go to -∞)
-    -- Therefore (1/n) * log(P) → 0 as n → ∞
-    -- Hence liminf((1/n) * log(P)) = 0
-    -- So we need to show 0 ≤ 0, which is trivial
+    -- The sequence (1/n) * log(P(empirical mean ≥ mean)) is bounded above by 0
+    -- since log(P) ≤ 0 always and 1/n > 0
+    -- We claim it converges to 0, hence liminf ≥ 0
     --
-    -- To formalize this, we could:
-    -- Option 1: Apply lower_bound_via_tilted even for t=0 by relaxing its assumptions
-    -- Option 2: Use a concentration inequality directly
-    -- Option 3: Use that log(P) is bounded above by 0 and below by some constant
+    -- The key is that P(empirical mean ≥ mean) is bounded away from 0:
+    -- By the Law of Large Numbers, the empirical mean concentrates around the true mean.
+    -- For the event {empirical mean ≥ mean}, the probability converges to 1/2 for
+    -- continuous symmetric distributions, or stays bounded away from 0 in general.
+    -- Therefore log(P) ≥ log(c) for some c > 0, making log(P) bounded.
+    -- Thus (1/n) * log(P) ∈ [(1/n) * log(c), 0] → [0, 0] as n → ∞.
+    --
+    -- For now, we leave this case as sorry since proving it rigorously requires
+    -- concentration inequalities (Chebyshev, Hoeffding, or similar) to show that
+    -- P(empirical mean ≥ mean) is bounded away from 0.
     sorry
 
   -- Assume t > 0
