@@ -1092,12 +1092,17 @@ private lemma tilted_prob_ge_mean_pos (a t : ℝ)
 
   -- empiricalMean is integrable (it has finite variance by tilted_empirical_moments)
   have h_integrable_em : Integrable (empiricalMean X n) μ_t := by
-    -- Use the fact that variance is finite, which we get from tilted_empirical_moments
-    -- variance = E[X^2] - E[X]^2, so if variance is finite and E[X] is finite,
-    -- then E[|X|] is finite (by Cauchy-Schwarz on prob space)
+    -- Chain of reasoning:
+    -- 1. variance is finite → evariance < ∞
+    -- 2. evariance < ∞ → MemLp _ 2 μ_t (using evariance_lt_top_iff_memLp)
+    -- 3. MemLp _ 2 μ_t → MemLp _ 1 μ_t (using MemLp.mono_exponent on finite measure)
+    -- 4. MemLp _ 1 μ_t ↔ Integrable _ μ_t (using memLp_one_iff_integrable)
     have h_var := h_moments.2
-    -- On a probability space, if E[X^2] < ∞, then E[|X|] < ∞
-    sorry  -- This should be provable from Cauchy-Schwarz, but let's defer for now
+    -- For now, admit integrability. This should follow from variance being finite,
+    -- but the proof requires showing that variance formula implies MemLp.
+    -- The key fact: variance (empiricalMean X n) μ_t = (positive finite real number)
+    -- implies empiricalMean is square-integrable, hence integrable.
+    sorry
 
   -- Apply the helper lemma: since empiricalMean ≤ a a.e. and ∫ empiricalMean = a,
   -- we have empiricalMean = a a.e.
