@@ -1695,7 +1695,7 @@ private lemma deriv_cgf_nonneg_of_ge_mean (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) (
   -- This gives a < 𝔼[X 0], contradicting h_mean
   linarith
 
-include X h_mgf h_bdd in
+include X h_mgf h_bdd h_non_deg in
 /-- For a convex function, if the derivative at t equals a, then t achieves the supremum
 in the Legendre transform. -/
 private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
@@ -1709,17 +1709,71 @@ private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
   · -- Show: ⨆ s, s*a - cgf s ≤ t*a - cgf t
     apply ciSup_le
     intro s
-    -- We need to use that cgf is convex and has derivative a at t
-    -- The key lemma is: for a convex function f with f'(t) = a,
-    -- we have f(s) ≥ f(t) + a*(s - t) for all s
-    -- This is the first-order condition for convexity
-    -- From Mathlib: ConvexOn.rightDeriv_le_slope or similar
-    -- Then: cgf(s) ≥ cgf(t) + deriv(cgf)(t)*(s - t) = cgf(t) + a*(s - t)
-    -- So: s*a - cgf(s) ≤ s*a - cgf(t) - a*(s - t) = t*a - cgf(t)
-    -- Need: 1) cgf is ConvexOn ℝ Set.univ
-    --       2) cgf is differentiable (implied by h_mgf and analyticity)
-    --       3) Apply the gradient inequality
-    sorry
+    -- Establish convexity of cgf
+    have h_convex : StrictConvexOn ℝ Set.univ (cgf (X 0) ℙ) := by
+      apply strictConvexOn_of_deriv2_pos' convex_univ
+      · -- cgf is continuous on univ
+        have : integrableExpSet (X 0) ℙ = Set.univ := by
+          ext t
+          simp [integrableExpSet, h_mgf]
+        have h_analytic : AnalyticOn ℝ (cgf (X 0) ℙ) (interior (integrableExpSet (X 0) ℙ)) :=
+          analyticOn_cgf
+        rw [this] at h_analytic
+        simp at h_analytic
+        exact h_analytic.continuousOn
+      · -- Second derivative is positive everywhere
+        intro x _
+        rw [← iteratedDeriv_eq_iterate]
+        exact h_non_deg x
+    -- Establish differentiability at t
+    have h_diff : DifferentiableAt ℝ (cgf (X 0) ℙ) t := by
+      have : integrableExpSet (X 0) ℙ = Set.univ := by
+        ext u
+        simp [integrableExpSet, h_mgf]
+      have h_analytic : AnalyticOn ℝ (cgf (X 0) ℙ) (interior (integrableExpSet (X 0) ℙ)) :=
+        analyticOn_cgf
+      rw [this] at h_analytic
+      simp at h_analytic
+      exact (h_analytic t (Set.mem_univ t)).differentiableWithinAt.differentiableAt
+        (isOpen_univ.mem_nhds (Set.mem_univ t))
+    -- Apply the gradient inequality: cgf(s) ≥ cgf(t) + a*(s - t)
+    -- This follows from convexity and the slope inequalities
+    have h_tangent : cgf (X 0) ℙ s ≥ cgf (X 0) ℙ t + a * (s - t) := by
+      rcases lt_trichotomy s t with hst | rfl | hts
+      · -- Case s < t: use slope_le_of_hasDerivAt
+        -- slope_le_of_hasDerivAt: slope f s t ≤ deriv f t
+        -- slope f s t = (f t - f s) / (t - s) by slope_def_field
+        have h_slope_bound := h_convex.convexOn.slope_le_of_hasDerivAt
+          (Set.mem_univ s) (Set.mem_univ t) hst h_diff.hasDerivAt
+        rw [ht_deriv] at h_slope_bound
+        -- h_slope_bound : slope (cgf (X 0) ℙ) s t ≤ a
+        rw [slope_def_field] at h_slope_bound
+        -- Now: (cgf t - cgf s) / (t - s) ≤ a
+        have ht_s_pos : 0 < t - s := sub_pos.mpr hst
+        have : cgf (X 0) ℙ t - cgf (X 0) ℙ s ≤ a * (t - s) := by
+          field_simp at h_slope_bound
+          ring_nf at h_slope_bound ⊢
+          exact h_slope_bound
+        linarith
+      · -- Case s = t: trivial
+        simp
+      · -- Case t < s: use deriv_le_slope
+        -- deriv_le_slope: deriv f t ≤ slope f t s
+        -- slope f t s = (f s - f t) / (s - t) by slope_def_field
+        have h_slope_bound := h_convex.convexOn.deriv_le_slope
+          (Set.mem_univ t) (Set.mem_univ s) hts h_diff
+        rw [ht_deriv] at h_slope_bound
+        -- h_slope_bound : a ≤ slope (cgf (X 0) ℙ) t s
+        rw [slope_def_field] at h_slope_bound
+        -- Now: a ≤ (cgf s - cgf t) / (s - t)
+        have hs_t_pos : 0 < s - t := sub_pos.mpr hts
+        have : a * (s - t) ≤ cgf (X 0) ℙ s - cgf (X 0) ℙ t := by
+          field_simp at h_slope_bound
+          ring_nf at h_slope_bound ⊢
+          exact h_slope_bound
+        linarith
+    -- Now use the tangent line inequality to complete the proof
+    linarith
   · -- Show: t*a - cgf t ≤ ⨆ s, s*a - cgf s
     exact le_ciSup (h_bdd a) t
 
@@ -1762,7 +1816,7 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   -- 3. Relate rateFunction to this specific t
   -- Since cgf is convex and deriv(t) = a, the supremum is achieved at t.
   have h_rate_eq : rateFunction X a = t * a - cgf (X 0) ℙ t :=
-    rateFunction_eq_of_deriv_eq X h_mgf h_bdd a t ht_deriv
+    rateFunction_eq_of_deriv_eq X h_mgf h_bdd h_non_deg a t ht_deriv
 
   rw [h_rate_eq]
 
