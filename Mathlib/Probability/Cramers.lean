@@ -1134,38 +1134,61 @@ private lemma tilted_prob_ge_mean_pos (a t : ℝ)
   rw [this] at h_false_ae
   norm_num at h_false_ae
 
+/-- **Central Limit Theorem for tilted measures (statement only)**.
+For i.i.d. random variables under the tilted measure with parameter t,
+the empirical mean (which has mean a = cgf'(t) and variance σ²/n) satisfies:
+The probability of the half-space [a, a+δ] approaches a positive constant as n → ∞.
+More precisely, by CLT, the standardized empirical mean converges in distribution to N(0,1),
+so P(a ≤ empirical_mean ≤ a+δ) = P(0 ≤ Z ≤ δ√n/σ) → 1/2.
+This implies that for any ε > 0, eventually P([a, a+δ]) ≥ 1/2 - ε.
+
+This is a placeholder for the full CLT proof, which would require:
+1. Lindeberg-Lévy CLT for i.i.d. random variables
+2. Continuity of the cumulative distribution function
+3. Properties of the standard normal distribution
+
+TODO: Replace with actual CLT from mathlib when available. -/
+axiom clt_half_space_lower_bound {Ω : Type*} [MeasureSpace Ω] (Y : ℕ → Ω → ℝ)
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (h_iid : iIndepFun Y μ) (h_ident : ∀ n, IdentDistrib (Y n) (Y 0) μ μ)
+    (h_mean : ∫ ω, Y 0 ω ∂μ = 0) -- Centered for simplicity
+    (h_var_pos : ∃ σsq > 0, ∫ ω, (Y 0 ω) ^ 2 ∂μ = σsq) : -- Finite positive variance
+    ∀ δ > 0, ∀ ε > 0, ∀ᶠ n in atTop,
+      (1/2 - ε : ℝ) ≤ (μ {ω | (∑ i ∈ Finset.range n, Y i ω) / n ∈ Set.Ico 0 δ}).toReal
+
 include h_indep h_ident h_meas h_mgf in
 /-- Helper lemma: If a random variable concentrates around its mean `a`, and the mean is exactly `a`,
-then the probability of being in `[a, a+δ]` cannot vanish. This uses that if the probability
-of `[a, a+δ]` went to zero, most mass would be in `[a-δ, a)`, making the mean less than `a`. -/
+then the probability of being in `[a, a+δ]` cannot vanish. This follows from the Central Limit Theorem:
+the tilted empirical mean converges in distribution to Normal(a, σ²/n), and a normal centered at a
+assigns probability → 1/2 to the half-space [a, ∞). -/
 private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ : 0 < δ)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
     ∃ c > 0, ∀ᶠ n in atTop,
       c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-  -- Key idea: By CLT (or Berry-Esseen), the tilted empirical mean converges in distribution
-  -- to Normal(a, σ²/n). A normal distribution centered at a assigns probability ≈ 1/2 to [a, ∞).
-  -- More precisely, P(a ≤ X ≤ a+δ) = P(0 ≤ (X-a)/σ√n ≤ δ/σ√n) → P(0 ≤ Z < ∞) = 1/2 as n → ∞.
-  -- Therefore, eventually P([a, a+δ]) ≥ 1/4 (or any constant < 1/2).
-  --
-  -- Without CLT: Use concentration + symmetry. We know:
-  -- - P(|X - a| < δ) → 1 by concentration
-  -- - E[X] = a exactly (by tilted measure construction)
-  -- - The ball {|X - a| < δ} splits into left {a-δ < X < a} and right {a ≤ X < a+δ}
-  -- - If P(right) → 0, then P(left) → 1, so mass concentrates left of a
-  -- - But if mass concentrates left of mean a, we'd have E[X] < a, contradiction
-  -- - Therefore P(right) must be bounded away from 0
-  --
-  -- For formalization, we use a version that admits CLT as an axiom/sorry for now.
+  -- Strategy: Use CLT to show that the tilted empirical mean, when centered at a,
+  -- behaves like a normal distribution. For a normal centered at a, P([a, a+δ]) → 1/2.
+  -- Therefore, we can choose c = 1/4 and show that eventually the probability exceeds 1/4.
 
   use 1/4
   constructor
   · norm_num
-  · -- Eventually the probability is at least 1/4
-    -- This follows from CLT: the tilted distribution converges to Normal(a, σ²/n)
-    -- For such a normal, P([a, a+δ]) → Φ(δ√n/σ) - 1/2 → 1/2
-    -- So eventually it exceeds 1/4
-    sorry -- Requires CLT or Berry-Esseen theorem
+  · -- We need to apply CLT to the tilted measure
+    -- Define centered random variables under the tilted measure
+    let μ_t := fun n => Measure.tilted ℙ (fun ω => t * S X n ω)
+
+    -- Under μ_t, the empirical mean has mean a and variance → 0
+    -- Define centered versions: Y_i = X_i - a
+    let Y : ℕ → Ω → ℝ := fun i ω => X i ω - a
+
+    -- Under the tilted measure μ_t(∞) (limit measure), Y_i are i.i.d. with mean 0
+    -- The empirical mean of Y is: (∑ Y_i) / n = (∑ X_i) / n - a = empirical_mean - a
+    -- So: empirical_mean ∈ [a, a+δ] ⟺ empirical_mean - a ∈ [0, δ]
+
+    -- By CLT (axiom above), for the centered variables, P([0, δ]) → 1/2
+    -- Therefore P([a, a+δ]) → 1/2, so eventually ≥ 1/4
+
+    sorry -- Apply clt_half_space_lower_bound with appropriate setup
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
