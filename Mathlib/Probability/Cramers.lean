@@ -1349,7 +1349,7 @@ private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
   -- Therefore: (1/n) * log c ≤ (1/n) * log P ≤ 0
   -- As n → ∞: (1/n) * log c → 0 and 0 → 0
   -- By squeeze: (1/n) * log P → 0
-  sorry -- Requires squeeze theorem for EReal and ENNReal.log properties
+  sorry -- Requires squeeze theorem for EReal with ENNReal.log properties
 
 include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 4: Lower bound via tilted measure**.
@@ -1404,7 +1404,51 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
 
     -- Step 3: Combine with subset relation
     -- P(≥ a) ≥ P([a, a+δ]) ≥ exp(...) * Q([a, a+δ])
-    sorry -- Need to convert h_change and h_subset into the logarithmic inequality
+    let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+    let F := {ω | empiricalMean X n ω ≥ a}
+
+    -- From h_subset: ℙ F ≥ ℙ E
+    have h_prob_mono : (ℙ F).toReal ≥ (ℙ E).toReal := by
+      apply ENNReal.toReal_mono (measure_ne_top _ _)
+      exact measure_mono h_subset
+
+    -- From h_change: ℙ E ≥ exp(...) * Q(E)
+    have h_lower : (ℙ E).toReal ≥
+        Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+        ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal :=
+      h_change
+
+    -- Combine: ℙ F ≥ exp(...) * Q(E)
+    have h_combined : (ℙ F).toReal ≥
+        Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+        ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal := by
+      linarith [h_prob_mono, h_lower]
+
+    -- Now take logs and divide by n
+    -- We need: (1/n) * log(ℙ F) ≥ -(t*a - Λ(t)) - t*δ + (1/n) * log(Q(E))
+
+    -- Key fact: exp(-n*(t*(a+δ) - Λ(t))) * Q(E) is positive (assuming Q(E) > 0)
+    -- So we can take logs: log(ℙ F) ≥ -n*(t*(a+δ) - Λ(t)) + log(Q(E))
+
+    -- Since we're working with ENNReal.log and EReal, let's use that directly
+    have h_log_ineq : ENNReal.log (ℙ F) ≥
+        ENNReal.log (ENNReal.ofReal (Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+          ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal)) := by
+      apply ENNReal.log_le_log
+      rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
+      exact h_combined
+
+    -- Divide by n and rearrange
+    have h_div_nn : 0 ≤ ((1 : ℝ) / n : EReal) := by
+      exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg n))
+
+    calc ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ F)
+        ≥ ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal (Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+            ((Measure.tilted ℙ (fun ω => t * S X n ω)) E).toReal)) := by
+          exact mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq) h_div_nn
+      _ = (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+          + ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω)) E) := by
+        sorry -- Requires ENNReal.log properties for products and exponentials
 
   -- Take liminf of both sides
   -- liminf LHS ≥ liminf (constant + RHS)
