@@ -1439,6 +1439,30 @@ private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
   exact tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
     (h_eventually.mono fun m h => h.1) (h_eventually.mono fun m h => h.2)
 
+/-- Helper lemma for log of product: log(ofReal(exp(x) * y.toReal)) = x + (1/n) * log(y)
+when properly scaled. -/
+private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1) (hy : y ≠ ⊤) :
+    ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal (Real.exp x * y.toReal)) =
+    ((1 : ℝ) / n : EReal) * (x : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y := by
+  have hexp_pos : 0 < Real.exp x := Real.exp_pos x
+  have hy_nonneg : 0 ≤ y.toReal := ENNReal.toReal_nonneg
+  -- Split the product
+  rw [ENNReal.ofReal_mul hexp_pos.le]
+  rw [ENNReal.log_mul_add]
+  -- Distribute (1/n)
+  rw [EReal.mul_add_of_nonneg]
+  · congr 1
+    · -- Show: (1/n) * log(ofReal(exp x)) = (1/n) * x
+      sorry
+    · -- Show: (1/n) * log(ofReal(y.toReal)) = (1/n) * log y
+      sorry
+  · exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg n))
+
+/-- Helper: A constant plus a sequence tending to zero tends to the constant. -/
+private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
+    (h : Tendsto f atTop (𝓝 0)) : Tendsto (fun n => c + f n) atTop (𝓝 c) := by
+  sorry -- Requires EReal addition continuity at (c, 0)
+
 include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 4: Lower bound via tilted measure**.
 Combining the change of measure and concentration lemmas,
@@ -1555,8 +1579,8 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
   have h_rhs_limit : Tendsto rhs_seq atTop
       (𝓝 ((-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal))) := by
     -- The RHS is: const + error where error → 0
-    -- Therefore RHS → const
-    sorry -- Requires EReal addition tendsto properties
+    -- Therefore RHS → const + 0 = const
+    exact tendsto_const_add_vanishing _ _ h_error_vanish
 
   -- Use that eventually the pointwise inequality holds: LHS_n ≥ RHS_n
   have h_eventually : ∀ᶠ (n : ℕ) in atTop,
@@ -1568,7 +1592,12 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
     exact h_pointwise m hm
 
   -- Apply: liminf LHS ≥ lim RHS when LHS eventually ≥ RHS and RHS converges
-  sorry -- Use Filter.liminf_le_of_le and tendsto properties
+  have h_liminf_ge : liminf (fun n : ℕ =>
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+    ≥ (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal) := by
+    rw [← h_rhs_limit.liminf_eq]
+    exact liminf_le_liminf h_eventually
+  exact h_liminf_ge
 
 include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
