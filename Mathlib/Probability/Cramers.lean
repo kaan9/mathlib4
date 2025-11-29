@@ -1583,9 +1583,20 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
           exact mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq) h_div_nn
       _ = (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
           + ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω)) E) := by
-        refine log_exp_product_eq_neg_coef_plus_log n t a δ (cgf (X 0) ℙ t) _ hn ?_ ?_
-        · sorry -- Need: tilted measure of E is nonzero
-        · exact measure_ne_top _ _
+        by_cases h_tilted_zero : (Measure.tilted ℙ (fun ω => t * S X n ω)) E = 0
+        · -- Case: tilted measure is zero
+          rw [h_tilted_zero]
+          simp only [ENNReal.toReal_zero, mul_zero, ENNReal.ofReal_zero, ENNReal.log_zero]
+          -- Both sides equal ⊥
+          have h1n_pos : (0 : EReal) < ((1 : ℝ) / n : EReal) := by
+            apply EReal.coe_pos.mpr
+            positivity
+          rw [EReal.mul_bot_of_pos h1n_pos]
+          simp only [EReal.add_bot]
+        · -- Case: tilted measure is nonzero
+          refine log_exp_product_eq_neg_coef_plus_log n t a δ (cgf (X 0) ℙ t) _ hn ?_ ?_
+          · exact h_tilted_zero
+          · exact measure_ne_top _ _
 
   -- Take liminf of both sides
   -- liminf LHS ≥ liminf (constant + RHS)
