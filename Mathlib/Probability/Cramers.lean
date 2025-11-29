@@ -1440,23 +1440,27 @@ private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
     (h_eventually.mono fun m h => h.1) (h_eventually.mono fun m h => h.2)
 
 /-- Helper lemma for log of product: log(ofReal(exp(x) * y.toReal)) = x + (1/n) * log(y)
-when properly scaled. -/
-private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1) (hy : y ≠ ⊤) :
+when properly scaled. Requires y to be non-zero and finite. -/
+private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
+    (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
     ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal (Real.exp x * y.toReal)) =
     ((1 : ℝ) / n : EReal) * (x : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y := by
-  have hexp_pos : 0 < Real.exp x := Real.exp_pos x
-  have hy_nonneg : 0 ≤ y.toReal := ENNReal.toReal_nonneg
-  -- Split the product
-  rw [ENNReal.ofReal_mul hexp_pos.le]
-  rw [ENNReal.log_mul_add]
-  -- Distribute (1/n)
-  rw [EReal.mul_add_of_nonneg]
-  · congr 1
-    · -- Show: (1/n) * log(ofReal(exp x)) = (1/n) * x
-      sorry
-    · -- Show: (1/n) * log(ofReal(y.toReal)) = (1/n) * log y
-      sorry
-  · exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg n))
+  -- First establish the log identity without the (1/n) factor
+  have hy_pos : 0 < y.toReal := ENNReal.toReal_pos hy_ne_zero hy_ne_top
+  have h_prod_pos : 0 < Real.exp x * y.toReal := mul_pos (Real.exp_pos x) hy_pos
+  have h_log_eq : ENNReal.log (ENNReal.ofReal (Real.exp x * y.toReal)) =
+      (x : EReal) + ENNReal.log y := by
+    rw [ENNReal.log_ofReal_of_pos h_prod_pos]
+    rw [Real.log_mul (Real.exp_pos x).ne' hy_pos.ne', Real.log_exp]
+    rw [ENNReal.log_pos_real hy_ne_zero hy_ne_top]
+    rw [EReal.coe_add]
+  -- Now multiply both sides by (1/n : EReal) using distributivity
+  rw [h_log_eq]
+  have h_coef_nonneg : 0 ≤ ((1 : ℝ) / n : EReal) := by
+    apply EReal.coe_nonneg.mpr
+    positivity
+  have h_coef_ne_top : ((1 : ℝ) / n : EReal) ≠ ⊤ := EReal.coe_ne_top _
+  exact EReal.left_distrib_of_nonneg_of_ne_top h_coef_nonneg h_coef_ne_top _ _
 
 /-- Helper: A constant plus a sequence tending to zero tends to the constant. -/
 private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
