@@ -1143,10 +1143,29 @@ private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ :
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
     ∃ c > 0, ∀ᶠ n in atTop,
       c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-  -- Key idea: concentration says μ({|X - a| < δ}) → 1
-  -- If μ([a, a+δ]) → 0, then almost all concentrated mass is in [a-δ, a), pushing mean below a
-  -- This contradicts that the mean is exactly a under the tilted measure
-  sorry
+  -- Key idea: By CLT (or Berry-Esseen), the tilted empirical mean converges in distribution
+  -- to Normal(a, σ²/n). A normal distribution centered at a assigns probability ≈ 1/2 to [a, ∞).
+  -- More precisely, P(a ≤ X ≤ a+δ) = P(0 ≤ (X-a)/σ√n ≤ δ/σ√n) → P(0 ≤ Z < ∞) = 1/2 as n → ∞.
+  -- Therefore, eventually P([a, a+δ]) ≥ 1/4 (or any constant < 1/2).
+  --
+  -- Without CLT: Use concentration + symmetry. We know:
+  -- - P(|X - a| < δ) → 1 by concentration
+  -- - E[X] = a exactly (by tilted measure construction)
+  -- - The ball {|X - a| < δ} splits into left {a-δ < X < a} and right {a ≤ X < a+δ}
+  -- - If P(right) → 0, then P(left) → 1, so mass concentrates left of a
+  -- - But if mass concentrates left of mean a, we'd have E[X] < a, contradiction
+  -- - Therefore P(right) must be bounded away from 0
+  --
+  -- For formalization, we use a version that admits CLT as an axiom/sorry for now.
+
+  use 1/4
+  constructor
+  · norm_num
+  · -- Eventually the probability is at least 1/4
+    -- This follows from CLT: the tilted distribution converges to Normal(a, σ²/n)
+    -- For such a normal, P([a, a+δ]) → Φ(δ√n/σ) - 1/2 → 1/2
+    -- So eventually it exceeds 1/4
+    sorry -- Requires CLT or Berry-Esseen theorem
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
@@ -1273,7 +1292,15 @@ private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
     h_meas h_mgf _ a t δ hδ ht_int ht_deriv
   -- The tilted probability is in [c, 1] eventually, so log is in [log c, 0]
   -- Therefore (1/n) * log is in [(1/n) * log c, 0] → 0
-  sorry
+
+  -- Apply squeeze theorem: (1/n) * log c ≤ (1/n) * log P ≤ 0
+  -- Both bounds → 0, so the middle term → 0
+  -- We have: c ≤ P ≤ 1 eventually
+  -- So: log c ≤ log P ≤ log 1 = 0
+  -- Therefore: (1/n) * log c ≤ (1/n) * log P ≤ 0
+  -- As n → ∞: (1/n) * log c → 0 and 0 → 0
+  -- By squeeze: (1/n) * log P → 0
+  sorry -- Requires squeeze theorem for EReal and ENNReal.log properties
 
 include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 4: Lower bound via tilted measure**.
@@ -1285,7 +1312,80 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
     liminf (fun n : ℕ =>
       ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
     ≥ (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal) := by
-  sorry
+  -- Strategy:
+  -- 1. Use P(empirical mean ≥ a) ≥ P(empirical mean ∈ [a, a+δ])
+  -- 2. Apply change_of_measure_lower_bound to the RHS
+  -- 3. Get: P ≥ exp(-n(t(a+δ) - Λ(t))) * P_tilted([a, a+δ])
+  -- 4. Take log: log P ≥ -n(t(a+δ) - Λ(t)) + log P_tilted
+  -- 5. Divide by n: (1/n) log P ≥ -(t(a+δ) - Λ(t)) + (1/n) log P_tilted
+  -- 6. Rearrange: (1/n) log P ≥ -(ta - Λ(t)) - tδ + (1/n) log P_tilted
+  -- 7. Take liminf and use error_term_vanishes to get (1/n) log P_tilted → 0
+
+  -- First, show that for each n:
+  -- (1/n) * log P(empirical mean ≥ a) ≥ -(t*a - Λ(t)) - t*δ + (1/n) * log P_tilted([a, a+δ])
+
+  have h_pointwise : ∀ n : ℕ, n ≥ 1 →
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})
+      ≥ (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+        + ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω))
+            {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}) := by
+    intro n hn
+    -- Key steps:
+    -- 1. {empirical mean ∈ [a, a+δ]} ⊆ {empirical mean ≥ a}
+    --    So: P(≥ a) ≥ P([a, a+δ])
+    -- 2. By change_of_measure_lower_bound:
+    --    P([a, a+δ]) ≥ exp(-n(t(a+δ) - Λ(t))) * Q([a, a+δ])
+    --    where Q is the tilted measure
+    -- 3. Therefore: P(≥ a) ≥ exp(-n(t(a+δ) - Λ(t))) * Q([a, a+δ])
+    -- 4. Taking log: log P(≥ a) ≥ -n(t(a+δ) - Λ(t)) + log Q([a, a+δ])
+    -- 5. Dividing by n and rearranging gives the result
+
+    -- Step 1: Subset relation
+    have h_subset : {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} ⊆
+        {ω | empiricalMean X n ω ≥ a} := by
+      intro ω hω
+      simp only [Set.mem_setOf_eq, Set.mem_Icc] at hω ⊢
+      exact hω.1
+
+    -- Step 2: Get the change of measure bound
+    have h_integrable := integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
+    have h_change := @change_of_measure_lower_bound _ _ X h_indep h_ident h_meas h_mgf _
+      a δ t n hδ ht h_integrable
+
+    -- Step 3: Combine with subset relation
+    -- P(≥ a) ≥ P([a, a+δ]) ≥ exp(...) * Q([a, a+δ])
+    sorry -- Need to convert h_change and h_subset into the logarithmic inequality
+
+  -- Take liminf of both sides
+  -- liminf LHS ≥ liminf (constant + RHS)
+  --            = constant + liminf RHS
+  --            = -(ta - Λ(t)) - tδ + 0    [by error_term_vanishes]
+  have h_error_vanish := @error_term_vanishes _ _ X h_indep h_ident h_meas h_mgf _ a t δ hδ ht_int ht_deriv
+
+  -- Define the RHS sequence
+  let rhs_seq : ℕ → EReal := fun n =>
+    (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+    + ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω))
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})
+
+  -- The RHS sequence converges to the target value
+  have h_rhs_limit : Tendsto rhs_seq atTop
+      (𝓝 ((-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal))) := by
+    -- The RHS is: const + error where error → 0
+    -- Therefore RHS → const
+    sorry -- Requires EReal addition tendsto properties
+
+  -- Use that eventually the pointwise inequality holds: LHS_n ≥ RHS_n
+  have h_eventually : ∀ᶠ (n : ℕ) in atTop,
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})
+      ≥ rhs_seq n := by
+    rw [Filter.eventually_atTop]
+    use 1
+    intro (m : ℕ) hm
+    exact h_pointwise m hm
+
+  -- Apply: liminf LHS ≥ lim RHS when LHS eventually ≥ RHS and RHS converges
+  sorry -- Use Filter.liminf_le_of_le and tendsto properties
 
 include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
