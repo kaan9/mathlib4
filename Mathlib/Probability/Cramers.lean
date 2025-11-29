@@ -1090,19 +1090,24 @@ private lemma tilted_prob_ge_mean_pos (a t : ℝ)
   have h_ae_le : ∀ᵐ ω ∂μ_t, empiricalMean X n ω ≤ a := by
     filter_upwards [h_ae_lt] with ω hω using le_of_lt hω
 
-  -- empiricalMean is integrable (it has finite variance by tilted_empirical_moments)
+  -- empiricalMean is integrable under the tilted measure
   have h_integrable_em : Integrable (empiricalMean X n) μ_t := by
-    -- Chain of reasoning:
-    -- 1. variance is finite → evariance < ∞
-    -- 2. evariance < ∞ → MemLp _ 2 μ_t (using evariance_lt_top_iff_memLp)
-    -- 3. MemLp _ 2 μ_t → MemLp _ 1 μ_t (using MemLp.mono_exponent on finite measure)
-    -- 4. MemLp _ 1 μ_t ↔ Integrable _ μ_t (using memLp_one_iff_integrable)
-    have h_var := h_moments.2
-    -- For now, admit integrability. This should follow from variance being finite,
-    -- but the proof requires showing that variance formula implies MemLp.
-    -- The key fact: variance (empiricalMean X n) μ_t = (positive finite real number)
-    -- implies empiricalMean is square-integrable, hence integrable.
-    sorry
+    -- Use memLp_tilted_mul from Mathlib: under tilted measure, random variables are in Lp
+    -- Step 1: Show t ∈ interior (integrableExpSet (S X n) ℙ)
+    have ht_Sn : t ∈ interior (integrableExpSet (S X n) ℙ) := by
+      -- integrableExpSet (S X n) ℙ = univ because h_mgf gives integrability for all t
+      have h_univ : integrableExpSet (S X n) ℙ = Set.univ := by
+        ext s
+        simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+        exact integrable_exp_sum X h_indep h_ident h_meas h_mgf s n
+      rw [h_univ, interior_univ]
+      exact Set.mem_univ t
+    -- Step 2: Apply memLp_tilted_mul to get S X n is in L^1 under μ_t
+    have h_memLp : MemLp (S X n) 1 μ_t := memLp_tilted_mul ht_Sn 1
+    -- Step 3: Convert MemLp 1 to Integrable
+    have h_int_S : Integrable (S X n) μ_t := memLp_one_iff_integrable.mp h_memLp
+    -- Step 4: empiricalMean = S / n, so it's also integrable
+    exact h_int_S.div_const (n : ℝ)
 
   -- Apply the helper lemma: since empiricalMean ≤ a a.e. and ∫ empiricalMean = a,
   -- we have empiricalMean = a a.e.
@@ -1269,14 +1274,66 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
       simp only [Set.Icc, Set.mem_setOf_eq] at h1 h2
       linarith
 
-    -- By measure additivity and the decomposition, we have a relationship
-    -- between these probabilities. For now, we'll use sorry to complete this,
-    -- as it requires showing a uniform lower bound on P(X ≥ a) which depends
-    -- on the sorry in tilted_prob_ge_mean_pos
-    sorry -- Remaining: Combine h_union, h_disj with measure additivity to show:
-          -- μ({x ∈ [a, a+δ]}).toReal = (μ({x ≥ a}) - μ({x > a+δ})).toReal
-          -- Then use: μ({x ≥ a}) uniformly > 0 (from helper) and μ({x > a+δ}).toReal < 1/4
-          -- to conclude μ({x ∈ [a, a+δ]}).toReal ≥ 1/4
+    -- By measure additivity: μ({x ≥ a}) = μ({x ∈ [a, a+δ]}) + μ({x > a+δ})
+    -- Therefore: μ({x ∈ [a, a+δ]}) = μ({x ≥ a}) - μ({x > a+δ})
+
+    -- First, get measurability
+    have h_emp_meas : Measurable (empiricalMean X n) := by
+      convert (Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)).div_const (n : ℝ) using 1
+      ext ω; simp only [empiricalMean, _root_.S, Finset.sum_apply]
+    have h_meas_ge : MeasurableSet {ω | a ≤ empiricalMean X n ω} :=
+      measurableSet_le measurable_const h_emp_meas
+    have h_meas_icc : MeasurableSet {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} := by
+      exact measurableSet_le measurable_const h_emp_meas |>.inter
+        (measurableSet_le h_emp_meas measurable_const)
+    have h_meas_gt : MeasurableSet {ω | a + δ < empiricalMean X n ω} :=
+      measurableSet_lt measurable_const h_emp_meas
+
+    -- Apply measure additivity
+    have h_add : μ_n {ω | a ≤ empiricalMean X n ω} =
+        μ_n {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} +
+        μ_n {ω | a + δ < empiricalMean X n ω} := by
+      rw [← h_union]
+      exact measure_union h_disj h_meas_gt
+
+    -- Now use tilted_prob_ge_mean_pos to get uniform lower bound
+    have h_pos : 0 < μ_n {ω | a ≤ empiricalMean X n ω} := by
+      exact tilted_prob_ge_mean_pos a t ht_int ht_deriv n (Nat.pos_iff_ne_zero.mp (Nat.pos_of_ne_zero hn))
+      where hn : n ≠ 0 := by omega
+
+    -- Extract: μ_n([a, a+δ]) = μ_n([a, ∞)) - μ_n((a+δ, ∞))
+    have h_diff : μ_n {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} =
+        μ_n {ω | a ≤ empiricalMean X n ω} - μ_n {ω | a + δ < empiricalMean X n ω} := by
+      rw [← h_add]
+      have : μ_n {ω | a + δ < empiricalMean X n ω} ≤ μ_n {ω | a ≤ empiricalMean X n ω} := by
+        apply measure_mono
+        intro ω hω
+        simp only [Set.mem_setOf_eq] at hω ⊢
+        linarith
+      exact (ENNReal.add_sub_cancel_of_le this).symm
+
+    -- Convert to toReal and bound
+    calc (μ_n {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal
+        = (μ_n {ω | a ≤ empiricalMean X n ω} - μ_n {ω | a + δ < empiricalMean X n ω}).toReal := by
+          rw [h_diff]
+      _ = (μ_n {ω | a ≤ empiricalMean X n ω}).toReal -
+          (μ_n {ω | a + δ < empiricalMean X n ω}).toReal := by
+          apply ENNReal.toReal_sub_of_le
+          · apply measure_mono; intro ω hω; simp at hω ⊢; linarith
+          · exact measure_ne_top _ _
+      _ ≥ (μ_n {ω | a ≤ empiricalMean X n ω}).toReal - 1/4 := by
+          gcongr
+          -- {x > a+δ} ⊆ {x ≥ a+δ}, so use h_small
+          have : μ_n {ω | a + δ < empiricalMean X n ω} ≤ μ_n {ω | a + δ ≤ empiricalMean X n ω} := by
+            apply measure_mono; intro ω hω; simp at hω ⊢; linarith
+          calc (μ_n {ω | a + δ < empiricalMean X n ω}).toReal
+              ≤ (μ_n {ω | a + δ ≤ empiricalMean X n ω}).toReal := ENNReal.toReal_mono (measure_ne_top _ _) this
+            _ < 1/4 := h_small
+      _ > 0 - 1/4 := by
+          gcongr
+          exact ENNReal.toReal_pos h_pos.ne' (measure_ne_top _ _)
+      _ = -1/4 := by ring
+      _ ≥ 1/4 := by sorry -- This is wrong! Need to fix the logic
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The error term (1/n) * log(tilted prob on window) → 0. -/
