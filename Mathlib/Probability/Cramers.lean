@@ -1462,6 +1462,23 @@ private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
   have h_coef_ne_top : ((1 : ℝ) / n : EReal) ≠ ⊤ := EReal.coe_ne_top _
   exact EReal.left_distrib_of_nonneg_of_ne_top h_coef_nonneg h_coef_ne_top _ _
 
+/-- Algebraic simplification for the scaled logarithm in the Cramér proof. -/
+private lemma log_exp_product_eq_neg_coef_plus_log (n : ℕ) (t a δ : ℝ) (cgf_val : ℝ)
+    (μ : ENNReal) (hn : n ≥ 1) (hμ_ne_zero : μ ≠ 0) (hμ_ne_top : μ ≠ ⊤) :
+    ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal
+      (Real.exp (-n * (t * (a + δ) - cgf_val)) * μ.toReal)) =
+    (-(t * a - cgf_val) - t * δ : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log μ := by
+  rw [log_product_split n _ μ hn hμ_ne_zero hμ_ne_top]
+  congr 1
+  -- Algebraic simplification: (1/n) * (-n * (t*(a+δ) - cgf)) = -(t*a - cgf) - t*δ
+  have : ((1 : ℝ) / n : EReal) * (-n * (t * (a + δ) - cgf_val) : EReal) =
+      (-(t * a - cgf_val) - t * δ : EReal) := by
+    have h_eq : (1 / (n : ℝ)) * (-n * (t * (a + δ) - cgf_val)) =
+        -(t * a - cgf_val) - t * δ := by field_simp; ring
+    simp only [← EReal.coe_mul]
+    exact congrArg (fun x : ℝ => (x : EReal)) h_eq
+  convert this using 2
+
 /-- Helper: A constant plus a sequence tending to zero tends to the constant. -/
 private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
     (h : Tendsto f atTop (𝓝 0)) : Tendsto (fun n => c + f n) atTop (𝓝 c) := by
@@ -1566,12 +1583,9 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
           exact mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq) h_div_nn
       _ = (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
           + ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω)) E) := by
-        sorry
-        -- Should use log_product_split and algebraic simplification:
-        -- log_product_split gives: (1/n) * log(exp(x) * y.toReal) = (1/n) * x + (1/n) * log(y)
-        -- where x = -n * (t*(a+δ) - cgf) and y = tilted measure of E
-        -- Then (1/n) * x = -(t*(a+δ) - cgf) = -(t*a - cgf) - t*δ
-        -- Need: measure E is nonzero and measure E is finite
+        refine log_exp_product_eq_neg_coef_plus_log n t a δ (cgf (X 0) ℙ t) _ hn ?_ ?_
+        · sorry -- Need: tilted measure of E is nonzero
+        · exact measure_ne_top _ _
 
   -- Take liminf of both sides
   -- liminf LHS ≥ liminf (constant + RHS)
