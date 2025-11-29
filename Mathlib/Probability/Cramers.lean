@@ -1305,7 +1305,7 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
   -- For large n, pick any n₀ large enough that P(X ≥ a+δ) < some small value
   -- The issue is getting a *uniform* lower bound on P(X ≥ a)
   -- For simplicity, we'll use that eventually P(X ≥ a+δ) < 1/4
-  -- and assert (via sorry in tilted_prob_ge_mean_pos) that P(X ≥ a) ≥ 1/2 uniformly
+  -- and assert (via tilted_prob_ge_mean_pos) that P(X ≥ a) ≥ 1/2 uniformly
 
   -- Eventually P(X ≥ a+δ).toReal < 1/4
   have h_tail_small : ∀ᶠ n in atTop,
