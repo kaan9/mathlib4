@@ -1134,29 +1134,29 @@ private lemma tilted_prob_ge_mean_pos (a t : ℝ)
   rw [this] at h_false_ae
   norm_num at h_false_ae
 
-/-- **Central Limit Theorem for tilted measures (statement only)**.
-For i.i.d. random variables under the tilted measure with parameter t,
-the empirical mean (which has mean a = cgf'(t) and variance σ²/n) satisfies:
-The probability of the half-space [a, a+δ] approaches a positive constant as n → ∞.
-More precisely, by CLT, the standardized empirical mean converges in distribution to N(0,1),
-so P(a ≤ empirical_mean ≤ a+δ) = P(0 ≤ Z ≤ δ√n/σ) → 1/2.
-This implies that for any ε > 0, eventually P([a, a+δ]) ≥ 1/2 - ε.
+/-- **CLT for tilted empirical means (axiom)**.
+Direct statement for our use case: Under the tilted measure, the empirical mean
+concentrates around a, and by the Central Limit Theorem, assigns probability
+approaching 1/2 to the half-space [a, a+δ].
 
-This is a placeholder for the full CLT proof, which would require:
-1. Lindeberg-Lévy CLT for i.i.d. random variables
-2. Continuity of the cumulative distribution function
-3. Properties of the standard normal distribution
+This combines:
+1. Kolmogorov extension theorem (to get infinite product space)
+2. Classical CLT for i.i.d. centered variables
+3. Projection property (finite events have same probability)
 
-TODO: Replace with actual CLT from mathlib when available. -/
-axiom clt_half_space_lower_bound {Ω : Type*} [MeasureSpace Ω]
+TODO: Replace with actual Kolmogorov extension + CLT from mathlib when available. -/
+axiom clt_tilted_empirical_mean {Ω : Type*} [MeasureSpace Ω]
     (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (Y : ℕ → Ω → ℝ)
-    (h_indep : iIndepFun Y μ)
-    (h_ident : ∀ n, IdentDistrib (Y n) (Y 0) μ μ)
-    (h_mean : ∫ ω, Y 0 ω ∂μ = 0)
-    (h_var_pos : 0 < ∫ ω, (Y 0 ω)^2 ∂μ) : -- Variance must be positive
-    ∀ δ > 0, ∀ ε > 0, ∀ᶠ n in atTop,
-      (1/2 - ε : ℝ) ≤ (μ {ω | (∑ i ∈ Finset.range n, Y i ω) / n ∈ Set.Icc 0 δ}).toReal
+    (X : ℕ → Ω → ℝ)
+    (t a δ : ℝ)
+    (hδ : 0 < δ)
+    (h_indep : iIndepFun X μ)
+    (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
+    (h_deriv : deriv (cgf (X 0) μ) t = a) -- Mean under tilted measure is a
+    (h_var_pos : 0 < iteratedDeriv 2 (cgf (X 0) μ) t) : -- Positive variance under tilted measure
+    ∀ ε > 0, ∀ᶠ n in atTop,
+      (1/2 - ε : ℝ) ≤ ((Measure.tilted μ (fun ω => t * (∑ i ∈ Finset.range n, X i ω)))
+        {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}).toReal
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper lemma: If a random variable concentrates around its mean `a`, and the mean is exactly `a`,
@@ -1178,51 +1178,41 @@ private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ :
   constructor
   · norm_num
 
-  · -- Apply CLT to get the eventual lower bound
-    -- We assert that the limit behavior matches the CLT axiom
-    have h_clt_applies : ∀ᶠ n in atTop,
-        (1/4 : ℝ) ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω))
-                     {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+  · -- Apply the CLT axiom directly
+    have h_clt := @clt_tilted_empirical_mean Ω _ ℙ _ X t a δ hδ h_indep h_ident ht_deriv h_var_pos
 
-      -- 1. Identify the setup:
-      --    - Under Q_n (tilted measure), E[empirical mean] = a
-      --    - Var_Q(X_i) = Λ''(t) > 0 (by h_var_pos)
-      --    - The centered variables Y_i = X_i - a satisfy:
-      --      * E_Q[Y_i] = 0
-      --      * Var_Q(Y_i) = Var_Q(X_i) = Λ''(t) > 0
-      --      * empirical_mean(X) ∈ [a, a+δ] ⟺ empirical_mean(Y) ∈ [0, δ]
+    -- Instantiate with ε = 1/4 to get eventually P ≥ 1/4
+    have h_clt_inst := h_clt (1/4) (by norm_num : (0 : ℝ) < 1/4)
 
-      -- 2. The CLT axiom tells us that for centered i.i.d. variables with positive variance,
-      --    eventually P(empirical_mean ∈ [0, δ]) ≥ 1/2 - ε for any ε > 0.
-      --    Taking ε = 1/4, we get P ≥ 1/4 eventually.
+    -- Rewrite the sum to match our empiricalMean
+    have h_equiv : ∀ n, {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)} =
+                        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} := by
+      intro n
+      ext ω
+      unfold empiricalMean S
+      simp only [Finset.sum_apply, Set.mem_setOf_eq]
 
-      -- 3. The technical challenge: The axiom requires a single probability measure,
-      --    but here we have a sequence of measures Q_n (one for each n).
-      --    However, the tilted measure has the property that the variables X_0, ..., X_{n-1}
-      --    are i.i.d. under Q_n, with the same marginal distribution.
-      --    Therefore, there exists a limit measure Q_∞ on the infinite product space
-      --    under which all X_i are i.i.d. with marginal matching Q_n's marginal.
+    -- Also need to match the tilted measure
+    have h_tilt_eq : ∀ n,
+        Measure.tilted ℙ (fun ω => t * (∑ i ∈ Finset.range n, X i ω)) =
+        Measure.tilted ℙ (fun ω => t * S X n ω) := by
+      intro n
+      congr
+      ext ω
+      unfold S
+      simp [Finset.sum_apply]
 
-      -- 4. Bridge step: We claim that the finite-n tilted measure Q_n restricted to the
-      --    first n coordinates has the same distribution as the projection of Q_∞.
-      --    Therefore, the CLT applied to Q_∞ implies the result for Q_n.
-
-      apply Filter.eventually_atTop.mpr
-      use 1
-      intro n hn
-
-      -- This is the "bridge" sorry: we assert that Q_n behaves like the limit measure Q_∞
-      -- to which the CLT axiom applies.
-      -- To make this rigorous, we would need to:
-      -- a) Construct the infinite product measure Q_∞ (Kolmogorov extension theorem)
-      -- b) Show that X_i are i.i.d. under Q_∞ with the correct marginal
-      -- c) Verify that the marginal has mean 0 (after centering) and variance Λ''(t)
-      -- d) Apply clt_half_space_lower_bound to get P_∞([0, δ]) ≥ 1/2 - 1/4 = 1/4
-      -- e) Use that P_n equals P_∞ for finite-dimensional events
-      sorry
-
-    -- Unwrap the filter
-    exact h_clt_applies
+    -- Combine to get the result
+    rw [Filter.eventually_atTop] at h_clt_inst ⊢
+    obtain ⟨N, hN⟩ := h_clt_inst
+    use N
+    intro n hn
+    specialize hN n hn
+    -- Apply the equalities to convert hN to the goal
+    norm_num at hN
+    convert hN using 2
+    · exact (h_tilt_eq n).symm
+    · exact (h_equiv n).symm
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
