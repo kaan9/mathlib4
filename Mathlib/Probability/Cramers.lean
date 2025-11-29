@@ -1340,8 +1340,6 @@ private lemma ereal_inv_nat_mul_const_tendsto_zero (c : ℝ) :
   rw [show (0 : EReal) = ((0 : ℝ) : EReal) by rfl]
   refine continuous_coe_real_ereal.continuousAt.tendsto.comp ?_
   convert h_real using 1
-  ext n
-  simp [EReal.coe_mul, EReal.coe_div]
 
 /-- Helper: 0 ≤ a and b ≤ 0 implies a * b ≤ 0 in EReal. -/
 private lemma ereal_mul_nonneg_nonpos {a b : EReal} (ha : 0 ≤ a) (hb : b ≤ 0) : a * b ≤ 0 := by
