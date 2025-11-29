@@ -1465,7 +1465,9 @@ private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
 /-- Helper: A constant plus a sequence tending to zero tends to the constant. -/
 private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
     (h : Tendsto f atTop (𝓝 0)) : Tendsto (fun n => c + f n) atTop (𝓝 c) := by
-  sorry -- Requires EReal addition continuity at (c, 0)
+  have h_cont : ContinuousAt (fun p : EReal × EReal => p.1 + p.2) (c, 0) := by
+    apply EReal.continuousAt_add <;> simp
+  simpa [add_zero] using h_cont.tendsto.comp (tendsto_const_nhds.prodMk_nhds h)
 
 include h_indep h_ident h_meas h_mgf in
 /-- **Lemma 4: Lower bound via tilted measure**.
@@ -1564,7 +1566,13 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
           exact mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq) h_div_nn
       _ = (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
           + ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω)) E) := by
-        sorry -- Requires ENNReal.log properties for products and exponentials
+        rw [log_product_split n _ _ hn]
+        swap; · exact measure_ne_top _ _
+        swap
+        · sorry -- Need to show tilted measure of E is nonzero
+        simp only [neg_mul]
+        rw [EReal.coe_neg, EReal.coe_mul, EReal.coe_sub]
+        ring
 
   -- Take liminf of both sides
   -- liminf LHS ≥ liminf (constant + RHS)
