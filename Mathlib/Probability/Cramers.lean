@@ -46,6 +46,10 @@ variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 -- Assume that this is a "good" rate function, bounded above.
 -- This is actually implied by h_mgf but this is difficult to prove.
 variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
+-- Assume the distribution is non-degenerate (has positive variance)
+variable (h_non_deg : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) 0)
+-- For the lower bound, we assume points are "exposed" (in range of cgf derivative)
+variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
 
 /-- The partial sum X_0 + ... + X_{n-1}. -/
 noncomputable def S (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
@@ -1635,21 +1639,16 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
     exact liminf_le_liminf h_eventually
   exact h_liminf_ge
 
-include h_indep h_meas h_ident h_mgf in
+include h_indep h_meas h_ident h_mgf h_non_deg h_exposed in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
 empirical mean is close to a is bounded below by the negative rate function.
 Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
-theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a)
-    -- We assume the distribution is not deterministic (variance > 0)
-    (h_non_deg : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) 0)
-    -- We assume 'a' is "exposed" (in the range of the CGF derivative)
-    -- This is standard for the lower bound; otherwise the rate is infinite.
-    (h_exposed : ∃ t, deriv (cgf (X 0) ℙ) t = a) :
+theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     (- rateFunction X a : EReal) ≤
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
   -- 1. Extract the optimal t
-  obtain ⟨t, ht_deriv⟩ := h_exposed
+  obtain ⟨t, ht_deriv⟩ := h_exposed a h_mean
 
   -- 2. Handle the case where t ≤ 0
   -- If a ≥ Mean, then t ≥ 0 because CGF derivative is increasing and deriv(0) = Mean.
@@ -1879,7 +1878,7 @@ private lemma ereal_mul_tendsto_zero_of_tendsto_zero_of_bounded
     (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
 
 
-include h_indep h_meas h_ident h_mgf h_int h_bdd in
+include h_indep h_meas h_ident h_mgf h_int h_bdd h_non_deg h_exposed in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
 satisfies a large deviation principle with rate function given by the Legendre transform
 of the CGF. -/
@@ -1934,9 +1933,7 @@ theorem cramers_theorem :
   · intro a
     by_cases h : 𝔼[X 0] ≤ a
     · rw [upperTailRateFunction_eq_rateFunction a h]
-      apply cramer_lower_bound X h_indep h_ident h_meas h_mgf a h
-      · sorry -- variance > 0 (non-degenerate)
-      · sorry -- exposed point (exists t)
+      exact @cramer_lower_bound _ _ X h_indep h_ident h_meas h_mgf h_non_deg h_exposed _ a h
     · -- a < Mean (Typical event)
       -- The rate function is 0.
       -- For typical events, probability → 1, so log(P) → 0.
