@@ -1329,11 +1329,25 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
 /-- Helper: (1/n) * const → 0 in EReal when lifted from ℝ. -/
 private lemma ereal_inv_nat_mul_const_tendsto_zero (c : ℝ) :
     Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * (c : EReal)) atTop (𝓝 0) := by
-  sorry -- Follows from: (1/n) → 0 in ℝ, multiplication by const, and EReal.tendsto_coe
+  -- Use that (1/n) * c → 0 in ℝ
+  have h_real : Tendsto (fun n : ℕ => (1 / n * c : ℝ)) atTop (𝓝 0) := by
+    have h_inv : Tendsto (fun n : ℕ => (1 / n : ℝ)) atTop (𝓝 0) :=
+      tendsto_const_nhds.div_atTop tendsto_natCast_atTop_atTop
+    convert h_inv.mul tendsto_const_nhds using 1
+    ext n
+    ring_nf
+  -- Coercion preserves limits, and matches our function after simplification
+  rw [show (0 : EReal) = ((0 : ℝ) : EReal) by rfl]
+  refine continuous_coe_real_ereal.continuousAt.tendsto.comp ?_
+  convert h_real using 1
+  ext n
+  simp only [EReal.coe_mul, EReal.coe_div, EReal.coe_one, EReal.coe_natCast, Function.comp_apply]
 
 /-- Helper: 0 ≤ a and b ≤ 0 implies a * b ≤ 0 in EReal. -/
 private lemma ereal_mul_nonneg_nonpos {a b : EReal} (ha : 0 ≤ a) (hb : b ≤ 0) : a * b ≤ 0 := by
-  sorry -- Standard EReal multiplication property
+  calc a * b
+      ≤ a * 0 := by exact mul_le_mul_of_nonneg_left hb ha
+    _ = 0 := mul_zero a
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The error term (1/n) * log(tilted prob on window) → 0. -/
