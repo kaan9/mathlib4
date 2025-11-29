@@ -1148,54 +1148,89 @@ This is a placeholder for the full CLT proof, which would require:
 3. Properties of the standard normal distribution
 
 TODO: Replace with actual CLT from mathlib when available. -/
-axiom clt_half_space_lower_bound {Ω : Type*} [MeasureSpace Ω] (Y : ℕ → Ω → ℝ)
+axiom clt_half_space_lower_bound {Ω : Type*} [MeasureSpace Ω]
     (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (h_iid : iIndepFun Y μ) (h_ident : ∀ n, IdentDistrib (Y n) (Y 0) μ μ)
-    (h_mean : ∫ ω, Y 0 ω ∂μ = 0) -- Centered for simplicity
-    (h_var_pos : ∃ σsq > 0, ∫ ω, (Y 0 ω) ^ 2 ∂μ = σsq) : -- Finite positive variance
+    (Y : ℕ → Ω → ℝ)
+    (h_indep : iIndepFun Y μ)
+    (h_ident : ∀ n, IdentDistrib (Y n) (Y 0) μ μ)
+    (h_mean : ∫ ω, Y 0 ω ∂μ = 0)
+    (h_var_pos : 0 < ∫ ω, (Y 0 ω)^2 ∂μ) : -- Variance must be positive
     ∀ δ > 0, ∀ ε > 0, ∀ᶠ n in atTop,
-      (1/2 - ε : ℝ) ≤ (μ {ω | (∑ i ∈ Finset.range n, Y i ω) / n ∈ Set.Ico 0 δ}).toReal
+      (1/2 - ε : ℝ) ≤ (μ {ω | (∑ i ∈ Finset.range n, Y i ω) / n ∈ Set.Icc 0 δ}).toReal
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper lemma: If a random variable concentrates around its mean `a`, and the mean is exactly `a`,
 then the probability of being in `[a, a+δ]` cannot vanish. This follows from the Central Limit Theorem:
 the tilted empirical mean converges in distribution to Normal(a, σ²/n), and a normal centered at a
-assigns probability → 1/2 to the half-space [a, ∞). -/
+assigns probability → 1/2 to the half-space [a, ∞).
+Requires non-degenerate variance: Var_Q(X) = Λ''(t) > 0. -/
 private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ : 0 < δ)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
-    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a)
+    (h_var_pos : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t) : -- Non-degenerate: Var_Q(X) > 0
     ∃ c > 0, ∀ᶠ n in atTop,
-      c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-  -- Strategy: Use CLT to show that the tilted empirical mean, when centered at a,
-  -- behaves like a normal distribution. For a normal centered at a, P([a, a+δ]) → 1/2.
-  -- Therefore, we can choose c = 1/4 and show that eventually the probability exceeds 1/4.
+      c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω))
+          {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+  -- Strategy: Use CLT. Under the tilted measure Q, the empirical mean is centered at a
+  -- with variance σ²/n where σ² = Λ''(t) > 0. By CLT, P_Q([a, a+δ]) → 1/2.
 
   use 1/4
   constructor
   · norm_num
-  · -- We need to apply CLT to the tilted measure
-    -- Define centered random variables under the tilted measure
-    let μ_t := fun n => Measure.tilted ℙ (fun ω => t * S X n ω)
 
-    -- Under μ_t, the empirical mean has mean a and variance → 0
-    -- Define centered versions: Y_i = X_i - a
-    let Y : ℕ → Ω → ℝ := fun i ω => X i ω - a
+  · -- Apply CLT to get the eventual lower bound
+    -- We assert that the limit behavior matches the CLT axiom
+    have h_clt_applies : ∀ᶠ n in atTop,
+        (1/4 : ℝ) ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω))
+                     {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
 
-    -- Under the tilted measure μ_t(∞) (limit measure), Y_i are i.i.d. with mean 0
-    -- The empirical mean of Y is: (∑ Y_i) / n = (∑ X_i) / n - a = empirical_mean - a
-    -- So: empirical_mean ∈ [a, a+δ] ⟺ empirical_mean - a ∈ [0, δ]
+      -- 1. Identify the setup:
+      --    - Under Q_n (tilted measure), E[empirical mean] = a
+      --    - Var_Q(X_i) = Λ''(t) > 0 (by h_var_pos)
+      --    - The centered variables Y_i = X_i - a satisfy:
+      --      * E_Q[Y_i] = 0
+      --      * Var_Q(Y_i) = Var_Q(X_i) = Λ''(t) > 0
+      --      * empirical_mean(X) ∈ [a, a+δ] ⟺ empirical_mean(Y) ∈ [0, δ]
 
-    -- By CLT (axiom above), for the centered variables, P([0, δ]) → 1/2
-    -- Therefore P([a, a+δ]) → 1/2, so eventually ≥ 1/4
+      -- 2. The CLT axiom tells us that for centered i.i.d. variables with positive variance,
+      --    eventually P(empirical_mean ∈ [0, δ]) ≥ 1/2 - ε for any ε > 0.
+      --    Taking ε = 1/4, we get P ≥ 1/4 eventually.
 
-    sorry -- Apply clt_half_space_lower_bound with appropriate setup
+      -- 3. The technical challenge: The axiom requires a single probability measure,
+      --    but here we have a sequence of measures Q_n (one for each n).
+      --    However, the tilted measure has the property that the variables X_0, ..., X_{n-1}
+      --    are i.i.d. under Q_n, with the same marginal distribution.
+      --    Therefore, there exists a limit measure Q_∞ on the infinite product space
+      --    under which all X_i are i.i.d. with marginal matching Q_n's marginal.
+
+      -- 4. Bridge step: We claim that the finite-n tilted measure Q_n restricted to the
+      --    first n coordinates has the same distribution as the projection of Q_∞.
+      --    Therefore, the CLT applied to Q_∞ implies the result for Q_n.
+
+      apply Filter.eventually_atTop.mpr
+      use 1
+      intro n hn
+
+      -- This is the "bridge" sorry: we assert that Q_n behaves like the limit measure Q_∞
+      -- to which the CLT axiom applies.
+      -- To make this rigorous, we would need to:
+      -- a) Construct the infinite product measure Q_∞ (Kolmogorov extension theorem)
+      -- b) Show that X_i are i.i.d. under Q_∞ with the correct marginal
+      -- c) Verify that the marginal has mean 0 (after centering) and variance Λ''(t)
+      -- d) Apply clt_half_space_lower_bound to get P_∞([0, δ]) ≥ 1/2 - 1/4 = 1/4
+      -- e) Use that P_n equals P_∞ for finite-dimensional events
+      sorry
+
+    -- Unwrap the filter
+    exact h_clt_applies
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
 This follows from the concentration lemma and the fact that the tilted mean is a. -/
 private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 < δ)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
-    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a)
+    (h_var_pos : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t) :
     ∃ c > 0, ∀ᶠ n in atTop,
       c ≤ ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
   -- Strategy: P([a, a+δ]) = P([a, ∞)) - P([a+δ, ∞))
@@ -1299,20 +1334,22 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
   -- Use the helper lemma to get the lower bound
   -- Note: {x ∈ [a, a+δ]} = {a ≤ x ∧ x < a+δ} ∪ {x = a+δ}
   -- Since {x = a+δ} has measure 0 (continuous distribution), we can use the open interval version
-  exact @tilted_window_lower_bound_from_concentration _ _ X h_indep h_ident h_meas h_mgf _ a t δ hδ ht_int ht_deriv
+  exact @tilted_window_lower_bound_from_concentration _ _ X h_indep h_ident h_meas h_mgf _
+    a t δ hδ ht_int ht_deriv h_var_pos
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The error term (1/n) * log(tilted prob on window) → 0. -/
 private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
-    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a)
+    (h_var_pos : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t) :
     Tendsto (fun n : ℕ =>
       ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω))
         {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})) atTop (𝓝 0) := by
   -- Since the tilted probability is bounded away from 0 and bounded by 1,
   -- its log is bounded, so (1/n) * log(prob) → 0
   obtain ⟨c, hc_pos, h_bounded⟩ := @tilted_prob_window_bounded_away_from_zero _ _ X h_indep h_ident
-    h_meas h_mgf _ a t δ hδ ht_int ht_deriv
+    h_meas h_mgf _ a t δ hδ ht_int ht_deriv h_var_pos
   -- The tilted probability is in [c, 1] eventually, so log is in [log c, 0]
   -- Therefore (1/n) * log is in [(1/n) * log c, 0] → 0
 
@@ -1331,7 +1368,8 @@ Combining the change of measure and concentration lemmas,
 we get the lower bound on the scaled log probability. -/
 private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
-    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a)
+    (h_var_pos : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t) :
     liminf (fun n : ℕ =>
       ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
     ≥ (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal) := by
@@ -1383,7 +1421,8 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
   -- liminf LHS ≥ liminf (constant + RHS)
   --            = constant + liminf RHS
   --            = -(ta - Λ(t)) - tδ + 0    [by error_term_vanishes]
-  have h_error_vanish := @error_term_vanishes _ _ X h_indep h_ident h_meas h_mgf _ a t δ hδ ht_int ht_deriv
+  have h_error_vanish := @error_term_vanishes _ _ X h_indep h_ident h_meas h_mgf _
+    a t δ hδ ht_int ht_deriv h_var_pos
 
   -- Define the RHS sequence
   let rhs_seq : ℕ → EReal := fun n =>
