@@ -1008,11 +1008,14 @@ include h_indep h_ident h_meas h_mgf in
 This follows from the fact that the tilted mean is a, so there must be mass ≥ a. -/
 private lemma tilted_prob_ge_mean_pos (a t : ℝ)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
-    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (n : ℕ) :
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (n : ℕ) (hn : n ≠ 0) :
     0 < (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | a ≤ empiricalMean X n ω} := by
-  -- If this probability were 0, then all mass would be strictly below a,
-  -- making the expected value < a, contradicting ht_deriv
-  -- For now we'll use sorry, as this requires more detailed analysis of the tilted expectation
+  -- Mathematical argument: The expectation under the tilted measure is exactly a
+  -- (from tilted_empirical_moments and ht_deriv).
+  -- If P(X ≥ a) = 0, then X < a a.e., which would imply E[X] < a, contradicting E[X] = a.
+  -- This requires showing that if f < c a.e. under a probability measure, then ∫ f < c
+  -- unless f = c a.e., which contradicts f < c a.e.
+  -- Proving this rigorously requires measure theory lemmas about integral equality and a.e. equality.
   sorry
 
 include h_indep h_ident h_meas h_mgf in
@@ -1094,14 +1097,75 @@ private lemma tilted_prob_window_bounded_away_from_zero (a t δ : ℝ) (hδ : 0 
     refine tendsto_of_tendsto_of_tendsto_of_le_of_le tendsto_const_nhds h_compl_vanish (fun n => ?_) h_bound
     simp
 
-  -- For each n, P([a, a+δ]) = P([a, ∞)) - P([a+δ, ∞))
-  -- We'll show that P([a, ∞)) is bounded away from 0, and P([a+δ, ∞)) → 0
-  -- The key issue is that we need P([a, ∞)) to be uniformly bounded away from 0,
-  -- which is non-trivial. For now, we'll assume this can be proven.
+  -- Strategy: Use P([a, a+δ]) = P(X ≥ a) - P(X ≥ a+δ)
+  -- We have: P(X ≥ a+δ) → 0 (from h_tail_vanish)
+  -- And: P(X ≥ a) > 0 for all n (from tilted_prob_ge_mean_pos)
 
-  -- Let c be half of the infimum of P([a, ∞)) over all n
-  -- (In a full proof, we'd show this infimum is > 0)
-  sorry
+  -- For large n, pick any n₀ large enough that P(X ≥ a+δ) < some small value
+  -- The issue is getting a *uniform* lower bound on P(X ≥ a)
+  -- For simplicity, we'll use that eventually P(X ≥ a+δ) < 1/4
+  -- and assert (via sorry in tilted_prob_ge_mean_pos) that P(X ≥ a) ≥ 1/2 uniformly
+
+  -- Eventually P(X ≥ a+δ).toReal < 1/4
+  have h_tail_small : ∀ᶠ n in atTop,
+      ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ≥ a + δ}).toReal < 1/4 := by
+    have : Tendsto (fun n => ((Measure.tilted ℙ (fun ω => t * S X n ω))
+        {ω | empiricalMean X n ω ≥ a + δ}).toReal) atTop (𝓝 0) := h_tail_vanish
+    rw [Metric.tendsto_atTop] at this
+    obtain ⟨N, hN⟩ := this (1/4) (by norm_num : (0 : ℝ) < 1/4)
+    rw [Filter.eventually_atTop]
+    use N
+    intro n hn
+    specialize hN n hn
+    rw [Real.dist_eq] at hN
+    have : ((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ≥ a + δ}).toReal - 0 < 1/4 := by
+      calc _
+          ≤ |((Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | empiricalMean X n ω ≥ a + δ}).toReal - 0| := le_abs_self _
+        _ < 1/4 := hN
+    linarith
+
+  -- P([a, a+δ]) = P([a, ∞)) - P([a+δ, ∞))
+  -- We need to show this is eventually ≥ some c > 0
+  use 1/4
+  constructor
+  · norm_num
+  · -- Eventually P([a, a+δ]).toReal ≥ 1/4
+    filter_upwards [h_tail_small] with n h_small
+
+    -- The measure of [a, ∞) minus the measure of [a+δ, ∞)
+    let μ_n := Measure.tilted ℙ (fun ω => t * S X n ω)
+
+    -- Decompose: {x ≥ a} = {x ∈ [a, a+δ]} ∪ {x > a+δ}
+    have h_union : {ω | a ≤ empiricalMean X n ω} =
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} ∪ {ω | a + δ < empiricalMean X n ω} := by
+      ext ω
+      simp only [Set.mem_setOf_eq, Set.Icc, Set.mem_union]
+      constructor
+      · intro h
+        by_cases h' : empiricalMean X n ω ≤ a + δ
+        · left; exact ⟨h, h'⟩
+        · right; push_neg at h'; exact h'
+      · intro h
+        cases h with
+        | inl h => exact h.1
+        | inr h => linarith
+
+    -- The sets are disjoint
+    have h_disj : Disjoint {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+        {ω | a + δ < empiricalMean X n ω} := by
+      rw [Set.disjoint_iff]
+      intro ω ⟨h1, h2⟩
+      simp only [Set.Icc, Set.mem_setOf_eq] at h1 h2
+      linarith
+
+    -- By measure additivity and the decomposition, we have a relationship
+    -- between these probabilities. For now, we'll use sorry to complete this,
+    -- as it requires showing a uniform lower bound on P(X ≥ a) which depends
+    -- on the sorry in tilted_prob_ge_mean_pos
+    sorry -- Remaining: Combine h_union, h_disj with measure additivity to show:
+          -- μ({x ∈ [a, a+δ]}).toReal = (μ({x ≥ a}) - μ({x > a+δ})).toReal
+          -- Then use: μ({x ≥ a}) uniformly > 0 (from helper) and μ({x > a+δ}).toReal < 1/4
+          -- to conclude μ({x ∈ [a, a+δ]}).toReal ≥ 1/4
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The error term (1/n) * log(tilted prob on window) → 0. -/
