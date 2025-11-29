@@ -1003,6 +1003,36 @@ private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
     simp only [ne_eq, ENNReal.one_ne_top, not_false_eq_true]
   exact h_one_sub
 
+/-! ### Helper lemmas for establishing positive probability on half-spaces -/
+
+/-- If f ≤ c a.e., f is integrable, and ∫ f = c under a probability measure, then f = c a.e. -/
+private lemma ae_eq_const_of_integral_eq_const_of_le {α : Type*} {m : MeasurableSpace α}
+    (μ : Measure α) [IsProbabilityMeasure μ] {f : α → ℝ} (c : ℝ)
+    (hf : Integrable f μ) (h_le : ∀ᵐ ω ∂μ, f ω ≤ c) (h_int : ∫ ω, f ω ∂μ = c) :
+    ∀ᵐ ω ∂μ, f ω = c := by
+  -- The key: ∫ (c - f) = c - ∫ f = 0, and c - f ≥ 0 a.e., so c - f = 0 a.e.
+  have h_diff_nonneg : ∀ᵐ ω ∂μ, 0 ≤ c - f ω := by
+    filter_upwards [h_le] with ω hω using sub_nonneg.mpr hω
+
+  have h_integrable_diff : Integrable (fun ω => c - f ω) μ := by
+    exact Integrable.sub (integrable_const c) hf
+
+  have h_int_diff : ∫ ω, (c - f ω) ∂μ = 0 := by
+    calc ∫ ω, (c - f ω) ∂μ
+        = ∫ ω, c ∂μ - ∫ ω, f ω ∂μ := integral_sub (integrable_const c) hf
+      _ = c * (μ Set.univ).toReal - c := by simp [measure_univ, h_int]
+      _ = c * 1 - c := by simp
+      _ = 0 := by ring
+
+  -- Since c - f ≥ 0 a.e. and ∫ (c - f) = 0, we have c - f = 0 a.e.
+  -- This uses: if g ≥ 0 a.e. and ∫ g = 0, then g = 0 a.e.
+  have h_diff_ae_zero : ∀ᵐ ω ∂μ, c - f ω = 0 := by
+    have := (integral_eq_zero_iff_of_nonneg_ae h_diff_nonneg h_integrable_diff).mp h_int_diff
+    exact this
+
+  filter_upwards [h_diff_ae_zero] with ω h
+  linarith
+
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted measure gives positive probability to [a, ∞).
 This follows from the fact that the tilted mean is a, so there must be mass ≥ a. -/
@@ -1010,13 +1040,89 @@ private lemma tilted_prob_ge_mean_pos (a t : ℝ)
     (ht_int : t ∈ interior (integrableExpSet (X 0) ℙ))
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (n : ℕ) (hn : n ≠ 0) :
     0 < (Measure.tilted ℙ (fun ω => t * S X n ω)) {ω | a ≤ empiricalMean X n ω} := by
-  -- Mathematical argument: The expectation under the tilted measure is exactly a
-  -- (from tilted_empirical_moments and ht_deriv).
-  -- If P(X ≥ a) = 0, then X < a a.e., which would imply E[X] < a, contradicting E[X] = a.
-  -- This requires showing that if f < c a.e. under a probability measure, then ∫ f < c
-  -- unless f = c a.e., which contradicts f < c a.e.
-  -- Proving this rigorously requires measure theory lemmas about integral equality and a.e. equality.
-  sorry
+  -- Proof by contradiction
+  let μ_t := Measure.tilted ℙ (fun ω => t * S X n ω)
+
+  -- First establish that the expectation is a
+  have h_moments := @tilted_empirical_moments _ _ X h_indep h_ident h_meas h_mgf _ t n hn ht_int
+  have h_mean : μ_t[empiricalMean X n] = a := by
+    calc μ_t[empiricalMean X n]
+        = μ_t[fun ω => S X n ω / n] := by rfl
+      _ = deriv (cgf (X 0) ℙ) t := h_moments.1
+      _ = a := ht_deriv
+
+  -- Suppose for contradiction that P(X ≥ a) = 0
+  by_contra h_not_pos
+  push_neg at h_not_pos
+
+  -- Then empiricalMean < a almost everywhere
+  have h_ae_lt : ∀ᵐ ω ∂μ_t, empiricalMean X n ω < a := by
+    have h_prob : IsProbabilityMeasure μ_t := by
+      apply isProbabilityMeasure_tilted
+      exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
+    have h_zero : μ_t {ω | a ≤ empiricalMean X n ω} = 0 := le_antisymm h_not_pos (zero_le _)
+    have h_meas_ge : MeasurableSet {ω | a ≤ empiricalMean X n ω} := by
+      refine measurableSet_le measurable_const ?_
+      convert (Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)).div_const (n : ℝ) using 1
+      ext ω; simp only [empiricalMean, _root_.S, Finset.sum_apply]
+    -- The complement has full measure
+    have : μ_t {ω | a ≤ empiricalMean X n ω}ᶜ = 1 := by
+      calc μ_t {ω | a ≤ empiricalMean X n ω}ᶜ
+          = 1 - μ_t {ω | a ≤ empiricalMean X n ω} := prob_compl_eq_one_sub h_meas_ge
+        _ = 1 := by rw [h_zero]; norm_num
+    -- So empiricalMean < a a.e.
+    rw [ae_iff]
+    show μ_t {ω | ¬(empiricalMean X n ω < a)} = 0
+    have : {ω | ¬(empiricalMean X n ω < a)} = {ω | a ≤ empiricalMean X n ω} := by
+      ext ω; simp only [Set.mem_setOf_eq]; exact not_lt
+    rw [this, h_zero]
+
+  -- But if empiricalMean < a a.e., then ∫ empiricalMean ≤ a
+  -- and for a probability measure with ∫ f = ∫ c, we need f = c a.e.
+  -- This will contradict empiricalMean < a a.e.
+
+  -- Establish that μ_t is a probability measure
+  have h_prob : IsProbabilityMeasure μ_t := by
+    apply isProbabilityMeasure_tilted
+    exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t n
+
+  -- From empiricalMean < a a.e., we have empiricalMean ≤ a a.e.
+  have h_ae_le : ∀ᵐ ω ∂μ_t, empiricalMean X n ω ≤ a := by
+    filter_upwards [h_ae_lt] with ω hω using le_of_lt hω
+
+  -- empiricalMean is integrable (it has finite variance by tilted_empirical_moments)
+  have h_integrable_em : Integrable (empiricalMean X n) μ_t := by
+    -- Use the fact that variance is finite, which we get from tilted_empirical_moments
+    -- variance = E[X^2] - E[X]^2, so if variance is finite and E[X] is finite,
+    -- then E[|X|] is finite (by Cauchy-Schwarz on prob space)
+    have h_var := h_moments.2
+    -- On a probability space, if E[X^2] < ∞, then E[|X|] < ∞
+    sorry  -- This should be provable from Cauchy-Schwarz, but let's defer for now
+
+  -- Apply the helper lemma: since empiricalMean ≤ a a.e. and ∫ empiricalMean = a,
+  -- we have empiricalMean = a a.e.
+  have h_ae_eq : ∀ᵐ ω ∂μ_t, empiricalMean X n ω = a := by
+    exact ae_eq_const_of_integral_eq_const_of_le μ_t a h_integrable_em h_ae_le h_mean
+
+  -- But this contradicts h_ae_lt: empiricalMean < a a.e.
+  -- We have both empiricalMean < a a.e. and empiricalMean = a a.e., which is impossible
+  have h_absurd : ∀ᵐ ω ∂μ_t, empiricalMean X n ω < a ∧ empiricalMean X n ω = a := by
+    filter_upwards [h_ae_lt, h_ae_eq] with ω hlt heq using ⟨hlt, heq⟩
+
+  -- Derive False from the absurd statement
+  have h_false_ae : ∀ᵐ ω ∂μ_t, False := by
+    filter_upwards [h_absurd] with ω ⟨hlt, heq⟩
+    linarith
+
+  -- But the ae filter is non-bot on a probability space, so it can't contain False
+  have : (ae μ_t).NeBot := IsProbabilityMeasure.ae_neBot
+  rw [ae_iff] at h_false_ae
+  -- h_false_ae says μ_t {ω | ¬False} = 0, i.e., μ_t Set.univ = 0
+  simp only [not_false_eq_true, Set.setOf_true] at h_false_ae
+  -- This contradicts μ_t being a probability measure (μ_t univ = 1)
+  have : μ_t Set.univ = 1 := measure_univ
+  rw [this] at h_false_ae
+  norm_num at h_false_ae
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
