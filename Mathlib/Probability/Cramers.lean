@@ -1208,11 +1208,10 @@ private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ :
     use N
     intro n hn
     specialize hN n hn
-    -- Apply the equalities to convert hN to the goal
     norm_num at hN
-    convert hN using 2
-    · exact (h_tilt_eq n).symm
-    · exact (h_equiv n).symm
+    -- Rewrite the goal to match hN
+    rw [← h_tilt_eq n, ← h_equiv n]
+    exact hN
 
 include h_indep h_ident h_meas h_mgf in
 /-- Helper: The tilted probability on a small interval around a is eventually bounded away from 0.
