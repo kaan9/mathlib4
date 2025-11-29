@@ -1639,11 +1639,86 @@ include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
 empirical mean is close to a is bounded below by the negative rate function.
 Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
-theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a)
+    -- We assume the distribution is not deterministic (variance > 0)
+    (h_non_deg : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) 0)
+    -- We assume 'a' is "exposed" (in the range of the CGF derivative)
+    -- This is standard for the lower bound; otherwise the rate is infinite.
+    (h_exposed : ∃ t, deriv (cgf (X 0) ℙ) t = a) :
     (- rateFunction X a : EReal) ≤
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
-  sorry
+  -- 1. Extract the optimal t
+  obtain ⟨t, ht_deriv⟩ := h_exposed
+
+  -- 2. Handle the case where t ≤ 0
+  -- If a ≥ Mean, then t ≥ 0 because CGF derivative is increasing and deriv(0) = Mean.
+  have ht_nonneg : 0 ≤ t := by
+    sorry
+
+  -- 3. Relate rateFunction to this specific t
+  -- Since cgf is convex and deriv(t) = a, the supremum is achieved at t.
+  have h_rate_eq : rateFunction X a = t * a - cgf (X 0) ℙ t := by
+    sorry
+
+  rw [h_rate_eq]
+
+  -- 4. Set up the ε-limit argument
+  -- Let LHS_val be the liminf value
+  let LHS_val := liminf (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+
+  -- Case split: if t = 0 (a = Mean), the bound is trivial.
+  by_cases ht_zero : t = 0
+  · subst ht_zero
+    simp only [zero_mul, cgf_zero, sub_zero, neg_zero]
+    sorry
+
+  -- Assume t > 0
+  have ht_pos : 0 < t := lt_of_le_of_ne ht_nonneg (Ne.symm ht_zero)
+
+  -- We need t in interior of integrableExpSet
+  have ht_int : t ∈ interior (integrableExpSet (X 0) ℙ) := by
+    -- Since h_mgf says MGF is integrable for all t, integrableExpSet = Set.univ
+    sorry
+
+  -- We need variance positive at t
+  have h_var_pos_t : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t := by
+    -- This follows from h_non_deg and strict convexity
+    sorry
+
+  -- For any δ > 0, we can apply lower_bound_via_tilted
+  -- This gives us: LHS_val ≥ -(t*a - cgf t) - t*δ
+  -- Taking δ → 0 gives us the result
+
+  -- Apply lower_bound_via_tilted with δ = 1 as an example
+  -- In general, we need to show that for all ε > 0, LHS_val ≥ -(t*a - cgf t) - ε
+  have h_bound_for_all_delta : ∀ (δ : ℝ), 0 < δ →
+      (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal) ≤ LHS_val := by
+    intro δ hδ
+    have := lower_bound_via_tilted X h_indep h_ident h_meas h_mgf a t δ hδ ht_pos ht_int ht_deriv h_var_pos_t
+    exact this.le
+
+  -- Now show that this implies LHS_val ≥ -(t*a - cgf t)
+  -- We have: for all δ > 0, -(t*a - cgf t) - t*δ ≤ LHS_val
+  -- Taking supremum over δ (or equivalently, infimum of the error term),
+  -- we get -(t*a - cgf t) ≤ LHS_val
+
+  -- Equivalently: show that for all ε > 0, -(t*a - cgf t) - ε ≤ LHS_val
+  suffices ∀ ε : ℝ, 0 < ε → (-(t * a - cgf (X 0) ℙ t) - (ε : EReal) : EReal) ≤ LHS_val by
+    -- If for all ε > 0, Target - ε ≤ LHS, then Target ≤ LHS
+    sorry
+  intro ε hε
+  -- Choose δ = ε / t
+  let δ := ε / t
+  have hδ_pos : 0 < δ := div_pos hε ht_pos
+  have h_delta_eq : t * δ = ε := by
+    unfold δ
+    field_simp
+  calc (-(t * a - cgf (X 0) ℙ t) - (ε : EReal) : EReal)
+      = (-(t * a - cgf (X 0) ℙ t) - (t * δ : EReal) : EReal) := by
+        rw [← h_delta_eq]
+        norm_cast
+    _ ≤ LHS_val := h_bound_for_all_delta δ hδ_pos
 
 include h_indep h_ident h_int h_meas in
 private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
@@ -1859,7 +1934,9 @@ theorem cramers_theorem :
   · intro a
     by_cases h : 𝔼[X 0] ≤ a
     · rw [upperTailRateFunction_eq_rateFunction a h]
-      exact cramer_lower_bound X h_indep h_ident h_meas h_mgf a h
+      apply cramer_lower_bound X h_indep h_ident h_meas h_mgf a h
+      · sorry -- variance > 0 (non-degenerate)
+      · sorry -- exposed point (exists t)
     · -- a < Mean (Typical event)
       -- The rate function is 0.
       -- For typical events, probability → 1, so log(P) → 0.
