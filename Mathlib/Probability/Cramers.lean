@@ -1849,22 +1849,55 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   by_cases ht_zero : t = 0
   · subst ht_zero
     simp only [zero_mul, cgf_zero, sub_zero]
-    -- Need to show 0 ≤ LHS_val
-    -- When t=0, we have deriv(cgf)(0) = a = E[X], so a is the mean
-    -- The sequence (1/n) * log(P(empirical mean ≥ mean)) is bounded above by 0
-    -- since log(P) ≤ 0 always and 1/n > 0
-    -- We claim it converges to 0, hence liminf ≥ 0
-    --
-    -- The key is that P(empirical mean ≥ mean) is bounded away from 0:
-    -- By the Law of Large Numbers, the empirical mean concentrates around the true mean.
-    -- For the event {empirical mean ≥ mean}, the probability converges to 1/2 for
-    -- continuous symmetric distributions, or stays bounded away from 0 in general.
-    -- Therefore log(P) ≥ log(c) for some c > 0, making log(P) bounded.
-    -- Thus (1/n) * log(P) ∈ [(1/n) * log(c), 0] → [0, 0] as n → ∞.
-    --
-    -- For now, we leave this case as sorry since proving it rigorously requires
-    -- concentration inequalities (Chebyshev, Hoeffding, or similar) to show that
-    -- P(empirical mean ≥ mean) is bounded away from 0.
+    -- When t=0, we have a = E[X] (the mean).
+    -- We show P(S_n/n ≥ a) > 0 for all n, so log P is finite, and (1/n) * log P → 0.
+    -- Therefore liminf ≥ 0.
+
+    -- Step 1: Extract positive variance from h_non_deg
+    have h_var_pos : 0 < variance (X 0) ℙ := by
+      -- iteratedDeriv 2 (cgf X μ) 0 = Var[X; μ] via variance_tilted_mul
+      have h_int_zero : (0 : ℝ) ∈ interior (integrableExpSet (X 0) ℙ) := by
+        have : integrableExpSet (X 0) ℙ = Set.univ := by
+          ext t
+          simp [integrableExpSet, h_mgf]
+        rw [this, interior_univ]
+        exact Set.mem_univ 0
+      have h_eq : variance (X 0) ℙ = iteratedDeriv 2 (cgf (X 0) ℙ) 0 := by
+        have h_zero_fun : (fun ω => 0 * X 0 ω) = fun _ => 0 := by
+          ext ω
+          simp [zero_mul]
+        have : Measure.tilted ℙ (fun ω => 0 * X 0 ω) = ℙ := by
+          simp_rw [h_zero_fun]
+          exact tilted_zero ℙ
+        calc variance (X 0) ℙ
+            = variance (X 0) (Measure.tilted ℙ (fun ω => 0 * X 0 ω)) := by rw [this]
+          _ = iteratedDeriv 2 (cgf (X 0) ℙ) 0 := variance_tilted_mul h_int_zero
+      rw [h_eq]
+      exact h_non_deg 0
+
+    -- Step 2: Show P(S_n/n ≥ a) > 0 for all n
+    -- Strategy: If P(S_n/n ≥ a) = 0, then S_n/n < a a.s., so E[S_n/n] < a
+    -- (unless S_n/n = a a.s., which gives Var = 0, contradicting h_var_pos).
+    -- But E[S_n/n] = a, giving a contradiction.
+    -- This requires:
+    -- - integral_mono_ae: if X < Y a.s. and not X = Y a.s., then E[X] < E[Y]
+    -- - measure_eq_zero_iff: P(event) = 0 iff the event holds a.s.
+    -- - variance characterization: Var = 0 iff X = E[X] a.s.
+    have h_prob_pos : ∀ n : ℕ, 0 < (ℙ {ω | a ≤ empiricalMean X n ω}).toReal := by
+      sorry
+
+    -- Step 3: Show (1/n) * log P → 0
+    -- Since P_n > 0 by Step 2, log(P_n) is finite.
+    -- Also P_n ≤ 1, so log(P_n) ≤ 0.
+    -- Therefore (1/n) * log(P_n) → 0 as n → ∞.
+    -- This requires showing that (1/n) * (any finite real) → 0.
+    have h_tendsto : Tendsto (fun n : ℕ => (1 / (n : ℝ)) *
+        ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω})) atTop (𝓝 0) := by
+      sorry
+
+    -- Step 4: Conclude liminf ≥ 0
+    -- If the sequence converges to 0, then liminf = 0 ≥ 0.
+    -- This uses: Tendsto.liminf_eq for convergent sequences.
     sorry
 
   -- Assume t > 0
