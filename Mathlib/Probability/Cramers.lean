@@ -1678,7 +1678,12 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   -- We need t in interior of integrableExpSet
   have ht_int : t ∈ interior (integrableExpSet (X 0) ℙ) := by
     -- Since h_mgf says MGF is integrable for all t, integrableExpSet = Set.univ
-    sorry
+    have h_univ : integrableExpSet (X 0) ℙ = Set.univ := by
+      ext s
+      simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+      exact h_mgf s
+    rw [h_univ]
+    simp
 
   -- We need variance positive at t
   have h_var_pos_t : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t := by
@@ -1705,6 +1710,11 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   -- Equivalently: show that for all ε > 0, -(t*a - cgf t) - ε ≤ LHS_val
   suffices ∀ ε : ℝ, 0 < ε → (-(t * a - cgf (X 0) ℙ t) - (ε : EReal) : EReal) ≤ LHS_val by
     -- If for all ε > 0, Target - ε ≤ LHS, then Target ≤ LHS
+    -- Use density of ℝ in EReal: show that for all z : ℝ with Target < z, we have LHS ≤ z
+    rw [← EReal.le_of_forall_lt_iff_le]
+    intro z h_lt
+    -- Since Target < z, we have z - Target > 0
+    -- Choose ε = (z - Target) / 2 (as a positive real)
     sorry
   intro ε hε
   -- Choose δ = ε / t
