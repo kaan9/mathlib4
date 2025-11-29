@@ -1566,13 +1566,12 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
           exact mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq) h_div_nn
       _ = (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
           + ((1 : ℝ) / n : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X n ω)) E) := by
-        rw [log_product_split n _ _ hn]
-        swap; · exact measure_ne_top _ _
-        swap
-        · sorry -- Need to show tilted measure of E is nonzero
-        simp only [neg_mul]
-        rw [EReal.coe_neg, EReal.coe_mul, EReal.coe_sub]
-        ring
+        sorry
+        -- Should use log_product_split and algebraic simplification:
+        -- log_product_split gives: (1/n) * log(exp(x) * y.toReal) = (1/n) * x + (1/n) * log(y)
+        -- where x = -n * (t*(a+δ) - cgf) and y = tilted measure of E
+        -- Then (1/n) * x = -(t*(a+δ) - cgf) = -(t*a - cgf) - t*δ
+        -- Need: measure E is nonzero and measure E is finite
 
   -- Take liminf of both sides
   -- liminf LHS ≥ liminf (constant + RHS)
