@@ -1341,7 +1341,7 @@ private lemma ereal_inv_nat_mul_const_tendsto_zero (c : ℝ) :
   refine continuous_coe_real_ereal.continuousAt.tendsto.comp ?_
   convert h_real using 1
   ext n
-  simp only [EReal.coe_mul, EReal.coe_div, EReal.coe_one, EReal.coe_natCast, Function.comp_apply]
+  simp [EReal.coe_mul, EReal.coe_div]
 
 /-- Helper: 0 ≤ a and b ≤ 0 implies a * b ≤ 0 in EReal. -/
 private lemma ereal_mul_nonneg_nonpos {a b : EReal} (ha : 0 ≤ a) (hb : b ≤ 0) : a * b ≤ 0 := by
@@ -1400,7 +1400,7 @@ private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
   have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
 
   -- Eventually: (1/m) * log c ≤ (1/m) * log P_m ≤ 0
-  have h_eventually : ∀ᶠ m in atTop,
+  have h_eventually : ∀ᶠ (m : ℕ) in atTop,
       ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)
       ≤ ((1 : ℝ) / m : EReal) * ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X m ω))
           {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
@@ -1417,17 +1417,25 @@ private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
       have h_div_nn : 0 ≤ ((1 : ℝ) / m : EReal) := by
         exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg m))
       apply mul_le_mul_of_nonneg_left _ h_div_nn
-      apply EReal.coe_ennreal_le_coe_ennreal_iff.mpr
       apply ENNReal.log_le_log
       rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
       exact hm_bound
     · -- (1/m) * log P ≤ 0
       apply ereal_mul_nonneg_nonpos
       · exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg m))
-      · apply EReal.coe_ennreal_le_coe_ennreal_iff.mpr
-        apply ENNReal.log_le_zero_iff.mpr
-        left
-        exact prob_le_one
+      · -- log P ≤ 0 since P ≤ 1 and log(1) = 0
+        calc ENNReal.log ((Measure.tilted ℙ (fun ω => t * S X m ω))
+                {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
+            ≤ ENNReal.log 1 := by
+              apply ENNReal.log_le_log
+              haveI : IsProbabilityMeasure (Measure.tilted ℙ (fun ω => t * S X m ω)) := by
+                apply isProbabilityMeasure_tilted
+                exact integrable_exp_sum X h_indep h_ident h_meas h_mgf t m
+              trans (Measure.tilted ℙ (fun ω => t * S X m ω)) Set.univ
+              · apply measure_mono
+                exact Set.subset_univ _
+              · exact IsProbabilityMeasure.measure_univ.le
+          _ = 0 := ENNReal.log_one
 
   -- Apply squeeze theorem
   exact tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
