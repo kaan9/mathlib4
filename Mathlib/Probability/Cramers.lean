@@ -1641,16 +1641,27 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
 
 -- Helper lemmas for cramer_lower_bound
 
-include h_mgf h_non_deg in
+include X h_mgf h_non_deg in
 /-- If the second derivative of cgf is positive at 0, it remains positive everywhere.
-This follows from the fact that cgf is convex and C². -/
+This follows from the fact that cgf is convex and C², and the second derivative equals
+the variance under the tilted measure, which is always positive for non-degenerate distributions. -/
 private lemma iteratedDeriv_two_cgf_pos_of_pos_at_zero (t : ℝ) :
     0 < iteratedDeriv 2 (cgf (X 0) ℙ) t := by
-  -- This would follow from strict convexity of cgf
-  -- For now, we use that the second derivative cannot change sign for a convex function
+  -- The second derivative equals the variance under the tilted measure
+  have ht_int : t ∈ interior (integrableExpSet (X 0) ℙ) := by
+    have h_univ : integrableExpSet (X 0) ℙ = Set.univ := by
+      ext s
+      simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+      exact h_mgf s
+    rw [h_univ]
+    simp
+
+  rw [← variance_tilted_mul ht_int]
+  -- Variance is non-negative; need to show it's strictly positive
+  -- This follows from non-degeneracy at t=0 implying non-degeneracy at all t
   sorry
 
-include h_int h_mgf h_non_deg in
+include X h_mgf h_non_deg in
 /-- The derivative of cgf is strictly increasing when the second derivative is positive.
 Combined with deriv(cgf) 0 = mean, this shows that if mean ≤ a = deriv(cgf) t, then 0 ≤ t. -/
 private lemma deriv_cgf_nonneg_of_ge_mean (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) (t : ℝ)
@@ -1658,9 +1669,46 @@ private lemma deriv_cgf_nonneg_of_ge_mean (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) (
     0 ≤ t := by
   -- If t < 0, then by monotonicity of deriv(cgf), we have deriv(cgf) t < deriv(cgf) 0 = mean
   -- But we're given deriv(cgf) t = a ≥ mean, contradiction
-  sorry
+  by_contra ht_neg
+  push_neg at ht_neg
 
-include h_mgf in
+  -- We have t < 0
+  -- First, get that deriv(cgf) 0 = mean
+  have h_zero_in_int : (0 : ℝ) ∈ interior (integrableExpSet (X 0) ℙ) := by
+    have h_univ : integrableExpSet (X 0) ℙ = Set.univ := by
+      ext s
+      simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+      exact h_mgf s
+    rw [h_univ]
+    simp
+
+  have h_deriv_zero : deriv (cgf (X 0) ℙ) 0 = 𝔼[X 0] := by
+    rw [deriv_cgf_zero h_zero_in_int]
+    simp
+
+  -- The cgf has positive second derivative everywhere, so deriv is strictly increasing
+  -- This means deriv(cgf) is strictly monotone on all of ℝ
+  have h_strict_mono : StrictMono (deriv (cgf (X 0) ℙ)) := by
+    -- We use strictMono_of_deriv_pos with the second derivative
+    apply strictMono_of_deriv_pos
+    intro x
+    -- Need to show: 0 < deriv (deriv (cgf (X 0) ℙ)) x
+    -- This is the second derivative, which equals iteratedDeriv 2 (cgf (X 0) ℙ) x
+    rw [← iteratedDeriv_one]
+    have : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) x :=
+      iteratedDeriv_two_cgf_pos_of_pos_at_zero X h_mgf h_non_deg x
+    simpa [iteratedDeriv_succ, iteratedDeriv_one]
+
+  -- Since t < 0 and deriv is strictly monotone, we have deriv(cgf) t < deriv(cgf) 0
+  have : deriv (cgf (X 0) ℙ) t < deriv (cgf (X 0) ℙ) 0 := h_strict_mono ht_neg
+
+  -- Substituting what we know
+  rw [ht_deriv, h_deriv_zero] at this
+
+  -- This gives a < 𝔼[X 0], contradicting h_mean
+  linarith
+
+include X h_mgf h_bdd in
 /-- For a convex function, if the derivative at t equals a, then t achieves the supremum
 in the Legendre transform. -/
 private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
@@ -1668,19 +1716,31 @@ private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
     rateFunction X a = t * a - cgf (X 0) ℙ t := by
   -- This is the fundamental property of Legendre transforms
   -- For convex f with f'(t) = a, we have f*(a) = ta - f(t)
-  sorry
+  -- We need to show: (1) t*a - cgf t is an upper bound, and (2) it's the least upper bound
+  rw [rateFunction]
+  apply le_antisymm
+  · -- Show: ⨆ s, s*a - cgf s ≤ t*a - cgf t
+    apply ciSup_le
+    intro s
+    -- We'll use that cgf is convex and has derivative a at t
+    -- By convexity: cgf(s) ≥ cgf(t) + a*(s - t)
+    -- So: s*a - cgf(s) ≤ s*a - cgf(t) - a*(s - t) = t*a - cgf(t)
+    sorry
+  · -- Show: t*a - cgf t ≤ ⨆ s, s*a - cgf s
+    exact le_ciSup (h_bdd a) t
 
 /-- In EReal, if x - ε ≤ y for all positive ε, then x ≤ y. -/
 private lemma EReal.le_of_forall_pos_sub_le {x y : EReal}
     (h : ∀ ε : ℝ, 0 < ε → x - (ε : EReal) ≤ y) : x ≤ y := by
+  -- Use the density of ℝ in EReal
   rw [← EReal.le_of_forall_lt_iff_le]
-  intro z h_lt
-  -- For z : ℝ with y < z, we have x - ε ≤ y < z for all ε > 0
-  -- In particular, for small enough ε, x - ε < z, so x < z + ε for all ε > 0
-  -- This gives x ≤ z
+  intro z hz
+  -- We have z < y, so need to show z < x
+  -- For any ε > 0, we have x - ε ≤ y
+  -- Take ε such that z + ε < y (exists since z < y)
   sorry
 
-include h_indep h_meas h_ident h_mgf h_non_deg h_exposed in
+include h_indep h_meas h_ident h_int h_mgf h_bdd h_non_deg h_exposed in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
 empirical mean is close to a is bounded below by the negative rate function.
 Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
@@ -1693,13 +1753,12 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
 
   -- 2. Handle the case where t ≤ 0
   -- If a ≥ Mean, then t ≥ 0 because CGF derivative is increasing and deriv(0) = Mean.
-  have ht_nonneg : 0 ≤ t := by
-    exact deriv_cgf_nonneg_of_ge_mean a h_mean t ht_deriv h_non_deg
+  have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_ge_mean X h_mgf h_non_deg a h_mean t ht_deriv
 
   -- 3. Relate rateFunction to this specific t
   -- Since cgf is convex and deriv(t) = a, the supremum is achieved at t.
-  have h_rate_eq : rateFunction X a = t * a - cgf (X 0) ℙ t := by
-    exact rateFunction_eq_of_deriv_eq a t ht_deriv
+  have h_rate_eq : rateFunction X a = t * a - cgf (X 0) ℙ t :=
+    rateFunction_eq_of_deriv_eq X h_mgf h_bdd a t ht_deriv
 
   rw [h_rate_eq]
 
@@ -1710,7 +1769,7 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   -- Case split: if t = 0 (a = Mean), the bound is trivial.
   by_cases ht_zero : t = 0
   · subst ht_zero
-    simp only [zero_mul, cgf_zero, sub_zero, neg_zero]
+    simp only [zero_mul, cgf_zero, sub_zero]
     -- Need to show 0 ≤ LHS_val, which is trivial since anything is ≥ ⊥
     apply le_of_lt_or_eq
     sorry
@@ -1986,7 +2045,7 @@ theorem cramers_theorem :
   · intro a
     by_cases h : 𝔼[X 0] ≤ a
     · rw [upperTailRateFunction_eq_rateFunction a h]
-      exact @cramer_lower_bound _ _ X h_indep h_ident h_meas h_mgf h_non_deg h_exposed _ a h
+      exact cramer_lower_bound X h_indep h_ident h_meas h_int h_mgf h_bdd h_non_deg h_exposed a h
     · -- a < Mean (Typical event)
       -- The rate function is 0.
       -- For typical events, probability → 1, so log(P) → 0.
