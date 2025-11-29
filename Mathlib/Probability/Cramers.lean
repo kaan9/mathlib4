@@ -15,6 +15,8 @@ import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Analysis.Calculus.Deriv.Basic
 
+set_option linter.style.longFile 2400
+
 /-!
 # Cramér's Theorem
 
@@ -1843,7 +1845,9 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
 
   -- 4. Set up the ε-limit argument
   -- Let LHS_val be the liminf value
-  let LHS_val := liminf (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+  let LHS_val :=
+    liminf (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}))
+      atTop
 
   -- Case split: if t = 0 (a = Mean), the bound is trivial.
   by_cases ht_zero : t = 0
@@ -1876,29 +1880,91 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
       exact h_non_deg 0
 
     -- Step 2: Show P(S_n/n ≥ a) > 0 for all n
-    -- Strategy: If P(S_n/n ≥ a) = 0, then S_n/n < a a.s., so E[S_n/n] < a
-    -- (unless S_n/n = a a.s., which gives Var = 0, contradicting h_var_pos).
-    -- But E[S_n/n] = a, giving a contradiction.
-    -- This requires:
-    -- - integral_mono_ae: if X < Y a.s. and not X = Y a.s., then E[X] < E[Y]
-    -- - measure_eq_zero_iff: P(event) = 0 iff the event holds a.s.
-    -- - variance characterization: Var = 0 iff X = E[X] a.s.
-    have h_prob_pos : ∀ n : ℕ, 0 < (ℙ {ω | a ≤ empiricalMean X n ω}).toReal := by
-      sorry
+    -- When t=0, we have a = E[X], and tilted measure = original measure
+    -- Use CLT axiom to show P(S_n/n ∈ [a, a+1]) ≥ 1/4 eventually
+    -- Since [a, a+1] ⊆ [a, ∞), we get P(S_n/n ≥ a) ≥ 1/4 eventually
+    have h_prob_lower_bound : ∃ c > 0, ∀ᶠ n in atTop,
+        c ≤ (ℙ {ω | a ≤ empiricalMean X n ω}).toReal := by
+      -- Use CLT axiom with δ = 1
+      have h_clt := clt_tilted_empirical_mean ℙ X 0 a 1 (by norm_num) h_indep h_ident
+        ht_deriv (h_non_deg 0)
+      -- Extract c = 1/4 from CLT
+      specialize h_clt (1/4) (by norm_num)
+      refine ⟨1/4, by norm_num, ?_⟩
+      filter_upwards [h_clt] with n hn
+      -- When t=0, tilted measure equals original measure
+      have h_eq_meas : (Measure.tilted ℙ (fun ω => 0 * (∑ i ∈ Finset.range n, X i ω))) = ℙ := by
+        have : (fun ω => 0 * (∑ i ∈ Finset.range n, X i ω)) = fun _ => 0 := by
+          ext ω; simp [zero_mul]
+        simp_rw [this]
+        exact tilted_zero ℙ
+      rw [h_eq_meas] at hn
+      -- The event {S_n/n ∈ [a, a+1]} ⊆ {S_n/n ≥ a}
+      have h_subset : {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + 1)} ⊆
+          {ω | a ≤ empiricalMean X n ω} := by
+        intro ω hω
+        simp only [Set.mem_setOf_eq, Set.mem_Icc] at hω
+        simp only [empiricalMean, S, Set.mem_setOf_eq, Finset.sum_apply]
+        exact hω.1
+      calc (1/4 : ℝ) = 1/2 - 1/4 := by norm_num
+        _ ≤ (ℙ {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + 1)}).toReal := hn
+        _ ≤ (ℙ {ω | a ≤ empiricalMean X n ω}).toReal :=
+          ENNReal.toReal_mono (measure_ne_top _ _) (MeasureTheory.measure_mono h_subset)
 
-    -- Step 3: Show (1/n) * log P → 0
-    -- Since P_n > 0 by Step 2, log(P_n) is finite.
-    -- Also P_n ≤ 1, so log(P_n) ≤ 0.
-    -- Therefore (1/n) * log(P_n) → 0 as n → ∞.
-    -- This requires showing that (1/n) * (any finite real) → 0.
-    have h_tendsto : Tendsto (fun n : ℕ => (1 / (n : ℝ)) *
-        ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω})) atTop (𝓝 0) := by
-      sorry
+    -- Step 3: Show (1/n) * log P → 0 using squeeze theorem
+    obtain ⟨c, hc_pos, h_eventually_lower⟩ := h_prob_lower_bound
+
+    -- Convert to EReal and use squeeze theorem
+    have h_log_c : ENNReal.log (ENNReal.ofReal c) = (Real.log c : EReal) := by
+      simp [ENNReal.log_ofReal, hc_pos]
+
+    -- Lower bound: (1/n) * log c → 0
+    have h_lower_tendsto :
+        Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal c))
+          atTop (𝓝 0) := by
+      rw [h_log_c]
+      exact ereal_inv_nat_mul_const_tendsto_zero (Real.log c)
+
+    -- Upper bound: 0 → 0
+    have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
+
+    -- Squeeze: eventually (1/n)*log(c) ≤ (1/n)*log(P) ≤ 0
+    have h_squeeze : ∀ᶠ (m : ℕ) in atTop,
+        ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ENNReal.ofReal c)
+        ≤ ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X m ω})
+        ∧ ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X m ω}) ≤ 0 := by
+      filter_upwards [h_eventually_lower, Filter.eventually_gt_atTop (0 : ℕ)] with m hm_lower hm_pos
+      constructor
+      · -- (1/m) * log c ≤ (1/m) * log P
+        have h_div_nn : 0 ≤ ((1 : ℝ) / m : EReal) := by
+          exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg m))
+        apply mul_le_mul_of_nonneg_left _ h_div_nn
+        apply ENNReal.log_le_log
+        rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
+        exact hm_lower
+      · -- (1/m) * log P ≤ 0
+        apply mul_nonpos_of_nonneg_of_nonpos
+        · exact EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg m))
+        · rw [ENNReal.log_le_zero_iff]
+          calc ℙ {ω | a ≤ empiricalMean X m ω}
+            ≤ ℙ Set.univ := measure_mono (Set.subset_univ _)
+            _ = 1 := measure_univ
+
+    have h_tendsto :
+        Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
+          atTop (𝓝 0) :=
+      tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
+        (h_squeeze.mono fun n hn => hn.1) (h_squeeze.mono fun n hn => hn.2)
 
     -- Step 4: Conclude liminf ≥ 0
-    -- If the sequence converges to 0, then liminf = 0 ≥ 0.
-    -- This uses: Tendsto.liminf_eq for convergent sequences.
-    sorry
+    -- Since the sequence converges to 0, liminf = 0 ≥ 0
+    have h_liminf_eq := Filter.Tendsto.liminf_eq h_tendsto
+    change -↑(0 : ℝ) ≤ LHS_val
+    rw [show LHS_val =
+      liminf (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
+        atTop from rfl]
+    rw [h_liminf_eq]
+    simp
 
   -- Assume t > 0
   have ht_pos : 0 < t := lt_of_le_of_ne ht_nonneg (Ne.symm ht_zero)
@@ -1963,7 +2029,8 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
     fun i j hij => h_indep.indepFun hij
 
   -- Apply the strong law of large numbers for real-valued random variables
-  have h_strong_law : ∀ᵐ ω ∂ℙ, Tendsto (fun n : ℕ => (∑ i ∈ Finset.range n, X i ω) / n) atTop (𝓝 𝔼[X 0]) :=
+  have h_strong_law :
+      ∀ᵐ ω ∂ℙ, Tendsto (fun n : ℕ => (∑ i ∈ Finset.range n, X i ω) / n) atTop (𝓝 𝔼[X 0]) :=
     strong_law_ae_real X h_int h_pairwise h_ident
 
   -- The empirical mean converges to 𝔼[X 0] almost surely
@@ -2026,16 +2093,18 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
     have h_union_meas_set : MeasurableSet (⋃ k, S k) := by
       refine MeasurableSet.iUnion fun k => ?_
       -- S k is a countable intersection of measurable sets
-      show MeasurableSet {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
+      change MeasurableSet {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
       -- This equals ⋂ n ∈ {m | k ≤ m}, {ω | a ≤ empiricalMean X n ω}
-      have : {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω} = ⋂ n, ⋂ (_ : k ≤ n), {ω | a ≤ empiricalMean X n ω} := by
+      have : {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω} =
+          ⋂ n, ⋂ (_ : k ≤ n), {ω | a ≤ empiricalMean X n ω} := by
         ext; simp
       rw [this]
       refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
       -- {ω | a ≤ empiricalMean X n ω} is measurable
       -- empiricalMean X n = (S X n) / n where S X n is a finite sum of measurable functions
       refine measurableSet_le measurable_const ?_
-      convert (Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)).div_const (n : ℝ) using 1
+      convert (Finset.measurable_sum (Finset.range n)
+        (fun i _ => h_meas i)).div_const (n : ℝ) using 1
       ext ω
       simp only [empiricalMean, _root_.S, Finset.sum_apply]
     -- Now show that the complement has measure 0
