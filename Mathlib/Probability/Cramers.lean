@@ -1639,6 +1639,47 @@ private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
     exact liminf_le_liminf h_eventually
   exact h_liminf_ge
 
+-- Helper lemmas for cramer_lower_bound
+
+include h_mgf h_non_deg in
+/-- If the second derivative of cgf is positive at 0, it remains positive everywhere.
+This follows from the fact that cgf is convex and C². -/
+private lemma iteratedDeriv_two_cgf_pos_of_pos_at_zero (t : ℝ) :
+    0 < iteratedDeriv 2 (cgf (X 0) ℙ) t := by
+  -- This would follow from strict convexity of cgf
+  -- For now, we use that the second derivative cannot change sign for a convex function
+  sorry
+
+include h_int h_mgf h_non_deg in
+/-- The derivative of cgf is strictly increasing when the second derivative is positive.
+Combined with deriv(cgf) 0 = mean, this shows that if mean ≤ a = deriv(cgf) t, then 0 ≤ t. -/
+private lemma deriv_cgf_nonneg_of_ge_mean (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) (t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    0 ≤ t := by
+  -- If t < 0, then by monotonicity of deriv(cgf), we have deriv(cgf) t < deriv(cgf) 0 = mean
+  -- But we're given deriv(cgf) t = a ≥ mean, contradiction
+  sorry
+
+include h_mgf in
+/-- For a convex function, if the derivative at t equals a, then t achieves the supremum
+in the Legendre transform. -/
+private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    rateFunction X a = t * a - cgf (X 0) ℙ t := by
+  -- This is the fundamental property of Legendre transforms
+  -- For convex f with f'(t) = a, we have f*(a) = ta - f(t)
+  sorry
+
+/-- In EReal, if x - ε ≤ y for all positive ε, then x ≤ y. -/
+private lemma EReal.le_of_forall_pos_sub_le {x y : EReal}
+    (h : ∀ ε : ℝ, 0 < ε → x - (ε : EReal) ≤ y) : x ≤ y := by
+  rw [← EReal.le_of_forall_lt_iff_le]
+  intro z h_lt
+  -- For z : ℝ with y < z, we have x - ε ≤ y < z for all ε > 0
+  -- In particular, for small enough ε, x - ε < z, so x < z + ε for all ε > 0
+  -- This gives x ≤ z
+  sorry
+
 include h_indep h_meas h_ident h_mgf h_non_deg h_exposed in
 /-- **Cramér's Theorem (Lower Bound)**: For any a, the scaled log probability that the
 empirical mean is close to a is bounded below by the negative rate function.
@@ -1653,12 +1694,12 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   -- 2. Handle the case where t ≤ 0
   -- If a ≥ Mean, then t ≥ 0 because CGF derivative is increasing and deriv(0) = Mean.
   have ht_nonneg : 0 ≤ t := by
-    sorry
+    exact deriv_cgf_nonneg_of_ge_mean a h_mean t ht_deriv h_non_deg
 
   -- 3. Relate rateFunction to this specific t
   -- Since cgf is convex and deriv(t) = a, the supremum is achieved at t.
   have h_rate_eq : rateFunction X a = t * a - cgf (X 0) ℙ t := by
-    sorry
+    exact rateFunction_eq_of_deriv_eq a t ht_deriv
 
   rw [h_rate_eq]
 
@@ -1670,6 +1711,8 @@ theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   by_cases ht_zero : t = 0
   · subst ht_zero
     simp only [zero_mul, cgf_zero, sub_zero, neg_zero]
+    -- Need to show 0 ≤ LHS_val, which is trivial since anything is ≥ ⊥
+    apply le_of_lt_or_eq
     sorry
 
   -- Assume t > 0
