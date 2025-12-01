@@ -13,3 +13,29 @@ scripts/.rm_set_option_progress.jsonl
 
 # Output of scripts/export_crossrefs.lean
 /crossrefs.json
+
+.claude
+
+# Latex ignores:
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+*.rubbercache
+*.bbl
+*.blg
+*.blg
