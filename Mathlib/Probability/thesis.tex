@@ -1,0 +1,2031 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{marginnote}
+\usepackage{setspace}
+\usepackage[nottoc]{tocbibind}
+
+% Needs to precede cleveref
+\hypersetup{
+  colorlinks=true,       % false: boxed links; true: colored links
+  linkcolor=blue,        % color of internal links (like your Lemma)
+  citecolor=red,         % color of bibliographic links
+  urlcolor=cyan          % color of external links
+}
+\usepackage{cleveref}
+
+\usepackage{color}
+\definecolor{keywordcolor}{rgb}{0.7, 0.1, 0.1}   % red
+\definecolor{tacticcolor}{rgb}{0.0, 0.1, 0.6}    % blue
+\definecolor{commentcolor}{rgb}{0.4, 0.4, 0.4}   % grey
+\definecolor{symbolcolor}{rgb}{0.0, 0.1, 0.6}    % blue
+\definecolor{sortcolor}{rgb}{0.1, 0.5, 0.1}      % green
+\definecolor{attributecolor}{rgb}{0.7, 0.1, 0.1} % red
+
+\def\lstlanguagefiles{lstlean.tex}
+% set default language
+\lstset{language=lean}
+
+% Geometry settings
+\geometry{margin=1in, includefoot}
+
+% Theorem Environments
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+
+\crefformat{appendix}{appendix~#2#1#3}
+\Crefformat{appendix}{Appendix~#2#1#3}
+\crefformat{subsection}{chapter~#2#1#3}
+\Crefformat{subsection}{Chapter~#2#1#3}
+\crefformat{section}{chapter~#2#1#3}
+\Crefformat{section}{Chapter~#2#1#3}
+\crefformat{lemma}{\textbf{lemma~#2#1#3}}
+\Crefformat{lemma}{\textbf{Lemma~#2#1#3}}
+\crefformat{corollary}{\textbf{corollary~#2#1#3}}
+\Crefformat{corollary}{\textbf{Corollary~#2#1#3}}
+\crefformat{definition}{\textbf{definition~#2#1#3}}
+\Crefformat{definition}{\textbf{Definition~#2#1#3}}
+\crefformat{assumption}{\textbf{assumption~#2#1#3}}
+\Crefformat{assumption}{\textbf{Assumption~#2#1#3}}
+
+% Macros for Lean mapping
+\newcommand{\leancode}[1]{\textcolor{blue}{\nolinkurl{#1}}}
+
+% Math Macros
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\P}{\mathbb{P}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\Var}{\mathbb{V}}
+
+\renewcommand{\contentsname}{Table of Contents}
+
+\begin{document}
+\pagenumbering{roman}
+\addtocontents{toc}{~\hfill\textbf{Page}\par}
+
+\def\thetitle{A FORMALLY VERIFIED PROOF OF CRAM\'ER'S THEOREM ON LARGE DEVIATIONS}
+\def\theauthor{Kaan Berk Erdo\u{g}mu\c{s}}
+\def\theyear{2026}
+
+\begin{titlepage}
+  \large\newlength{\oldparskip}\setlength\oldparskip{\parskip}\parskip=.3in
+  \thispagestyle{empty} \doublespacing
+  \begin{center}
+    \vspace*{\fill} \thetitle
+
+    \theauthor
+
+    A THESIS
+
+    in
+
+    Mathematics
+
+    \large Presented to the Faculties of the University of
+    Pennsylvania in Partial
+    Fulfillment of the Requirements for the Degree of Master of
+    Arts
+
+    \large
+    \theyear
+  \end{center}
+
+  \noindent\makebox[0in][l]{\rule[2ex]{3in}{.3mm}}
+  Supervisor of Thesis\newline
+  Henry Towsner\newline
+  Professor of Mathematics \& Undergraduate Chair
+
+  \noindent\makebox[0in][l]{\rule[2ex]{3in}{.3mm}}
+  Graduate Group Chair\newline
+  Angela Gibney\newline
+  Presidential Professor of Mathematics
+  \vspace*{\fill}
+
+  \normalsize\parskip=\oldparskip
+\end{titlepage}
+
+\newpage
+\setcounter{page}{2}
+
+\section*{Acknowledgements}
+\addcontentsline{toc}{section}{Acknowledgements}
+
+I would like to thank my thesis advisor, Henry Towsner, for his guidance, time, and support
+throughout.
+
+I would also like to thank Robin Pemantle for his assistance;
+Philip Gressman and Jiaqi Liu for teaching me analysis and probability theory;
+and my master's advisor Tony Pantev for his mentorship.
+
+Finally, I thank my family for their unwavering support and encouragement.
+
+\newpage
+\addcontentsline{toc}{section}{Abstract}
+\begin{abstract}
+
+  We present a formally verified measure-theoretic proof of Cram{\'e}r's theorem in the theory of
+  Large Deviations, implemented in the Lean~4 proof assistant and building on top of the Mathlib
+  mathematical library.
+
+  Cram{\'e}r's theorem states that the empirical mean of independent, identically distributed random variables with finite moment generating function satisfies a large deviation principle:
+  that is, for $a \ge \E[X_1]$, the tail probability $\P(\overline{X}_n \ge a)$ decays exponentially with rate $I(a)$, the Legendre transform of the cumulant generating function. To the best of our knowledge, this is the first formalization of any
+  large deviation result in a proof assistant.
+
+  We introduce the Large Deviation Principle as a formal Lean proposition, consisting of the
+  two sides of the bound. The upper bound follows from the Chernoff bound --- an exponential application of Markov's inequality optimized over a parameter --- applied to the sample mean.
+  The lower bound is substantially more complex, involving a change of measure to an exponentially
+  tilted measure $\Q_{n,t}$ that transforms the rare tail event $\overline{X}_n \ge a$ into a
+  typical event that preserves mass at the limit, demonstrated through a Central Limit Theorem
+  argument for the standardized empirical mean under the sequence of tilted measures.
+
+  The formal proof consists of approximately 2,003 lines of Lean~4 code across six files,
+  extending Mathlib's existing infrastructure for measure theory, moment and cumulant
+  generating functions, tilted measures, the extended reals, characteristic functions, and the
+  strong law of large numbers. This work demonstrates the viability of formalizing advanced
+  probability theory in a modern proof assistant and associated library, and identifies gaps
+  in current proof assistants' formal math libraries.
+
+\end{abstract}
+\newpage
+\tableofcontents
+\newpage
+
+\pagenumbering{arabic}
+\section{Introduction}
+\label{sec:intro}
+
+Large Deviations Theory is the study of the asymptotic decay of the probabilities of tail events.
+A foundational result of the theory, and the primary focus of this thesis, is Cram{\'e}r's theorem~\cite{cramer1938sur}, which characterizes the asymptotic decay rate of the tail probability $\P(\overline{X}_n \ge a)$, where $\overline{X}_n$ is the empirical mean of independent, identically distributed random variables and $a \ge \E[X_1]$. In a sense, Cram{\'e}r's theorem is a complement to the
+Central Limit Theorem (CLT): while the CLT characterizes the behavior of the mean around the center
+of the distribution, Cram{\'e}r's theorem characterizes the tail probability, which asymptotically decays to 0
+at a rate $I(a)$ given by the Legendre transform of $X_1$'s
+cumulant generating function.
+
+For more comprehensive treatments of Large Deviations Theory, we refer the reader to Dembo and Zeitouni \cite{dembo1998large}, Varadhan \cite{varadhan1984}, Ellis \cite{ellis1985}, and den Hollander \cite{denhollander2000}. For connections to concentration inequalities and high-dimensional probability, see Vershynin \cite{vershynin2026}.
+
+While standard mathematical proofs of Cram{\'e}r's theorem are well established
+(see, e.g., \cite{dembo1998large, denhollander2000}), they often involve delicate arguments
+-- reasoning about decay over different probability spaces, interchanging limits and integrals,
+edge-case events of 0 probability -- that are glossed over.
+In contrast, other parts of measure and probability theory have already been formalized in
+various proof assistants (discussed further in \Cref{sec:related-work}), including
+formalizations of foundational results like the Central Limit Theorem. Such formalizations enforce complete rigor
+by necessity: for a proof to be formally verified, it must explicitly enumerate all its axioms and
+assumptions, state the theorem precisely and completely, and provide a type-theoretic proof that
+gives a derivation of the theorem which can be fully machine-checked, leaving no room for subtle
+errors or arguments lacking sufficient rigor.
+
+This thesis fills this gap by presenting a formally verified proof of Cram{\'e}r's theorem,
+implemented using the Lean~4 theorem prover~\cite{demoura2021lean4} and building upon the Mathlib
+mathematical library~\cite{mathlib2020}.\footnote{This work builds upon Mathlib as of commit \texttt{1708ec1fd9}.}
+
+The main contributions are:
+\begin{enumerate}
+  \item A formal definition of the Large Deviation Principle (LDP) in Lean, separating the upper and
+    lower bounds as asymptotic limits over the extended real numbers,
+  \item A proof of the upper bound through the Chernoff bound, an exponential application of
+    Markov's inequality followed by optimizing over the moment generating function,
+  \item A proof of the lower bound through a change of measure to exponentially tilted
+    measures, which includes a proof of the Central Limit Theorem for the empirical
+    mean under the tilted measures, where the newly constructed probability measures transform the
+    rare tail event into a typical one, and
+  \item The final result combining the above to state a Large Deviation Principle for the mean
+    $\overline{X}_n$.
+\end{enumerate}
+The formalization consists of approximately 2,003 lines of Lean~4 code across six files:
+\texttt{Defs.lean} (the LDP structure),
+\texttt{Basic.lean} (definitions and foundational lemmas),
+\texttt{UpperBound.lean} and \texttt{LowerBound.lean}
+(the two bounds, both building upon \texttt{Basic}),
+\texttt{TiltedCLT.lean} (the Central Limit Theorem under the tilted measure, used by the
+lower bound), and
+\texttt{Theorem.lean} (combining the preceding results into an LDP statement of Cram{\'e}r's
+theorem).
+The proof of the lower bound is significantly longer, with \texttt{LowerBound.lean} and
+\texttt{TiltedCLT.lean} together accounting for about 70\% of the code, reflecting the more
+involved change-of-measure approach compared to the Chernoff bound.
+
+The remainder of this thesis is organized as follows: \Cref{sec:related-work} is a brief discussion
+of prior work on the formalization of probability theory and related areas.
+\Cref{sec:math-background} introduces the mathematical background for the proof, including
+the moment and cumulant generating functions, the Legendre transform, and the large deviation
+principle.
+\Cref{sec:framework} provides a general description of mathematical formalization in Lean~4 and
+lists the Lean definitions used by the rest of the work, including the formal definition of the
+Large Deviation Principle.
+\Cref{sec:theorem} states Cram{\'e}r's theorem formally in Lean, building on the aforementioned
+definitions.
+Chapters~\ref{sec:basic-properties}--\ref{sec:main-result} explain the proof: the basic properties,
+the upper bound, the CLT over tilted measures, the lower bound, and the main result that
+combines both bounds. For each chapter here, we first present a mathematical overview of the
+proof, then list the associated Lean lemmas and theorems proven with the Lean proofs omitted.
+\Cref{sec:conclusion} concludes with reflections and future directions.
+\Cref{apx:code} is the complete listing of the Lean code, including the proofs omitted in the
+preceding chapters. \Cref{apx:mathlib} is a listing of existing definitions and results in Mathlib
+that were used in the proof.
+
+\section{Related Work}
+\label{sec:related-work}
+
+Formalizing probability theory in a proof assistant is a substantial undertaking: the theory builds
+upon several areas, including measure theory, real analysis, and topology, which must be formalized
+before work on probability may begin. The proof assistant ecosystem has seen several languages
+and associated formal math libraries that have been developed sufficiently to express proofs in
+measure-theoretic probability theory. In this chapter, we survey them before describing our
+contribution.
+
+\paragraph{Isabelle/HOL.}
+H{\"o}lzl and Heller \cite{holzl2011} built foundational measure-theoretic infrastructure in
+Isabelle/HOL, extending prior work that formalized the Lebesgue measure on the reals to
+include the extended real numbers, Borel $\sigma$-algebras for arbitrary topological spaces,
+the Radon-Nikod{\'y}m Theorem, and Fubini's Theorem.
+Building on this foundation, Avigad, H{\"o}lzl, and Serafin \cite{avigad2017clt} produced a formally
+verified proof of the Central Limit Theorem, using characteristic functions and L{\'e}vy's
+Continuity Theorem in a proof that follows the textbook by Billingsley \cite{billingsley1995}.
+
+Hirata \cite{hirata2024levy} formalized the L{\'e}vy-Prokhorov metric, which is a metric defined
+on the measures on a metric space, and proved Prokhorov's theorem in Isabelle/HOL.
+Prokhorov's theorem provides conditions for the relative compactness of sets of finite measures and
+is relevant to Sanov's theorem~\cite{dembo1998large} from information theory, an LDP result for empirical measures.
+
+\paragraph{Rocq (formerly Coq).}
+Affeldt and Cohen \cite{affeldt2023} provided an original formalization of measure and integration
+theory, building on the MathComp-Analysis library, where they constructed a Lebesgue measure as an
+extension from a semiring of sets --- a standard approach that had not previously been formalized in a proof assistant with dependent type theory foundations.
+
+More recently, Affeldt et al.\ \cite{affeldt2025concentration} formalized concentration
+inequalities in Rocq, which are inequalities of the form $\P(X \ge a) \le b$ such as the Markov
+or Chebyshev bounds. Of particular relevance, they provided a proof of Chernoff's inequality, which, as discussed, is used in the proof of the upper bound of Cram{\'e}r's theorem.
+
+\paragraph{Lean~4 and Mathlib.}
+The Lean~4 proof assistant~\cite{demoura2021lean4} and its surrounding ecosystem have seen rapid
+advancement in formalized mathematics in the past several years, centered primarily around
+the Mathlib library~\cite{mathlib2020}.
+In stochastic processes, Ying and Degenne~\cite{ying2023martingale} formalized Doob's Martingale
+Convergence Theorems, starting from foundations in conditional expectation on Banach spaces, stopping times, and martingales, and building up to L{\'e}vy's generalized
+Borel-Cantelli lemma.
+Degenne \cite{degenne2025kernels} further described Mathlib's usage of Markov kernels and the
+disintegration theorem, which are used for the formal definitions of conditional probability
+and posterior distributions, as well as independence, conditional independence, and entropy.
+
+Sonoda et al.\ \cite{sonoda2025rademacher} built on Mathlib's foundation of measure-theoretic
+probability to formalize generalization error bounds by Rademacher complexity, and formalized
+Dudley's entropy integral as a worked example.
+
+Mathlib also contains a proof of the strong law of large numbers, which we use in our proof for
+the case $a < \E[X_1]$ in order to expand the statement of the Large Deviation Principle to all
+$a \in \R$.
+Mathlib's strong law, named \leancode{strong_law_ae_real}, is based on Etemadi's proof~\cite{etemadi1981slln}, which only requires pairwise independence. We also build upon the existing formalization of Chernoff's inequality and exponentially tilted measures present in Mathlib.
+
+Lastly, Mathlib contains a very recently merged proof of the Central Limit Theorem~\cite{marion2026clt}, which follows the approach of using characteristic functions
+and L{\'e}vy's Continuity Theorem --- the same approach used by Avigad, H{\"o}lzl, and Serafin
+\cite{avigad2017clt} in their Isabelle/HOL proof.
+
+\paragraph{Our contribution.}
+To the best of our knowledge, no results in Large Deviations Theory --- whether Cram{\'e}r's theorem, Sanov's theorem, or the G{\"a}rtner-Ellis theorem --- have been proven in any proof
+assistant. Nor has the concept of a Large Deviation Principle been formalized in any of them.
+Closest to this thesis are the aforementioned formalizations of Chernoff bounds (which we build upon for the upper bound) and the formalizations of the Central Limit Theorem.
+
+Our contribution introduces the Large Deviation Principle as a formal structure in Lean~4,
+builds upon the Chernoff bound and tilted measures for the upper and lower bounds, and combines
+these into a proof of Cram{\'e}r's theorem. As part of the lower bound, we also build upon Mathlib's
+results on weak convergence in terms of characteristic functions to prove a CLT statement for the
+empirical mean under the sequence of tilted measures, following a similar approach to the recently
+merged proof of the standard CLT.
+
+\newpage
+\section{Preliminaries}
+\label{sec:math-background}
+
+Let $(\Omega, \mathcal{F}, \P)$ be a probability space. Let $X_1, X_2, \dots$ be a sequence of independent, identically distributed real-valued random variables.
+
+\begin{definition}[Partial Sums and Empirical Mean]
+  \label[definition]{def:partial_sums_mean}
+  We define the partial sum and the empirical mean as:
+  \begin{equation}
+    S_n = \sum_{i=1}^{n} X_i, \quad \quad \overline{X}_n = \frac{S_n}{n}
+  \end{equation}
+\end{definition}
+
+\begin{definition}[MGF, CGF, and Rate Function]
+  \label[definition]{def:cgf_rate_function}
+  Let $M_X(t)$ and $\Lambda(t)$ denote the Moment Generating Function (MGF) and Cumulant Generating Function (CGF) of $X_1$ respectively:
+  \begin{equation}
+    M_X(t) = \E[e^{tX_1}] \quad\quad  \Lambda(t) = \log M_X(t) =  \log \E[e^{t X_1}]
+  \end{equation}
+  The rate function $I(x)$ is defined as the Legendre transform of the convex function $\Lambda$:
+  \begin{equation}
+    I(x) = \sup_{t \in \R} \{ tx - \Lambda(t) \}
+  \end{equation}
+\end{definition}
+
+As $t=0$ yields $0 \cdot x - \Lambda(0) = 0$, the rate function satisfies $I(x) \ge 0$ for all
+$x \in \R$.
+In our formalization, we will take the assumption \leancode{h\_bdd} (see \cref{sec:framework})
+that, $\forall x \in \R$, the set $\{tx - \Lambda(t) \mid t \in \R\}$ is bounded above, which
+implies that the rate function is always finite.
+
+\begin{definition}[Large Deviation Principle]
+  \label[definition]{def:ldp}
+  We say that a sequence of random variables $Z_n$ taking values in a space $\Xi$ satisfies a
+  \textbf{Large Deviation Principle} (LDP) if there exists a rate function $I: \Xi \to \R$
+  such that for all $A \subseteq \Xi$, the scaled log-tail probability is bounded by $-I$ between
+  the closure and the interior of $A$:
+  \begin{equation}
+    \limsup_{n\to\infty} \frac{1}{n} \log{\P(Z_n \in A)} \le -\inf_{x \in \overline{A}} I(x)
+  \end{equation}
+  \begin{equation}
+    \liminf_{n\to\infty} \frac{1}{n} \log{\P(Z_n \in A)} \ge -\inf_{x \in \mathring{A}} I(x)
+  \end{equation}
+\end{definition}
+
+For the purposes of this formal proof, we will restrict ourselves to investigating upper tail sets
+$[a,\infty)$ for some $a \in \R$, which aligns with the statement of Cram{\'e}r's theorem.
+Unlike the full LDP involving arbitrary sets with separate closure and interior conditions, for
+upper tail sets $[a,\infty)$, both conditions reduce to the same rate function $I(a)$,
+so that the upper and lower bounds have the same asymptotic logarithmic bound:
+\begin{equation}
+  \limsup_{n\to\infty} \frac{1}{n} \log{\P(\overline{X}_n \ge a)} \le -I(a)
+\end{equation}
+\begin{equation}
+  \liminf_{n\to\infty} \frac{1}{n} \log{\P(\overline{X}_n \ge a)} \ge -I(a)
+\end{equation}
+When both inequalities hold, we have $\lim_{n\to\infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) = -I(a)$: the probability decays according to the rate function, and this rate is asymptotically tight.
+
+Note that Cram{\'e}r's theorem makes a statement for $a \ge \E[X_1]$, and if $a < \E[X_1]$, the event
+$\{\overline{X}_n \ge a\}$ is not a rare event. However, we can still define an appropriate rate
+function: by the strong law of large numbers, $\overline{X}_n \to \E[X_1]$ a.s., so $\P(\overline{X}_n \ge a) \to 1$ whenever $a < \E[X_1]$. Therefore, it suffices to define $I(a) = 0$ in this case
+and the LDP bounds hold trivially.
+
+\begin{definition}[Tilted Measure]
+  \label[definition]{def:tilted_measure}
+  For a fixed tilting parameter $t \in \R$, we define the sequence of tilted probability measures
+  $\Q_{n,t}$ on $(\Omega, \mathcal{F})$ with respect to $\P$ through the Radon-Nikodym derivative:
+  \begin{equation}
+    \frac{\text{d}\Q_{n,t}}{\text{d}\P} = \frac{e^{t S_n}}{\E_\P[e^{t S_n}]} = \frac{e^{t S_n}}{M_{S_n}(t)}
+    = \frac{e^{t S_n}}{(M_{X_0}(t))^n} = \frac{e^{t S_n}}{e^{n \Lambda(t)}} = e^{t S_n - n \Lambda(t)}
+  \end{equation}
+\end{definition}
+
+\section{Formalization Framework \& Assumptions}
+\label{sec:framework}
+
+Lean~4 is built on dependent type theory, a foundation different from set theory in ways that
+affect formalization and the structure of the proof.
+Crucially, mathematical objects belong to \emph{types} rather than sets, and unlike sets, types
+do not fully subsume each other and can require explicit coercions to move values between them.
+A concrete example encountered in this thesis is that the real numbers $\R$ and the extended real
+numbers $\overline{\R} = \R \cup \{-\infty, +\infty\}$ (denoted \leancode{EReal} in Lean) are
+different types: although \leancode{EReal} is defined using $\R$, a real number $x$ is not
+implicitly an extended real number and can require explicit casts, denoted $\uparrow\! x$.
+This difference manifests itself as several helper lemmas throughout the formalization where, for
+example in \Cref{subsec:upper-formal}, we will prove statements in $\R$ but then explicitly lift
+them to \leancode{EReal} for the LDP statement.
+
+Like other mathematical formalizations in Lean, our formalization builds upon the Mathlib library
+\cite{mathlib2020}, which provides the measure-theoretic probability foundations:
+$\sigma$-algebras, probability measures, integrability, moment and cumulant generating functions,
+and tilted measures are available and utilized.
+
+Below we briefly describe the Lean~4 syntax conventions that appear throughout the code listings.
+
+\begin{itemize}
+  \item \leancode{Type*} is a type of an implicit universe level, enabling definitions to be polymorphic over type universes.
+  \item Curly braces in variable, lemma, and theorem statements $\textcolor{blue}{\{\Omega\}}$
+    denote \emph{implicit} arguments inferred automatically from typed explicit arguments. Parentheses $\textcolor{blue}{(X)}$ denote \emph{explicit} arguments supplied by the caller.
+    Square brackets $\textcolor{blue}{[\text{MeasureSpace}~\Omega]}$ denote
+    \emph{type class instances}.
+  \item The \leancode{noncomputable} keyword marks a function as not being compilable to executable
+    code. These definitions typically involve non-constructive axioms like classical choice or the
+    law of excluded middle. Although Lean cannot generate executable code for them, they are still
+    part of the type system and can be used for specification and formalization, and the Lean
+    compiler will fully type-check them for correctness, so that the logical consistency of proofs
+    is preserved.
+
+  \item The notation $\textcolor{blue}{\forall^f n~\text{in}~\text{atTop}}$ reads ``for all
+    sufficiently large $n$'' and is a generic definition of limits using \emph{Filters}.
+    Mathlib uses Filters to abstract and unify the notion of limits of functions, sequences,
+    points that approach infinitesimal or infinite values, as well as statements that are true
+    for sufficiently large $n$, and so on.
+    Instead of providing distinct definitions for each of these, they are unified in a single
+    framework. \leancode{limsup} and \leancode{liminf} in particular, which are used in our
+    statement of the LDP, are defined via filters rather than via explicit $\varepsilon$-$N$
+    arguments.
+\end{itemize}
+
+The definitions and assumptions presented in the following chapters are listed in full in
+\Cref{subsection:lean-listing-defs}.
+
+\subsection{Definitions}
+
+\begin{definition}[Sample Space]
+  We define the sample space \( \Omega \) as a type equipped with the \leancode{MeasureSpace} type-class instance.
+\end{definition}
+\begin{lstlisting}
+variable {Ω : Type*} [MeasureSpace Ω]
+\end{lstlisting}
+\leancode{MeasureSpace} in turn is defined in Mathlib as a space with a $\sigma$-algebra equipped with a measure.
+\begin{lstlisting}[caption={Mathlib/MeasureTheory/Measure/MeasureSpaceDef.lean}]
+/-- A measure space is a measurable space equipped with a
+  measure, referred to as `volume`. -/
+class MeasureSpace (α : Type*) extends MeasurableSpace α where
+  volume : Measure α
+\end{lstlisting}
+
+\newpage
+\begin{definition}[Probability Measure]
+  Mathlib defines the notation $\P$ as the \leancode{volume} of a measure space. We further constrain $\P$ to be a probability measure through the type-class \leancode{IsProbabilityMeasure}.
+\end{definition}
+\begin{lstlisting}[caption={Mathlib/Probability/Notation.lean}]
+scoped[ProbabilityTheory] notation "ℙ" => MeasureTheory.MeasureSpace.volume
+\end{lstlisting}
+\begin{lstlisting}
+variable [IsProbabilityMeasure (ℙ : Measure Ω)]
+\end{lstlisting}
+where \leancode{IsProbabilityMeasure} is defined as
+\begin{lstlisting}[caption={Mathlib/MeasureTheory/Measure/Typeclasses/Probability.lean}]
+/-- A measure `μ` is called a probability measure if `μ univ = 1`. -/
+class IsProbabilityMeasure (μ : Measure α) : Prop where
+  measure_univ : μ univ = 1
+\end{lstlisting}
+
+\begin{definition}[Sequence of Random Variables]
+  Next, we define our sequence of random variables $X_n$ as a function from the naturals to real-valued random variables on $\Omega$.
+\end{definition}
+\begin{lstlisting}
+variable (X : ℕ → Ω → ℝ)
+\end{lstlisting}
+In Lean, we will index starting at 0, as is common in programming contexts, but continue to index from 1 in the remainder of this text following standard mathematical convention.
+
+\begin{definition}[Partial Sums and Empirical Mean]
+  We also define the partial sums $S_n$ and the empirical mean $\overline{X}_n$ as mappings from the
+  naturals to random variables on $\Omega$.
+\end{definition}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Basic.lean}]
+/-- The partial sum X₁ + ... + Xₙ. -/
+def partialSum (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
+
+/-- The empirical mean Sₙ / n. -/
+noncomputable def empiricalMean (n : ℕ) : Ω → ℝ := fun ω => partialSum X n ω / n
+\end{lstlisting}
+
+\begin{definition}[Moment and Cumulant Generating Functions]
+  The moment and cumulant generating functions are defined in Mathlib with their usual definitions as the expectation of $e^{tX}$ and its $\log$ respectively:
+\end{definition}
+\begin{lstlisting}[caption={Mathlib/Probability/Moments/Basic.lean}]
+/-- Moment-generating function of a real random variable `X`: `fun t => μ[exp(t*X)]`. -/
+def mgf (X : Ω → ℝ) (μ : Measure Ω) (t : ℝ) : ℝ :=
+  μ[fun ω => exp (t * X ω)]
+
+/-- Cumulant-generating function of a real random variable `X`: `fun t => log μ[exp(t*X)]`. -/
+def cgf (X : Ω → ℝ) (μ : Measure Ω) (t : ℝ) : ℝ :=
+  log (mgf X μ t)
+\end{lstlisting}
+Note that $\mu[f]$ is notation for the expectation of $f$ with respect to the measure $\mu$.
+
+\newpage
+\begin{definition}[Rate Function]
+  The rate function is defined as the Legendre transform of the cumulant generating function:
+\end{definition}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Basic.lean}]
+noncomputable def I (x : ℝ) : ℝ := ⨆ t : ℝ, t * x - cgf (X 0) ℙ t
+\end{lstlisting}
+where $\bigsqcup$ is notation for the indexed supremum \leancode{iSup}.
+
+As we will be defining a general Large Deviation Principle for all $a$ in the domain of the rate function, but are only interested in $a \ge \E[X_1]$, we define the \textit{effective} rate function as:
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Basic.lean}]
+noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
+  if 𝔼[X 0] ≤ a then I X a else 0
+\end{lstlisting}
+so that the LDP is trivially satisfied for $a < \E[X_0]$.
+
+\begin{definition}[Exponentially Tilted Measure]
+  \label[definition]{def:tilted_measure_lean}
+  The sequence of exponentially tilted measures $\Q_{n,t}$ from \cref{def:tilted_measure} is formalized using Mathlib's \leancode{Measure.tilted}, tilted by the random variable $\omega \mapsto t \cdot S_n(\omega)$:
+\end{definition}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Basic.lean}]
+noncomputable def ℚₙₜ (X : ℕ → Ω → ℝ) (μ : Measure Ω) (n : ℕ) (t : ℝ) : Measure Ω :=
+  Measure.tilted μ (fun ω => t * partialSum X n ω)
+\end{lstlisting}
+
+\subsection{The Large Deviation Principle}
+The Large Deviation Principle describes the asymptotic exponential decay of the probability of tail events. In Lean, we formalize this principle as a structure \leancode{LargeDeviationPrinciple} over a sequence of real-valued random variables $Y_n$ and a rate function $I : \R \to \R$.
+
+\begin{definition}[Large Deviation Principle]
+  \label[definition]{def:ldp_formal}
+  A sequence of random variables $(Y_n)$ satisfies a Large Deviation Principle with rate function $I$ if the scaled log-tail probability $\frac{1}{n} \log \P(Y_n \ge a)$ is asymptotically bounded above and below by $-I(a)$ for all $a \in \R$. The principle is split into an upper bound and a lower bound to facilitate independent proofs for each direction.
+\end{definition}
+\begin{lstlisting}[caption={Mathlib/Probability/LargeDeviations/Defs.lean}]
+structure LargeDeviationPrinciple (Y : ℕ → Ω → ℝ) (I : ℝ → ℝ) : Prop where
+  /-- Upper bound: limsup_n (1/n) log ℙ(Yₙ ≥ a) ≤ -I(a) -/
+  upperBound : ∀ a : ℝ,
+    limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a}))
+      atTop ≤ (- I a : EReal)
+  /-- Lower bound: liminf_n (1/n) log ℙ(Yₙ ≥ a) ≥ -I(a) -/
+  lowerBound : ∀ a : ℝ,
+    (- I a : EReal) ≤
+      liminf (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a}))
+        atTop
+\end{lstlisting}
+
+While the general LDP gives bounds for all $a$, Cram{\'e}r's theorem specifically provides a tight asymptotic bound when $a \ge \E[X_1]$. We've defined the modified rate function \leancode{upperTailRateFunction} in order to make a general LDP statement for all $a \in \R$.
+
+\newpage
+\subsection{Assumptions}
+\label[subsection]{subsec:assumptions}
+We explicitly assume the following properties, corresponding to the \leancode{variable} blocks in the code.
+These are the only assumptions we make for the formal proof beyond the initial setup.
+
+\begin{itemize}
+  \item \textbf{Independence:} The sequence $X_i$ consists of mutually independent random variables.
+\begin{lstlisting}
+variable (h_indep : iIndepFun X ℙ)
+\end{lstlisting}
+  \item \textbf{Identically Distributed:} The random variables $X_i$ are identically distributed.
+\begin{lstlisting}
+variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
+\end{lstlisting}
+  \item \textbf{Measurability:} The random variables $X_i$ are measurable.
+\begin{lstlisting}
+variable (h_meas : ∀ n, Measurable (X n))
+\end{lstlisting}
+
+  \item \textbf{Integrability:} The random variables are integrable, meaning $\E[|X_i|] < \infty$. This is implied by the finiteness of the moment generating function, but we assume it explicitly for convenience in formalization.
+\begin{lstlisting}
+variable (h_int : Integrable (X 0) ℙ)
+\end{lstlisting}
+
+  \item \textbf{Finite Moment Generating Function:} For all $t \in \R$, the exponential moment is finite, i.e., $M_{X}(t) := \E[\exp(t X_i)] < \infty$.
+\begin{lstlisting}
+variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
+\end{lstlisting}
+
+  \item \textbf{Bounded Rate Function:} For any $a \in \R$, the set $\{ta - \Lambda(t) \mid t \in \R\}$ over which we take the supremum is bounded above. This implies that the rate function $I(a)$ exists and is finite for all $a \in \R$. Like integrability, this is also implied by the finiteness of the moment generating function.
+\begin{lstlisting}
+variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
+\end{lstlisting}
+
+  \item \textbf{Non-Degeneracy:} The CGF has a strictly positive second derivative everywhere: $\forall t \in \R, \Lambda''(t) > 0$. When the cumulant generating function is finite, it is analytic and convex, and is strictly convex if and only if the distribution is non-degenerate~\cite{dembo1998large}. This excludes degenerate (point mass) distributions, for which $\Lambda(t) = tc$ and $\Lambda''(t) = 0$.
+    Large Deviations are trivial for such distributions since for all $n$, $\overline{X}_n = c$ a.s.
+\begin{lstlisting}
+variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
+\end{lstlisting}
+
+  \item \textbf{Exposed Points:} All points $a \ge \E[X_1]$ are exposed. That is, they are in the range of the derivative of the CGF so that $\forall a \ge \E[X_1], \exists t \in \R$ such that $\Lambda'(t) = a$.
+\begin{lstlisting}
+variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
+\end{lstlisting}
+
+\end{itemize}
+
+\newpage
+\section{Formal Theorem Statement}
+\label{sec:theorem}
+
+With the setup complete, we can now state the main theorem formally.
+
+\begin{theorem}[Cram{\'e}r's Theorem]
+  \label[theorem]{thm:cramers}
+  The sequence of empirical means $\overline{X}_n$ satisfies a Large Deviation Principle with rate
+  function \leancode{upperTailRateFunction}. That is, for $a \ge \E[X_1]$, the sequence satisfies an LDP with
+  rate function $I(x)$, the Legendre transform of $\Lambda$; and for $a < \E[X_1]$, it
+  satisfies an LDP with rate function $0$.
+\end{theorem}
+
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Theorem.lean}]
+include h_indep h_meas h_ident h_mgf h_int h_bdd h_non_deg h_exposed in
+/-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
+satisfies a Large Deviation Principle with rate function being the Legendre transform of the CGF. -/
+theorem cramers_theorem :
+    LargeDeviationPrinciple (empiricalMean X) (upperTailRateFunction X)
+\end{lstlisting}
+
+\newpage
+\section{Basic Properties}
+\label{sec:basic-properties}
+
+Having stated the theorem formally, we now develop the building blocks needed for its proof. We prove the following helper lemmas prior to delving into separate proofs for the upper and lower bounds. These lemmas are used in the formal proofs of subsequent statements and are listed in full
+in \Cref{subsection:lean-listing-basic}.
+
+\begin{lemma}[Finite MGF of Identically Distributed Variables]
+  \label[lemma]{lmm:finite_mgf_ident}
+  The moment generating function $M_{X_i}(t) = \E[e^{t X_i}]$ is finite for all $i$ and any $t \in \R$.
+\end{lemma}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Basic.lean}]
+lemma integrable_exp_of_identDistrib (i : ℕ) (t : ℝ) :
+    Integrable (fun ω => Real.exp (t * X i ω)) ℙ
+\end{lstlisting}
+\begin{lemma}[Measurability of Partial Sum]
+  The partial sum $S_n$ is a measurable function.
+\end{lemma}
+\begin{lstlisting}
+lemma measurable_partialSum (n : ℕ) : Measurable (partialSum X n)
+\end{lstlisting}
+\begin{lemma}[Measurability of Empirical Mean]
+  The empirical mean $\overline{X}_n$ is a measurable function.
+\end{lemma}
+\begin{lstlisting}
+lemma measurable_empiricalMean (n : ℕ) : Measurable (empiricalMean X n)
+\end{lstlisting}
+\begin{lemma}[Interior of Integrable Exponential Set]
+  Any $t \in \R$ lies in the interior of the set of parameters for which the exponential $e^{t X_1}$ is integrable. That is, $\forall t \in \R, t \in \textnormal{int} \{t \mid |\E[e^{t X_1}]| < \infty\}$.
+\end{lemma}
+\begin{lstlisting}
+lemma mem_interior_integrableExpSet (t : ℝ) : t ∈ interior (integrableExpSet (X 0) ℙ)
+\end{lstlisting}
+The following lemmas require the measure $\P$ to be a probability measure. That is, they additionally require that $\P(\Omega) = 1$.
+
+\begin{lemma}[CGF Lower Bound]
+  \label[lemma]{lmm:cgf_lower_bound}
+  For any integrable (measurable with finite expectation) random variable $Y$ with a finite MGF, we have $\Lambda_Y(t) \ge t \E[Y]$.
+\end{lemma}
+\begin{lstlisting}
+lemma cgf_ge_mul_expect (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
+    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ) (t : ℝ) :
+    cgf Y ℙ t ≥ t * 𝔼[Y]
+\end{lstlisting}
+\begin{lemma}[Rate Function is Negative for Negative Parameter]
+  \label[lemma]{lmm:rate_function_neg_param_le_zero}
+  For an integrable random variable $Y$ with finite MGF, if $t < 0$ and $a \ge \E[Y]$, the body of the supremum of the rate function, $t a - \Lambda_Y(t)$, is non-positive.
+\end{lemma}
+\begin{lstlisting}
+lemma rate_function_neg_param_le_zero (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
+    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ)
+    (t a : ℝ) (ht : t < 0) (ha : 𝔼[Y] ≤ a) :
+    t * a - cgf Y ℙ t ≤ 0
+\end{lstlisting}
+\begin{lemma}[Finite MGF of Partial Sum]
+  \label[lemma]{lmm:partial_sum_finite_mgf}
+  If each random variable $X_i$ has a finite MGF, then the partial sum $S_n$ also has a finite MGF for all $t \in \R$.
+\end{lemma}
+\begin{lstlisting}
+lemma integrable_exp_sum (t : ℝ) (n : ℕ) :
+    Integrable (fun ω => Real.exp (t * partialSum X n ω)) ℙ
+\end{lstlisting}
+\begin{lemma}[Tilted Measure is a Probability Measure]
+  \label[lemma]{lmm:tilted_prob_measure}
+  $\forall t \in \R$, the tilted measure $\Q_{n,t}$ obtained from tilting by the factor $t \cdot S_n$ is a valid probability measure.
+\end{lemma}
+\begin{lstlisting}
+lemma isProbabilityMeasure_tilted_partialSum (t : ℝ) (n : ℕ) :
+    IsProbabilityMeasure (ℚₙₜ X ℙ n t)
+\end{lstlisting}
+\newpage
+\begin{lemma}[Interior of Integrable Exponential Set of Partial Sums]
+  Any $t \in \R$ lies in the interior of the set of parameters for which the exponential $e^{t S_n}$ is integrable for all $n \in \N$. That is, $\forall n \in \N, \forall t \in \R, t \in \textnormal{int} \{t \mid |\E[e^{t S_n}]| < \infty\}$.
+\end{lemma}
+\begin{lstlisting}
+lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
+    t ∈ interior (integrableExpSet (partialSum X n) ℙ)
+\end{lstlisting}
+\begin{lemma}[Rate Function Achieves Supremum at Non-Negative Parameter]
+  \label[lemma]{lmm:rate_function_nonneg_param}
+  If $a \ge \E[X_1]$, rate function $I(a) = \sup_{t \in\R} \{ ta - \Lambda_{X_1}(t) \}$ has its supremum achieved by $t \ge 0$. That is,
+  $I(a) = \sup_{t \ge 0} \{ ta - \Lambda_{X_1}(t) \}$.
+\end{lemma}
+\begin{lstlisting}
+lemma rateFunction_eq_sup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    I X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t
+\end{lstlisting}
+\begin{lemma}[MGF of Partial Sum is a Power of the Single MGF]
+  \label[lemma]{lmm:mgf_sum_eq_exp_n_prod_cgf}
+  The MGF of the partial sum $S_n$, $M_{S_n}(t)$, is the product of individual MGFs, $M_{X_i}(t)$.
+  In particular, as $X_i$ are i.i.d., $M_{S_n}(t) = M_{X_1}(t)^n$.
+
+  For convenience with future formalization, we state this in terms of the cumulant generating function of $X_1$: $M_{S_n}(t) = e^{n \cdot \Lambda_{X_1}(t)}$.
+\end{lemma}
+\begin{lstlisting}
+lemma mgf_sum_eq_exp_n_prod_cgf (n : ℕ) (t : ℝ) :
+    mgf (partialSum X n) ℙ t = Real.exp (n * cgf (X 0) ℙ t)
+\end{lstlisting}
+\begin{lemma}[CGF of Partial Sum is $n$ Times the Single CGF]
+  The cumulant generating function of the partial sum $S_n$ is $n$ times the cumulant generating function of $X_1$: $\Lambda_{S_n}(t) = n \Lambda_{X_1}(t)$.
+\end{lemma}
+\begin{lstlisting}
+lemma cgf_sum_eq_n_prod_cgf (n : ℕ) (t : ℝ) :
+    cgf (partialSum X n) ℙ t = (n : ℝ) * cgf (X 0) ℙ t
+\end{lstlisting}
+\newpage
+\section{The Upper Bound (Chernoff Bound)}
+\label{sec:upper-bound}
+
+With the foundational definitions and basic properties established, we can now prove the two bounds
+of Cram{\'e}r's theorem. We begin with the upper bound.
+
+\subsection{Mathematical Description}
+We first introduce the approach to the upper bound for Cram{\'e}r's theorem in higher-level mathematical notation before delving into the formalized statements.
+
+The upper bound relies on an exponential application of Markov's inequality, commonly known as the
+Chernoff bound (see, e.g., \cite{dembo1998large, vershynin2026}).
+We show that the tail probability $\P(\overline{X}_n \ge a)$ is bounded via the MGF, which reduces to an optimization problem. Then, given $a \ge \E[X_1]$, optimizing over non-negative parameters
+$t \ge 0$ suffices to recover the rate function $I(a)$.
+
+\begin{theorem}[Cram{\'e}r Upper Bound]
+  \label[theorem]{thm:cramer_upper}
+  For any $a \ge \E[X_1]$:
+  \begin{equation}
+    \limsup_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \le -I(a)
+  \end{equation}
+\end{theorem}
+
+\begin{proof}
+  Since $x \mapsto e^{tx}$ is monotonically increasing, applying Markov's inequality to the non-negative random variable $e^{t S_n}$ gives
+  \begin{align}
+    \P(\overline{X}_n \ge a) &= \P(S_n \ge na)
+    = \P(e^{t S_n} \ge e^{tna}) \le e^{-tna} \E[e^{t S_n}]
+  \end{align}
+
+  By independence, the expectation factors as a product:
+  \begin{align}
+    \E[e^{t S_n}] = \E\left[\prod_{i=1}^n e^{t X_i}\right]
+    = \prod_{i=1}^n \E[e^{t X_i}]
+    = \left( \E[e^{t X_1}] \right)^n
+    = e^{n \Lambda(t)}
+  \end{align}
+
+  Substituting,
+  \begin{equation}
+    \P(\overline{X}_n \ge a) \le e^{-tna} e^{n \Lambda(t)} = e^{-n(ta - \Lambda(t))}
+  \end{equation}
+
+  Taking logarithms and dividing by $n$:
+  \begin{equation}
+    \frac{1}{n} \log \P(\overline{X}_n \ge a) \le -(ta - \Lambda(t))
+  \end{equation}
+  As this bound is independent of $n$, taking the $\limsup$ preserves it:
+  \begin{equation}
+    \limsup_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \le -(ta - \Lambda(t))
+  \end{equation}
+
+  Since the bound $-(ta - \Lambda(t))$ holds for all $t \ge 0$, taking the infimum over all $t$
+  yields the tightest possible bound.
+  Then, since $\inf_{t \ge 0} \{-(ta - \Lambda(t))\} = -\sup_{t \ge 0} \{ta - \Lambda(t)\}$:
+  \begin{equation}
+    \limsup_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \le -\sup_{t \ge 0} \{ ta - \Lambda(t) \}
+  \end{equation}
+
+  It remains to show that $\sup_{t \ge 0} \{ ta - \Lambda(t) \} = I(a) = \sup_{t \in \R} \{ ta - \Lambda(t) \}$. That is, the supremum is achieved by $t \ge 0$.
+
+  Define $g(t) = ta - \Lambda(t)$. Note that $g(0) = 0 - \Lambda(0) = -\log \E[e^0] = 0$ and,
+  as $a \ge \E[X_1]$ by assumption,
+  \begin{equation}
+    g'(0) = a - \Lambda'(0) = a - \E[X_1] \ge 0
+  \end{equation}
+
+  As $\Lambda$ is convex, $g$ is concave.
+  For a concave function with $g'(0) \ge 0$, we have $g(t) \le g(0) = 0$ for all $t < 0$.
+  Therefore, the supremum cannot be achieved by any negative $t$, and we conclude
+  \begin{equation}
+    \sup_{t \ge 0} \{ ta - \Lambda(t) \} = \sup_{t \in \R} \{ ta - \Lambda(t) \} = I(a)
+  \end{equation}
+\end{proof}
+
+\addtocontents{toc}{\protect\setcounter{tocdepth}{2}}
+\subsection{A Worked Example: The Exponential Distribution}
+\label{subsec:worked-example}
+
+We illustrate a concrete example of the upper bound using the exponential distribution, working
+through the derivation of the Chernoff bound.
+
+Let $X_1, X_2, \dots$ be i.i.d.\ with $X_i \sim \text{Exp}(\lambda)$ for rate parameter
+$\lambda > 0$, so that the density is $f(x) = \lambda e^{-\lambda x}$ for $x \ge 0$ and
+$f(x) = 0$ for $x < 0$. We have that $\E[X_1] = \frac{1}{\lambda}$.
+
+\subsubsection{Cumulant Generating Function}
+For $t < \lambda$, the MGF is finite:
+\begin{align}
+  \E[e^{tX_1}] = \int_{0}^{\infty} e^{tx} \lambda e^{-\lambda x} \, dx
+  = \lambda \int_{0}^{\infty} e^{-(\lambda - t)x} \, dx
+  = \frac{\lambda}{\lambda - t}
+\end{align}
+For $t \ge \lambda$, the integral diverges. Therefore the CGF is
+\begin{equation}
+  \Lambda(t) =
+  \begin{cases}
+    \log \lambda - \log(\lambda - t) & \text{if } t < \lambda \\
+    \infty & \text{if } t \ge \lambda
+  \end{cases}
+\end{equation}
+Note that unlike the assumptions we've made for the formal proof in
+\cref{subsec:assumptions}, the exponential distribution's MGF is not finite everywhere.
+
+\subsubsection{The Rate Function}
+We compute $I(a) = \sup_{t \in \R} \{ ta - \Lambda(t) \}$ for $a \ge \E[X_1] = \frac{1}{\lambda}$.
+
+As $\Lambda(t) = \infty$ for $t \ge \lambda$, we search for the supremum for
+$t \in (-\infty, \lambda)$ where $\Lambda$ is smooth and strictly convex.
+Letting $g(t) = ta - \log \lambda + \log(\lambda - t)$:
+\begin{equation}
+  g'(t) = 0 \implies a - \frac{1}{\lambda - t} = 0 \implies t^\star = \lambda - \frac{1}{a}
+\end{equation}
+
+We verify that $t^\star$ is in the domain $[0, \lambda)$: $a \ge \frac{1}{\lambda} \implies \frac{1}{a} \le \lambda$, so $t^\star \ge 0$. Likewise, $a > 0 \implies \frac{1}{a} > 0$, so $t^\star < \lambda$.
+
+Then, evaluating the rate function at $t^\star$:
+\begin{align}
+  I(a) &= t^\star a - \Lambda(t^\star)
+  = \left( \lambda - \frac{1}{a} \right) a - \log \lambda + \log\left( \frac{1}{a} \right)
+  = \lambda a - 1 - \log(\lambda a)
+\end{align}
+
+\subsubsection{Applying the Cram{\'e}r Upper Bound}
+
+\begin{theorem}[Exponential Upper Bound]
+  \label[theorem]{thm:exp_upper}
+  Let $X_1, X_2, \dots \sim \text{Exp}(\lambda)$ be i.i.d. For any $a \ge \frac{1}{\lambda}$:
+  \begin{equation}
+    \limsup_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \le - (\lambda a - 1 - \log(\lambda a))
+  \end{equation}
+\end{theorem}
+
+At $a = \E[X_1] = \frac{1}{\lambda}$, the rate function evaluates to
+$I(\frac{1}{\lambda}) = 1 - 1 - \log(1) = 0$, which is consistent with the fact that the mean is not a rare event. As $a$ increases, $I(a)$ becomes positive, demonstrating the exponential decay of the tail.
+
+\addtocontents{toc}{\protect\setcounter{tocdepth}{3}}
+\newpage
+\subsection{Formalized Results}
+\label{subsec:upper-formal}
+
+We present the formalized steps for the upper bound of Cram{\'e}r's theorem, giving a brief
+mathematical description of each statement, and omitting the proofs, which are listed in full in \Cref{subsection:lean-listing-upperbound}.
+
+In order to state a more general formal result that can account for outcomes of probability measure
+0, we state the bounds in the extended real numbers
+$\overline{\R} = \R \cup \{-\infty, + \infty\}$. In Mathlib, this is represented as creating a new
+type that wraps the reals twice; it is either the bottom value $\bot$, the top value $\top$, or a value from $\R$:
+\begin{lstlisting}[caption={Mathlib/Data/EReal/Basic.lean}]
+/-- The type of extended real numbers `[-∞, ∞]`, constructed as `WithBot (WithTop ℝ)`. -/
+def EReal := WithBot (WithTop ℝ)
+deriving Nontrivial, Zero, One, AddMonoid, AddCommMonoid, AddCommMonoidWithOne, CharZero, ...
+\end{lstlisting}
+\begin{lstlisting}[caption={Mathlib/Order/TypeTags.lean}]
+/-- Attach `⊥` to a type. -/
+@[to_dual /-- Attach `⊤` to a type. -/]
+def WithBot (α : Type*) := Option α
+\end{lstlisting}
+Using the extended reals \leancode{EReal} enables us to use the function \leancode{ENNReal.log}
+which is the natural logarithm that maps $[0, \infty] \to [-\infty, \infty]$ and avoid
+\leancode{Real.log} which is defined so that $\log(0) = 0$ and $\log(-x) = \log(x)$. Therefore,
+we are able to correctly express the log-scaled probability $\frac{1}{n} \log\P(\{\omega \mid \overline{X}_n(\omega) \ge a\})$.
+
+At a high level, the formalization follows the mathematical proof but requires some technical
+lemmas to map expressions on $\R$ to expressions on the extended reals $\overline{\R}$.
+Unlike set-theoretic foundations, where we'd consider $\R$ as a simple subset of $\overline{\R}$,
+these are fundamentally distinct types in Lean's type-theoretic foundations.
+
+\begin{lemma}[Infimum Coercion to Extended Reals]
+  \label[lemma]{lmm:inf_coe_ereal}
+  Let $S \subseteq \R$ be a nonempty set bounded below. Let $S_\infty = \{x_\infty \mid x \in S \}$ where $x_\infty$ is $x$ coerced to the extended reals $\overline{\R}$, corresponding to the Lean coercion
+  from \leancode{Real} to \leancode{EReal}. Then $\inf S_\infty = (\inf S)_\infty$.
+\end{lemma}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/UpperBound.lean}]
+private lemma ereal_sInf_coe_eq_coe_sInf {s : Set ℝ} (hne : s.Nonempty) (hbdd : BddBelow s) :
+    sInf ((fun (x : ℝ) => (x : EReal)) '' s) = ↑(sInf s)
+\end{lstlisting}
+
+\begin{lemma}[Infimum of Negations in Extended Reals]
+  Let $S \subseteq \R$ be a nonempty bounded-above set. Then,
+  \begin{equation}
+    \inf \{-x_\infty \mid x \in S\} = -(\sup S)_\infty
+  \end{equation}
+  In the formalization, $S$ is expressed as the range of an indexed function $f : \iota \to \R$ over a type $\iota$.
+\end{lemma}
+\begin{lstlisting}
+private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
+    (hne : (Set.range f).Nonempty) (hbdd : BddAbove (Set.range f)) :
+    sInf (Set.range fun i => (-(f i) : EReal)) = -((sSup (Set.range f) : ℝ) : EReal)
+\end{lstlisting}
+\begin{lemma}[Chernoff Bound for Empirical Mean]
+  \label[lemma]{lmm:chernoff_bound}
+  For $t \ge 0$,
+  \begin{equation}
+    \P(\overline{X}_n \ge a) \le e^{-n(ta - \Lambda_{X_0}(t))}
+  \end{equation}
+\end{lemma}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/UpperBound.lean}]
+lemma prob_mean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
+  (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
+    ≤ Real.exp ( - (n : ℝ) * (t * a - cgf (X 0) ℙ t))
+\end{lstlisting}
+\newpage
+\begin{theorem}[Cram{\'e}r's Theorem Upper Bound]
+  \label[theorem]{thm:cramer_upper_formal}
+  For any $a \ge \E[X_1]$,
+  \begin{equation}
+    \limsup_{n\to\infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \le -I(a)
+  \end{equation}
+\end{theorem}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/UpperBound.lean}]
+theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    limsup (fun n : ℕ =>
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}))
+        atTop ≤ (- I X a : EReal)
+\end{lstlisting}
+\newpage
+\section{The Lower Bound (Exponential Tilting)}
+\label{sec:lower-bound}
+
+The upper bound was obtained through a direct application of Markov's inequality.
+The lower bound is substantially more involved: rather than bounding a probability from above, we must show that a rare event of decaying probability preserves enough mass asymptotically.
+We approach this with a change of measure: we transform our probability to an
+\emph{exponentially tilted} measure that turns the rare tail event of decaying probability into a typical one that asymptotically preserves its mass~\cite{dembo1998large}.
+
+The tilted measure $\Q_{n,t}$ is defined via the Radon-Nikodym derivative
+$\frac{\text{d}\Q_{n,t}}{\text{d}\P} = e^{tS_n - n\Lambda(t)}$, which is strictly positive
+everywhere (as $M_X(t) < \infty$ by assumption \leancode{h\_mgf}).
+Therefore $\Q_{n,t}$ and $\P$ are mutually absolutely continuous, and the change of measure $\text{d}\P = e^{-n(t\overline{X}_n - \Lambda(t))}\,\text{d}\Q_{n,t}$ used in the lower bound proof is valid per the Radon-Nikodym theorem.
+
+\subsection{Motivation}
+\label{subsection:motivation}
+Rearranging the Radon-Nikodym derivative of the tilted measure from \cref{def:tilted_measure},
+we get
+\begin{equation}
+  \frac{\text{d}\Q_{n,t}}{\text{d}\P} = e^{t S_n - n \Lambda(t)} = e^{t n \overline{X}_n - n \Lambda(t)} \implies \text{d}\P = e^{-n(t\overline{X}_n - \Lambda(t))}\text{d}\Q_{n,t}
+\end{equation}
+which matches almost exactly the upper Chernoff bound
+$\P(\overline{X}_n \ge a) \le e^{-n(ta - \Lambda(t))}$, except that
+$\overline{X}_n$ is replaced by $a$.
+
+Intuitively, if we could demonstrate that $\overline{X}_n$ heavily centers around $a$ under $\Q_{n,t}$ as $n\to\infty$, and that the tilted measure of the overall event
+$\Q_{n,t}(\overline{X}_n \ge a)$ approaches some constant $c \in (0,1)$, the exponential
+term would dominate and we could approximate, for large $n$,
+\begin{equation}
+  \frac{1}{n} \log \P(\overline{X}_n \ge a)
+  = \frac{1}{n} \log \int_{\overline{X}_n \ge a}e^{-n(t\overline{X}_n - \Lambda(t))}\text{d}\Q_{n,t}
+  \approx \frac{1}{n} \log \left(e^{-n(ta - \Lambda(t))} \cdot c\right)
+  \to -(ta  - \Lambda(t))
+\end{equation}
+yielding the same bound as the Chernoff upper bound.
+
+In fact, computing the expectation directly, for $1 \le i \le n$ we get
+\begin{equation}
+  \begin{aligned}
+    \E_{\Q_{n,t}}[X_i] &= \int_\Omega X_i \, \text{d}\Q_{n,t} = \int_\Omega X_i e^{t S_n - n \Lambda(t)} \, \text{d}\P \\
+    &= \frac{1}{M_X(t)^n} \E_\P[X_i e^{t S_n}] = \frac{1}{M_X(t)^n} \E_\P\left[X_i e^{t X_i} \prod_{\substack{j=1 \\ j \ne i}}^{n} e^{t X_j}\right] \\
+    &= \frac{1}{M_X(t)^n} \E_\P[X_i e^{t X_i}] \prod_{\substack{j=1 \\ j \ne i}}^{n} \E_\P[e^{t X_j}] = \frac{1}{M_X(t)^n} \E_\P[X_i e^{t X_i}] M_X(t)^{n-1} \\
+    &= \frac{\E_\P[X_i e^{t X_i}]}{M_X(t)} = \frac{M_X'(t)}{M_X(t)} = \frac{d}{dt} \log M_X(t) = \Lambda'(t)
+  \end{aligned}
+\end{equation}
+Then, by linearity of expectation,
+$\E_{\Q_{n,t}}[S_n] = \sum_{i=1}^n\E_{\Q_{n,t}}[X_i] = n\Lambda'(t)$
+and $\E_{\Q_{n,t}}[\overline{X}_n] = \frac{1}{n}\E_{\Q_{n,t}}[S_n] = \Lambda'(t)$.
+
+By assumption \leancode{h\_exposed}, we can pick a $t$ such that $\Lambda'(t) = a$, yielding
+$\E_{\Q_{n,t}}[\overline{X}_n] = \Lambda'(t) = a$. Then, effectively, the tilted measures all re-center the distributions of $\overline{X}_n$ so that the mean is always at $a$, and so the event $\overline{X}_n \ge a$ is no longer a rare tail event with decaying probability as $n$ grows.
+
+Thus, if we can make a Central Limit Theorem statement for the sample mean $\overline{X}_n$ under
+$\Q_{n,t}$, we could build toward justifying lower-bounding the integrand as $e^{-n(ta - \Lambda(t))}$.
+
+To further motivate the Central Limit Theorem, we can also demonstrate that the variance of the mean
+is finite and decays $\Theta(n^{-1})$. First, the variance of a single $X_i$ under a tilted
+measure is given by
+\begin{equation}
+  \begin{aligned}
+    \Var_{\Q_{n,t}}(X_i) &= \E_{\Q_{n,t}}[X_i^2] - \big(\E_{\Q_{n,t}}[X_i]\big)^2 \\
+    &= \int_\Omega X_i^2 e^{t S_n - n \Lambda(t)} \, \text{d}\P - \big(\Lambda'(t)\big)^2 \\
+    &= \frac{1}{M_X(t)^n} \E_\P\left[X_i^2 e^{t X_i} \prod_{\substack{j=1 \\ j \ne i}}^{n} e^{t X_j}\right] - \left(\frac{M_X'(t)}{M_X(t)}\right)^2 \\
+    &= \frac{\E_\P[X_i^2 e^{t X_i}] M_X(t)^{n-1}}{M_X(t)^n} - \left(\frac{M_X'(t)}{M_X(t)}\right)^2 \\
+    &= \frac{M_X''(t)}{M_X(t)} - \left(\frac{M_X'(t)}{M_X(t)}\right)^2 = \frac{d}{dt} \left( \frac{M_X'(t)}{M_X(t)} \right) = \Lambda''(t).
+  \end{aligned}
+\end{equation}
+
+Because we have not yet proven that the $X_i$ remain independent under $\Q_{n,t}$, to determine the
+variance of the partial sum $S_n$ we instead compute directly:
+\begin{equation}
+  \begin{aligned}
+    \Var_{\Q_{n,t}}(S_n) &= \E_{\Q_{n,t}}[S_n^2] - \big(\E_{\Q_{n,t}}[S_n]\big)^2 \\
+    &= \int_\Omega S_n^2 \frac{e^{t S_n}}{M_{S_n}(t)} \, \text{d}\P - \big(\Lambda_{S_n}'(t)\big)^2 \\
+    &= \frac{1}{M_{S_n}(t)} \E_\P[S_n^2 e^{t S_n}] - \left( \frac{M_{S_n}'(t)}{M_{S_n}(t)} \right)^2\\
+    &= \frac{M_{S_n}''(t)}{M_{S_n}(t)} - \left( \frac{M_{S_n}'(t)}{M_{S_n}(t)} \right)^2
+    = \frac{d}{dt} \left( \frac{M_{S_n}'(t)}{M_{S_n}(t)} \right) \\
+    &= \frac{d^2}{dt^2}\Lambda_{S_n}(t) = \frac{d^2}{dt^2} \left(n\Lambda(t)\right) \\
+    &= n\Lambda''(t)
+  \end{aligned}
+\end{equation}
+
+Therefore, the variance of the empirical mean is $\Var_{\Q_{n,t}}(\overline{X}_n) = \Var_{\Q_{n,t}}\left(\frac{S_n}{n}\right) = \frac{1}{n^2}\Var_{\Q_{n,t}}(S_n)= \frac{\Lambda''(t)}{n}$.
+
+\subsection{Central Limit Theorem on $\Q_{n,t}$}
+\label{subsec:clt-tilted}
+
+Before delving into the proof for the lower bound, we'll first demonstrate that the
+partial sums $S_n$, under their respective measures $\Q_{n,t}$, indeed satisfy a statement of the
+CLT.
+
+Define
+\begin{equation}
+  Y_i := \frac{X_i - \E_{\Q_{n,t}}[X_i]}{\sqrt{\Var_{\Q_{n,t}}(X_i)}} = \frac{X_i - \Lambda'(t)}{\sqrt{\Lambda''(t)}}
+\end{equation}
+
+and let
+
+\begin{equation}
+  Z_n := \frac{S_n - \E_{\Q_{n,t}}[S_n]}{\sqrt{\Var_{\Q_{n,t}}(S_n)}}
+  = \frac{S_n - n\Lambda'(t)}{\sqrt{n\Lambda''(t)}} = \sum_{i=1}^n \frac{X_i - \Lambda'(t)}{\sqrt{n\Lambda''(t)}}
+  = \frac{1}{\sqrt{n}} \sum_{i=1}^n Y_i
+\end{equation}
+
+Note that the $Y_i$ are independent of each other under $\P$ and that each $Y_i$ is independent of $X_j$ for $j \ne i$.
+
+\newpage
+\begin{theorem}[CLT under Tilted Measures]
+  \label{thm:clt_tilted}
+  The sequence of random variables $Z_n$ under $\Q_{n,t}$ satisfies a Central Limit Theorem. That is, the distributions of $Z_n$ under $\Q_{n,t}$ converge to $\mathcal{N}(0, 1)$ as
+  $n\to\infty$.
+\end{theorem}
+
+\begin{proof}
+  First, for $1 \le i \le n$, the characteristic function of $Y_i$ under $\Q_{n,t}$ is given by
+  \begin{equation}
+    \begin{aligned}
+      \varphi_{Y_i,\Q_{n,t}}(\theta) = \E_{\Q_{n,t}}\left[ e^{i \theta Y_i} \right]
+      &= \int_\Omega  e^{i \theta Y_i} \, \text{d}\Q_{n,t}
+      = \int_\Omega  e^{i \theta Y_i} e^{t S_n - n \Lambda(t)} \, \text{d}\P \\
+      &=  e^{-n\Lambda(t)}\int_\Omega  e^{i \theta Y_i} e^{t S_n} \, \text{d}\P
+      =  e^{-n\Lambda(t)}\int_\Omega  e^{i \theta Y_i + tX_i} e^{t (S_n - X_i)} \, \text{d}\P\\
+      &= e^{-n\Lambda(t)} \E_\P[ e^{i \theta Y_i + tX_i}]~ \E_\P[e^{t (S_n - X_i)}] \\
+      &= e^{-n\Lambda(t)} \E_\P[ e^{i \theta Y_i + tX_i}]~ \E_\P\left[\prod_{\substack{j=1 \\ j \ne i}}^n e^{tX_j}\right] \\
+      &= e^{-n\Lambda(t)} \E_\P[ e^{i \theta Y_i + tX_i}]~ \E_\P[e^{t X_0}]^{n-1} \\
+      &= e^{-n\Lambda(t)} \E_\P[ e^{i \theta Y_i + tX_i}]~ e^{(n-1)\Lambda(t)} \\
+      &= \boxed{e^{-\Lambda(t)} \E_\P[ e^{i \theta Y_i + tX_i}]}
+    \end{aligned}
+  \end{equation}
+
+  The characteristic function of $Z_n$ under $\Q_{n,t}$ is then:
+
+  \begin{equation}
+    \begin{aligned}
+      \varphi_{Z_n,\Q_{n,t}}(\theta) = \E_{\Q_{n,t}}\left[ e^{i \theta Z_n} \right]
+      &= \int_\Omega  e^{i \theta Z_n} \, \text{d}\Q_{n,t}
+      = \int_\Omega  e^{i \theta Z_n} e^{t S_n - n \Lambda(t)} \, \text{d}\P \\
+      &= e^{-n\Lambda(t)}\int_\Omega  e^{i \theta \sum_{i=1}^n \frac{Y_i}{\sqrt{n}}} e^{t \sum_{i=1}^n X_i} \, \text{d}\P \\
+      &=e^{-n\Lambda(t)}\int_\Omega \prod_{j=1}^n  e^{ \frac{\theta}{\sqrt{n}} iY_j + t X_j} \, \text{d}\P \\
+      &=e^{-n\Lambda(t)} \E_\P \left[\prod_{j=1}^n e^{ \frac{\theta}{\sqrt{n}} iY_j + t X_j} \right]\\
+      &=e^{-n\Lambda(t)} \prod_{j=1}^n \E_\P\left[ e^{ \frac{\theta}{\sqrt{n}} iY_j + t X_j} \right]\\
+      &=e^{-n\Lambda(t)} \E_\P \left[e^{ \frac{\theta}{\sqrt{n}} iY_1 + t X_1} \right]^n\\
+      &=\left(e^{-\Lambda(t)} \E_\P \left[e^{\left(i\frac{\theta}{\sqrt{n}}\right) Y_1 + t X_1} \right]\right)^n\\
+      &=\boxed{\left(\varphi_{Y_1,\Q_{n,t}}\left(\frac{\theta}{\sqrt{n}}\right)\right)^n}
+    \end{aligned}
+  \end{equation}
+
+  The remainder of the proof follows the same format as the proof of the classical CLT.
+
+  By Taylor's theorem,
+
+  \begin{equation}
+    \begin{aligned}
+      \varphi_{Y_1,\Q_{n,t}}\left(\frac{\theta}{\sqrt{n}}\right) &=
+      \E_{\Q_{n,t}}\left[ 1 + \frac{i\theta Y_1}{\sqrt{n}} - \frac{\theta^2 Y_1^2}{2n} + \sum_{j=3}^\infty \frac{(i\theta Y_1)^j}{j!\, n^{j/2}} \right] \\
+      &= 1 + \frac{i\theta\, \E_{\Q_{n,t}}[Y_1]}{\sqrt{n}} - \frac{\theta^2\, \E_{\Q_{n,t}}[Y_1^2]}{2n} + \E_{\Q_{n,t}}\left[\sum_{j=3}^\infty \frac{(i\theta Y_1)^j}{j!\, n^{j/2}}\right] \\
+      &= 1 + \frac{i\theta \cdot 0}{\sqrt{n}} - \frac{\theta^2 \cdot 1}{2n} + o\left(\frac{\theta^2}{n}\right) \\
+      &= 1 - \frac{\theta^2}{2n} + o\left(\frac{\theta^2}{n}\right) \\
+    \end{aligned}
+  \end{equation}
+  and so
+  \begin{equation}
+    \varphi_{Z_n,\Q_{n,t}}(\theta) = \left(\varphi_{Y_1,\Q_{n,t}}\left(\frac{\theta}{\sqrt{n}}\right)\right)^n
+    = \left( 1 - \frac{\theta^2}{2n}  + o\left(\frac{\theta^2}{n}\right) \right)^n \to \boxed{e^{-\theta^2/2}} \qquad \text{as } n \to \infty
+  \end{equation}
+
+  \textbf{L{\'e}vy's Continuity Theorem} states that if a sequence of random variables $Z_n$, not necessarily on the same probability space, has characteristic functions $\varphi_n(\theta)$ that converge pointwise to a function $\varphi(\theta)$ that is itself the characteristic function of some random variable $Z$, then $Z_n \xrightarrow{\mathcal{D}} Z$~\cite{billingsley1995}.
+
+  Therefore, $Z_n$ converges to a random variable $Z$ with characteristic function $e^{-\theta^2/2}$. As this is the characteristic function of the standard normal, we have
+  $Z \sim \mathcal{N}(0, 1)$.
+\end{proof}
+
+\begin{corollary}[$\textcolor{blue}{\texttt{eventually\_}\mathbb{Q}_{n,t}\texttt{\_empiricalMean\_mem\_Icc\_ge}}$]
+  \label[corollary]{cor:clt_tilted_interval}
+  For any target $a \in \R$ and tilting parameter $t \in \R$ such that $\Lambda'(t) = a$, and for any interval width $\delta > 0$ and $\varepsilon > 0$, there exists an integer $N$ such that for all $n \ge N$:
+  \begin{equation}
+    \Q_{n,t}\left( \overline{X}_n \in [a, a + \delta] \right) \ge \frac{1}{2} - \varepsilon
+  \end{equation}
+\end{corollary}
+
+\begin{proof}
+  From the definition of $Z_n$, we can write:
+  \begin{equation}
+    Z_n = \frac{S_n - n\Lambda'(t)}{\sqrt{n\Lambda''(t)}} = \frac{n\overline{X}_n - n\Lambda'(t)}{\sqrt{n\Lambda''(t)}} = \frac{\sqrt{n}(\overline{X}_n - \Lambda'(t))}{\sqrt{\Lambda''(t)}}
+  \end{equation}
+
+  As $\Lambda'(t) = a$, the event $\overline{X}_n \in [a, a + \delta]$ is equivalent to:
+  \begin{equation}
+    a \le \overline{X}_n \le a + \delta \iff 0 \le \overline{X}_n - \Lambda'(t) \le \delta \iff 0 \le \frac{\sqrt{n}(\overline{X}_n - \Lambda'(t))}{\sqrt{\Lambda''(t)}} \le \frac{\delta\sqrt{n}}{\sqrt{\Lambda''(t)}} \iff 0 \le Z_n \le \delta \sqrt{n / \Lambda''(t)}
+  \end{equation}
+
+  By \cref{thm:clt_tilted}, we have that $Z_n \xrightarrow{\mathcal{D}} \mathcal{N}(0, 1)$. Therefore, for any sequence $b_n \to \infty$, we have:
+  \begin{equation}
+    \lim_{n\to\infty} \Q_{n,t}(0 \le Z_n \le b_n) = \frac{1}{2}
+  \end{equation}
+
+  Because $\Lambda''(t) > 0$ and $\delta > 0$, the upper bound $b_n = \delta \sqrt{n / \Lambda''(t)} \to \infty$ as $n \to \infty$. So, the probability of the event converges to $1/2$:
+  \begin{equation}
+    \lim_{n\to\infty} \Q_{n,t} \left(0 \le Z_n \le \delta \sqrt{n / \Lambda''(t)} \right)
+    = \lim_{n\to\infty} \Q_{n,t}\left( \overline{X}_n \in [a, a + \delta] \right) = \frac{1}{2}
+  \end{equation}
+
+  Therefore, by definition of the limit,
+  $\forall \varepsilon > 0, \exists N$ such that $\forall n \ge N$:
+  \begin{equation}
+    \Q_{n,t}\left( \overline{X}_n \in [a, a + \delta] \right) \ge \frac{1}{2} - \varepsilon
+  \end{equation}
+\end{proof}
+
+\subsection{Lower Bound}
+
+\begin{theorem}[Cram{\'e}r's Theorem Lower Bound]
+  \label[theorem]{thm:cramer_lower}
+  For any $a \ge \E[X_1]$, the sequence of empirical means satisfies the large deviation lower bound:
+  \begin{equation}
+    \liminf_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge -I(a)
+  \end{equation}
+\end{theorem}
+
+\begin{proof}
+  As shown above, we have that
+  \begin{equation}
+    \E_{\Q_{n,t}}[\overline{X}_n] = \Lambda'(t) = a
+  \end{equation}
+  \begin{equation}
+    \Var_{\Q_{n,t}}(\overline{X}_n) = \frac{1}{n}\Lambda''(t)
+  \end{equation}
+
+  To bound $\P(\overline{X}_n \ge a)$ from below, we restrict the event to a smaller range $[a, a+\delta]$ for some arbitrary $\delta > 0$. Let $E_n = \{ \overline{X}_n \in [a, a+\delta] \}$. Clearly, $\P(\overline{X}_n \ge a) \ge \P(E_n)$. Then, by the definition of the Radon-Nikodym derivative
+  $\frac{d\Q_{n,t}}{d\P}$,
+
+  \begin{equation}
+    \P(\overline{X}_n \ge a) \ge \P(E_n) = \int_{E_n} e^{-t S_n + n\Lambda(t)} \, d\Q_{n,t}
+  \end{equation}
+  For $\omega \in E_n$, we have $\overline{X}_n(\omega) \le a + \delta \implies S_n \le n(a+\delta)$.
+  By \Cref{lmm:rate_function_nonneg_param}, the optimal $t$ for which the rate function achieves its supremum is non-negative. As such, we are interested in $t\ge 0$, and multiplying by $-t$
+  reverses the inequality, yielding $-t S_n \ge -tn(a+\delta)$. Substituting:
+  \begin{equation}
+    \begin{aligned}
+      \P(E_n) &= \int_{E_n} e^{-t S_n + n\Lambda(t)} \, d\Q_{n,t}\\
+      &\ge \int_{E_n} e^{-tn(a+\delta) + n\Lambda(t)} \, d\Q_{n,t}\\
+      &= e^{-n(t(a+\delta) - \Lambda(t))} \Q_{n,t}(E_n)\\
+    \end{aligned}
+  \end{equation}
+  Taking the logarithm,
+  \begin{equation}
+    \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge \frac{1}{n} \log \P(E_n) \ge -(ta - \Lambda(t)) - t\delta + \frac{1}{n} \log \Q_{n,t}(E_n)
+  \end{equation}
+  so it suffices to bound $\Q_{n,t}(E_n)$ from below.
+
+  By \Cref{cor:clt_tilted_interval}, we can pick any $\varepsilon > 0$ such that $\exists N \in \N$ for which
+  $n \ge N$ satisfies
+  \begin{equation}
+    \Q_{n,t}(E_n) = \Q_{n,t}\left(\overline{X}_n \in [a, a+\delta]\right) \ge \frac{1}{2} - \varepsilon
+  \end{equation}
+
+  Because $\Q_{n,t}(E_n) \ge \frac{1}{2} - \varepsilon > 0$ for sufficiently large $n$, the error term $\frac{1}{n} \log \Q_{n,t}(E_n)$ is bounded between $\frac{1}{n} \log \left(\frac{1}{2}-\varepsilon\right)$ and $0$ (since $\Q_{n,t}(E_n) \le 1$). The key insight is that $\frac{1}{n} \log c \to 0$ for any constant $c > 0$: the CLT guarantees that $\Q_{n,t}(E_n)$ is bounded away from zero, so its logarithm is a constant that vanishes by the $1/n$ scaling.
+
+  Taking the limit inferior of both sides, we then obtain:
+  \begin{equation}
+    \liminf_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge -(ta - \Lambda(t)) - t\delta
+  \end{equation}
+  As the choice of $\delta > 0$ was arbitrary, we can take the limit as $\delta \downarrow 0$:
+  \begin{equation}
+    \liminf_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge -(ta - \Lambda(t))
+  \end{equation}
+
+  Finally, recall the definition of the rate function $I(a) = \sup_{s \in \R} (sa - \Lambda(s))$.
+  By assumption \leancode{h\_exposed}, there exists $s = t$ with $\Lambda'(t) = a$, so $g(s) := sa - \Lambda(s)$ has a critical point at $s = t$:
+  $g'(t) = a - \Lambda'(t) = 0$.
+  As $\Lambda''(s) > 0$ everywhere by assumption \leancode{h\_non\_deg}, $\Lambda$ is strictly convex on $\R$, hence $g$ is strictly concave.
+  Any critical point of a concave function is a global maximum, and strict concavity guarantees uniqueness, so the supremum is attained at $s = t$:
+  $I(a) = ta - \Lambda(t)$. Substituting gives the desired bound:
+  \begin{equation}
+    \liminf_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge -I(a)
+  \end{equation}
+\end{proof}
+
+\subsection{Worked Example: Exponential Distribution (Lower Bound)}
+\label{subsec:worked-example-lbd}
+
+We return to the exponential distribution from \Cref{subsec:worked-example} to illustrate the lower bound on a concrete example.
+Recall that $X_i \sim \text{Exp}(\lambda)$ with $\E[X_1] = 1/\lambda$, $\Lambda(t) = \log \lambda - \log(\lambda - t)$ for $t < \lambda$, and the optimal tilting parameter is
+$t^\star = \lambda - \frac{1}{a}$ for $a \ge 1/\lambda$.
+
+\paragraph{The tilted distribution.}
+Under the tilted measure $\Q_{n,t^\star}$, each $X_i$ has density proportional to
+\begin{equation}
+  e^{t^\star x} \cdot \lambda e^{-\lambda x} = \lambda \, e^{-(\lambda - t^\star)x} = \lambda \, e^{-x/a}
+\end{equation}
+Normalizing yields the density $\frac{1}{a} e^{-\frac{x}{a}}$,
+which has distribution $\text{Exp}(1/a)$, the exponential distribution of mean $a$.
+Perhaps unsurprisingly, the exponential distribution is \emph{closed} under exponential tilting ---
+the tilted exponential distribution is still exponential.
+
+\paragraph{Shifted mean and variance.}
+Under $\Q_{n,t^\star}$, the mean of each $X_i$ is $\E_{\Q_{n,t^\star}}[X_i] = a$. Thus, the tilted
+measure has transformed the rare event $\{\overline{X}_n \ge a\}$ under $\P$ to a typical one,
+centered at the mean.
+
+The variance is $\frac{1}{1/a^2} = a^2$, so the CLT under $\Q_{n,t^\star}$ gives $\sqrt{n}(\overline{X}_n - a) \xrightarrow{d} \mathcal{N}(0, a^2)$.
+In particular, $\Q_{n,t^\star}(\overline{X}_n \in [a, a + \delta]) \to \frac{1}{2}$
+for any fixed $\delta > 0$.
+
+\paragraph{The lower bound.}
+Following the proof of the lower bound and applying the change-of-measure inequality, we obtain
+\begin{align}
+  \frac{1}{n} \log \P(\overline{X}_n \ge a)
+  &\ge -\bigl(t^\star a - \Lambda(t^\star)\bigr) - t^\star \delta + \frac{1}{n} \log \Q_{n,t^\star}(E_n)
+\end{align}
+where $E_n = \{\overline{X}_n \in [a, a+\delta]\}$. Substituting $t^\star = \lambda - 1/a$ and $\Lambda(t^\star) = \log(\lambda a)$:
+\begin{equation}
+  t^\star a - \Lambda(t^\star) = (\lambda - 1/a) \cdot a - \log(\lambda a) = \lambda a - 1 - \log(\lambda a) = I(a)
+\end{equation}
+As $n \to \infty$, the error term $(1/n)\log \Q_{n,t^\star}(E_n) \to 0$ by the CLT argument. Taking $\delta \downarrow 0$:
+\begin{equation}
+  \liminf_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge -I(a) = -(\lambda a - 1 - \log(\lambda a))
+\end{equation}
+
+\paragraph{Matching bounds.}
+Combining with the upper bound from \Cref{thm:exp_upper}, the two inequalities are tight:
+\begin{equation}
+  \lim_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a)
+  = -(\lambda a - 1 - \log(\lambda a))
+  = -I(a)
+\end{equation}
+which confirms the Large Deviation Principle for the exponential distribution with rate function $I(a)$.
+
+\newpage
+\subsection{Formalized Results}
+\label{subsec:lower-formal}
+
+As before, we list the formalized statements that make up the proof, giving a brief mathematical
+description of each statement and omitting the proofs, which are listed in full in
+\Cref{subsection:lean-listing-tiltedclt} and \Cref{subsection:lean-listing-lowerbound}.
+
+The lower bound is substantially more involved than the upper bound, and requires a greater number of intermediate lemmas, so we separate the formalization across two files:
+\texttt{TiltedCLT.lean} formalizes a CLT statement for the sample mean under the sequence of exponentially tilted measures $\Q_{n,t}$ and establishes
+\Cref{cor:eventually_ℚₙₜ_empiricalMean}.
+\texttt{LowerBound.lean} then uses the corollary through a change-of-measure argument on the sample
+mean to derive the lower bound.
+
+\subsubsection{Central Limit Theorem on Tilted Measures}
+\label{subsubsec:tiltedclt-formal}
+
+We first present the formal statements from \texttt{TiltedCLT.lean}. At a high level, the approach
+here is similar to the informal proof of \Cref{thm:clt_tilted}: We introduce standardized random
+variables $Y_i$ and partial sums $Z_n$, identify their characteristic functions, and derive a
+convergence result to the standard normal using L{\'e}vy's Continuity Theorem. However, the formal
+proof takes a slightly different approach of proving that $X_i$ are independent and identically
+distributed under $\Q_{n,t}$, unlike \Cref{thm:clt_tilted}, which derived the expressions for the
+characteristic functions directly.
+
+\paragraph{Definitions.}
+
+\begin{definition}[Tilted Marginal Law]
+  \label[definition]{def:tilted_marginal_law}
+  The law of $X_0$ under $\P$, pushed forward and tilted by $t \cdot x$.
+\end{definition}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/TiltedCLT.lean}]
+noncomputable def μₜ (X : ℕ → Ω → ℝ) (t : ℝ) : Measure ℝ :=
+  ((ℙ : Measure Ω).map (X 0)).tilted (fun x => t * x)
+\end{lstlisting}
+
+\begin{definition}[Standardized Tilted Marginal Law]
+  \label[definition]{def:std_tilted_marginal_law}
+  The pushforward of $\mu_t$ along the transformation $x \mapsto (x - \Lambda'(t)) / \sqrt{\Lambda''(t)}$, i.e., $\mu_t$ centered at $\Lambda'(t)$ and rescaled by $\sqrt{\Lambda''(t)}$.
+\end{definition}
+\begin{lstlisting}
+noncomputable def νₜ (X : ℕ → Ω → ℝ) (t : ℝ) : Measure ℝ :=
+  (μₜ X t).map
+    (fun x => (x - deriv (cgf (X 0) ℙ) t) / Real.sqrt (iteratedDeriv 2 (cgf (X 0) ℙ) t))
+\end{lstlisting}
+
+\begin{definition}[Standardized Partial Sum]
+  \label[definition]{def:Z}
+  The standardized partial sum $Z_n := (S_n - n\Lambda'(t)) / \sqrt{n\Lambda''(t)}$, to which we will apply L{\'e}vy's Continuity Theorem.
+\end{definition}
+\begin{lstlisting}
+noncomputable def Z (X : ℕ → Ω → ℝ) (t : ℝ) (n : ℕ) : Ω → ℝ := fun ω =>
+  (partialSum X n ω - n * deriv (cgf (X 0) ℙ) t)
+    / Real.sqrt (n * iteratedDeriv 2 (cgf (X 0) ℙ) t)
+\end{lstlisting}
+
+\newpage
+\paragraph{Moments and integrability under $\mu_t$.}
+
+\begin{lemma}[MGF of the Identity under $\mu_t$]
+  $M_{\mathrm{id}, \mu_t}(u) = M_{X_0, \P}(t + u) / M_{X_0, \P}(t)$.
+\end{lemma}
+\begin{lstlisting}
+lemma mgf_id_tiltedLaw (t u : ℝ) :
+    mgf id (μₜ X t) u = mgf (X 0) ℙ (t + u) / mgf (X 0) ℙ t
+\end{lstlisting}
+\begin{lemma}[Interior of the Integrable Exponential Set under the Pushforward]
+  Every $t \in \R$ lies in the interior of the integrable exponential set of the identity under the pushforward law $\P \circ X_0^{-1}$.
+\end{lemma}
+\begin{lstlisting}
+private lemma t_mem_interior_integrableExpSet_id (t : ℝ) :
+    t ∈ interior (integrableExpSet id ((ℙ : Measure Ω).map (X 0)))
+\end{lstlisting}
+\begin{lemma}[CGF under the Pushforward Equals CGF under $\P$]
+  The CGF of the identity under the pushforward $\P \circ X_0^{-1}$ equals the CGF of $X_0$ under $\P$.
+\end{lemma}
+\begin{lstlisting}
+private lemma cgf_id_map_eq :
+    cgf id ((ℙ : Measure Ω).map (X 0)) = cgf (X 0) ℙ
+\end{lstlisting}
+\begin{lemma}[Multiplication with Identity]
+  $x \mapsto t \cdot x$ is $t \cdot \mathrm{id}$ as a function $\R \to \R$.
+\end{lemma}
+\begin{lstlisting}
+private lemma t_mul_eq_mul_id (t : ℝ) : (fun x : ℝ => t * x) = (t * id ·)
+\end{lstlisting}
+\begin{lemma}[Expectation of the Identity under $\mu_t$]
+  $\E_{\mu_t}[\mathrm{id}] = \Lambda'(t)$.
+\end{lemma}
+\begin{lstlisting}
+lemma integral_id_tiltedLaw (t : ℝ) :
+    ∫ x, x ∂(μₜ X t) = deriv (cgf (X 0) ℙ) t
+\end{lstlisting}
+\begin{lemma}[Variance of the Identity under $\mu_t$]
+  $\Var_{\mu_t}(\mathrm{id}) = \Lambda''(t)$.
+\end{lemma}
+\begin{lstlisting}
+lemma variance_id_tiltedLaw (t : ℝ) :
+    Var[id; μₜ X t] = iteratedDeriv 2 (cgf (X 0) ℙ) t
+\end{lstlisting}
+\begin{lemma}[$L^2$ Integrability of the Identity under $\mu_t$]
+  $\mathrm{id} \in L^2(\mu_t)$.
+\end{lemma}
+\begin{lstlisting}
+lemma memLp_id_tiltedLaw (t : ℝ) : MemLp (id : ℝ → ℝ) 2 (μₜ X t)
+\end{lstlisting}
+\newpage
+\paragraph{Connecting the empirical mean and standardized variables.}
+
+\begin{lemma}[Event Equivalence]
+  \label[lemma]{lmm:empiricalMean_Z_Icc}
+  For $n \ge 1$ and $\Lambda'(t) = a$, the event $\{\overline{X}_n \in [a, a+\delta]\}$ is exactly the event $\{Z_n \in [0, \delta\sqrt{n / \Lambda''(t)}]\}$.
+\end{lemma}
+\begin{lstlisting}
+lemma empiricalMean_mem_Icc_iff_Z_mem_Icc (t a δ : ℝ) (n : ℕ) (hn : 0 < n)
+    (h_non_deg_t : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (ω : Ω) :
+    empiricalMean X n ω ∈ Set.Icc a (a + δ) ↔
+      Z X t n ω ∈ Set.Icc (0 : ℝ)
+        (δ * Real.sqrt (n / iteratedDeriv 2 (cgf (X 0) ℙ) t))
+\end{lstlisting}
+\begin{lemma}[Second Moment of the Identity under $\nu_t$]
+  $\int x^2 \, d\nu_t = 1$: the standardized tilted marginal has unit second moment.
+\end{lemma}
+\begin{lstlisting}
+lemma integral_sq_id_stdTiltedLaw (t : ℝ) :
+    ∫ x, x ^ 2 ∂(νₜ X t) = 1
+\end{lstlisting}
+\paragraph{Probability-measure instances.}
+
+\begin{lemma}[Tilted Marginal is a Probability Measure]
+  $\mu_t$ is a probability measure.
+\end{lemma}
+\begin{lstlisting}
+lemma isProbabilityMeasure_tiltedLaw (t : ℝ) :
+    IsProbabilityMeasure (μₜ X t)
+\end{lstlisting}
+\begin{lemma}[Standardized Tilted Marginal is a Probability Measure]
+  $\nu_t$ is a probability measure.
+\end{lemma}
+\begin{lstlisting}
+lemma isProbabilityMeasure_stdTiltedLaw (t : ℝ) :
+    IsProbabilityMeasure (νₜ X t)
+\end{lstlisting}
+\begin{lemma}[Mean of the Identity under $\nu_t$]
+  $\E_{\nu_t}[\mathrm{id}] = 0$.
+\end{lemma}
+\begin{lstlisting}
+lemma integral_id_stdTiltedLaw (t : ℝ) :
+    ∫ x, x ∂(νₜ X t) = 0
+\end{lstlisting}
+\begin{lemma}[$L^2$ Integrability of the Identity under $\nu_t$]
+  $\mathrm{id} \in L^2(\nu_t)$.
+\end{lemma}
+\begin{lstlisting}
+lemma memLp_id_stdTiltedLaw (t : ℝ) :
+    MemLp (id : ℝ → ℝ) 2 (νₜ X t)
+\end{lstlisting}
+\newpage
+\paragraph{Factorization of $X_1, \ldots, X_n$ under $\Q_{n,t}$.}
+
+\begin{lemma}[Measurability of $\uparrow e^{t \cdot x}$]
+  $x \mapsto \uparrow e^{t \cdot x}$ is measurable as a function $\R \to [0, \infty]$, where
+  $\uparrow$ denotes the coercion from $\R_{\ge 0}$ to ENNReal.
+\end{lemma}
+\begin{lstlisting}
+private lemma measurable_ennreal_ofReal_exp_t_mul (t : ℝ) :
+    Measurable (fun x : ℝ => ENNReal.ofReal (Real.exp (t * x)))
+\end{lstlisting}
+\begin{lemma}[Factorization of $\uparrow e^{t S_n}$ as a Product]
+  $\uparrow e^{t S_n} = \prod_{j < n} \uparrow e^{t X_j}$.
+\end{lemma}
+\begin{lstlisting}
+private lemma ennreal_ofReal_exp_t_partialSum_eq_prod (t : ℝ) (n : ℕ) (ω : Ω) :
+    ENNReal.ofReal (Real.exp (t * partialSum X n ω)) =
+    ∏ j ∈ Finset.range n, ENNReal.ofReal (Real.exp (t * X j ω))
+\end{lstlisting}
+\begin{lemma}[Measurability of $\uparrow e^{t X_j}$]
+  For each $j$, $\uparrow e^{t X_j}$ is measurable.
+\end{lemma}
+\begin{lstlisting}
+private lemma measurable_ennreal_ofReal_exp_t_mul_X (t : ℝ) (j : ℕ) :
+    Measurable (fun ω => ENNReal.ofReal (Real.exp (t * X j ω)))
+\end{lstlisting}
+\begin{lemma}[Independence of $\uparrow e^{t X_j}$]
+  The family $\{\uparrow e^{t X_j} : j \in \N\}$ is independent under $\P$.
+\end{lemma}
+\begin{lstlisting}
+private lemma iIndepFun_ennreal_ofReal_exp_t_mul_X (t : ℝ) :
+    iIndepFun (fun j ω => ENNReal.ofReal (Real.exp (t * X j ω))) ℙ
+\end{lstlisting}
+\begin{lemma}[Lebesgue Integral of $\uparrow e^{t X_j}$]
+  $\int_0^\infty \uparrow e^{t X_j} \, d\P = \uparrow M_{X_0}(t)$
+\end{lemma}
+\begin{lstlisting}
+private lemma lintegral_ennreal_ofReal_exp_t_mul_X (t : ℝ) (j : ℕ) :
+    ∫⁻ ω, ENNReal.ofReal (Real.exp (t * X j ω)) ∂ℙ
+      = ENNReal.ofReal (mgf (X 0) ℙ t)
+\end{lstlisting}
+\begin{lemma}[MGF Preamble]
+  Both $M_{X_0, \P}(t)$ and $M_{S_n, \P}(t)$ are strictly positive, and
+  $\uparrow M_{S_n, \P}(t) = (\uparrow M_{X_0, \P}(t))^n$.
+\end{lemma}
+\begin{lstlisting}
+private lemma mgf_preamble (n : ℕ) (t : ℝ) :
+    0 < mgf (X 0) ℙ t ∧
+    0 < mgf (partialSum X n) ℙ t ∧
+    ENNReal.ofReal (mgf (partialSum X n) ℙ t) =
+      (ENNReal.ofReal (mgf (X 0) ℙ t)) ^ n
+\end{lstlisting}
+\begin{lemma}[Pushforward of $X_i$ under $\Q_{n,t}$]
+  For $i < n$, the pushforward of $X_i$ under $\Q_{n,t}$ is the tilted marginal law $\mu_t$.
+\end{lemma}
+\begin{lstlisting}
+lemma map_X_ℚₙₜ (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) :
+    (ℚₙₜ X ℙ n t).map (X i) = μₜ X t
+\end{lstlisting}
+\newpage
+\begin{lemma}[Independence of $X_i$ under $\Q_{n,t}$]
+  Under $\Q_{n,t}$, the random variables $\{X_i : i < n\}$ are mutually independent.
+\end{lemma}
+\begin{lstlisting}
+lemma iIndepFun_range_ℚₙₜ (t : ℝ) (n : ℕ) :
+    iIndepFun (fun i : Finset.range n => X i.val) (ℚₙₜ X ℙ n t)
+\end{lstlisting}
+\begin{lemma}[Identical Distribution of $X_i$ under $\Q_{n,t}$]
+  For $i < n$, $X_i$ has the same distribution as $X_0$ under $\Q_{n,t}$.
+\end{lemma}
+\begin{lstlisting}
+lemma identDistrib_X_X0_ℚₙₜ (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) (h0 : 0 < n) :
+    IdentDistrib (X i) (X 0) (ℚₙₜ X ℙ n t) (ℚₙₜ X ℙ n t)
+\end{lstlisting}
+\paragraph{Characteristic functions and L{\'e}vy's continuity theorem.}
+
+\begin{lemma}[Characteristic Function of $Z_n$ under $\Q_{n,t}$]
+  $\varphi_{Z_n, \Q_{n,t}}(s) = \left(\varphi_{\nu_t}\left(\frac{s}{\sqrt{n}}\right)\right)^n$.
+\end{lemma}
+\begin{lstlisting}
+lemma charFun_map_Z_ℚₙₜ (t : ℝ) (n : ℕ) (s : ℝ) :
+    charFun ((ℚₙₜ X ℙ n t).map (Z X t n)) s =
+      (charFun (νₜ X t) ((Real.sqrt n)⁻¹ * s)) ^ n
+\end{lstlisting}
+\begin{lemma}[Pointwise CLT for the Standardized Tilted Characteristic Function]
+  $\left(\varphi_{\nu_t}\left(\frac{s}{\sqrt{n}}\right)\right)^n \to e^{-s^2/2}$ as $n \to \infty$, for every $s \in \R$.
+\end{lemma}
+\begin{lstlisting}
+lemma tendsto_charFun_stdTiltedLaw_pow (t : ℝ) (s : ℝ) :
+    Tendsto (fun n : ℕ => (charFun (νₜ X t) ((Real.sqrt n)⁻¹ * s)) ^ n)
+      atTop (𝓝 (Complex.exp (-s ^ 2 / 2)))
+\end{lstlisting}
+\begin{theorem}[CLT for $Z_n$ under $\Q_{n,t}$]
+  \label[theorem]{thm:clt_Z_tilted_formal}
+  The characteristic function of the pushforward of $Z_n$ under $\Q_{n,t}$ converges pointwise to
+  $e^{-s^2/2}$, so $Z_n$ converges in distribution to the standard normal.
+\end{theorem}
+\begin{lstlisting}
+theorem tendsto_charFun_Z_ℚₙₜ (t : ℝ) (s : ℝ) :
+    Tendsto (fun n : ℕ => charFun ((ℚₙₜ X ℙ n t).map (Z X t n)) s)
+      atTop (𝓝 (Complex.exp (-s ^ 2 / 2)))
+\end{lstlisting}
+\paragraph{Consequence: Concentration of the Empirical Mean.}
+
+\begin{lemma}[Lower Bound on Half-Intervals]
+  For every $M \ge 0$ and $\varepsilon > 0$, eventually
+  $(\Q_{n,t}.\mathrm{map}~Z_n)([0, M]) \ge \mathcal{N}(0,1)([0, M]) - \varepsilon$.
+\end{lemma}
+\begin{lstlisting}
+lemma liminf_ℚₙₜ_Z_Icc_ge (t : ℝ) (M : ℝ) (hM : 0 ≤ M) (ε : ℝ) (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal - ε ≤
+      ((ℚₙₜ X ℙ n t).map (Z X t n) (Set.Icc (0 : ℝ) M)).toReal
+\end{lstlisting}
+\begin{lemma}[Standard Normal Half-Mass at $0$]
+  $\mathcal{N}(0,1)((-\infty, 0]) = 1/2$.
+\end{lemma}
+\begin{lstlisting}
+private lemma gaussianReal_Iic_zero_eq_half :
+    (gaussianReal 0 1) (Set.Iic (0 : ℝ)) = 1 / 2
+\end{lstlisting}
+\begin{lemma}[Standard Normal Probability of Half-Intervals Tends to $1/2$]
+  $\mathcal{N}(0,1)([0, M]) \to 1/2$ as $M \to \infty$.
+\end{lemma}
+\begin{lstlisting}
+lemma tendsto_gaussianReal_Icc_toReal_half :
+    Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
+      atTop (𝓝 (1 / 2))
+\end{lstlisting}
+\newpage
+\begin{corollary}[Lean formalization of \Cref{cor:clt_tilted_interval}]
+  \label[corollary]{cor:eventually_ℚₙₜ_empiricalMean}
+  For any tilting parameter $t \in \R$ with $\Lambda'(t) = a$ and any $\varepsilon, \delta > 0$, there exists $N$ such that for all $n \ge N$, $\Q_{n,t}(\overline{X}_n \in [a, a+\delta]) \ge 1/2 - \varepsilon$.
+\end{corollary}
+\begin{lstlisting}
+lemma eventually_ℚₙₜ_empiricalMean_mem_Icc_ge
+    (t a δ : ℝ) (hδ : 0 < δ) (ε : ℝ) (hε : 0 < ε)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    ∀ᶠ n in atTop,
+      (1 / 2 - ε : ℝ) ≤ ((ℚₙₜ X ℙ n t)
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal
+\end{lstlisting}
+\subsubsection{The Lower Bound}
+\label{subsubsec:lower-bound}
+
+With the tilted-measure CLT (\Cref{cor:eventually_ℚₙₜ_empiricalMean}) established, we now proceed
+with the main result of the lower bound. As before, we list the formal statements from
+\texttt{LowerBound.lean} in source order, giving a brief mathematical description of each.
+
+\begin{lemma}[Exponential Bound on Concentrated Set]
+  For $t \ge 0$, if $\overline{X}_n \in [a, a+\delta]$, then $e^{-t S_n} \ge e^{-tn(a+\delta)}$.
+\end{lemma}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/LowerBound.lean}]
+private lemma exp_neg_mul_S_ge_on_set (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
+    (ω : Ω) (hω : empiricalMean X n ω ∈ Set.Icc a (a + δ)) :
+    Real.exp (-t * partialSum X n ω) ≥ Real.exp (-t * n * (a + δ))
+\end{lstlisting}
+\begin{lemma}[Non-Negativity of $1/n$ in Extended Reals]
+  For every $n \in \N$, the coercion of $1/n$ to $\overline{\R}$ is non-negative.
+\end{lemma}
+\begin{lstlisting}
+private lemma ereal_one_div_nat_nonneg (n : ℕ) : (0 : EReal) ≤ ((1 : ℝ) / n : EReal)
+\end{lstlisting}
+\begin{lemma}[Extended Reals Vanishing Scaled Constant]
+  In $\overline{\R}$, $\lim_{n\to\infty} \frac{c}{n} = 0$.
+\end{lemma}
+\begin{lstlisting}
+lemma ereal_inv_nat_mul_const_tendsto_zero (c : ℝ) :
+    Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * (c : EReal)) atTop (𝓝 0)
+\end{lstlisting}
+\begin{lemma}[Log Product Splitting]
+  $\frac{1}{n}\log(\exp(x)y) = \frac{x}{n} + \frac{1}{n}\log y$ in $\overline{\R}$.
+\end{lemma}
+\begin{lstlisting}
+private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
+    (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
+    ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal (Real.exp x * y.toReal)) =
+    ((1 : ℝ) / n : EReal) * (x : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y
+\end{lstlisting}
+\newpage
+\begin{lemma}[Simplified Logarithmic Expansion]
+  A specific instance of the log-splitting identity used in the lower-bound proof: for $y > 0$ finite and $n \ge 1$, $\frac{1}{n} \log\bigl(\exp(-n(t(a+\delta) - l)) \cdot y\bigr) = -(ta - l) - t\delta + \frac{1}{n} \log y$, applied later with $l = \Lambda(t)$.
+\end{lemma}
+\begin{lstlisting}
+private lemma log_exp_product_eq_neg_coef_plus_log (n : ℕ) (t a δ : ℝ) (l : ℝ)
+    (y : ENNReal) (hn : n ≥ 1) (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
+    ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal
+      (Real.exp (-n * (t * (a + δ) - l)) * y.toReal)) =
+    (-(t * a - l) - t * δ : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y
+\end{lstlisting}
+\begin{lemma}[Constant and Vanishing Sequence Limit]
+  If $f_n \to 0$, then $c + f_n \to c$, evaluated in $\overline{\R}$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
+    (h : Tendsto f atTop (𝓝 0)) : Tendsto (fun n => c + f n) atTop (𝓝 c)
+\end{lstlisting}
+\begin{lemma}[EReal Limit Bound Inequality]
+  If $x - \varepsilon \le y$ for all $\varepsilon > 0$, then $x \le y$ in $\overline{\R}$.
+\end{lemma}
+\begin{lstlisting}
+private lemma EReal.le_of_forall_pos_sub_le {x y : EReal}
+    (h : ∀ ε : ℝ, 0 < ε → x - (ε : EReal) ≤ y) : x ≤ y
+\end{lstlisting}
+\begin{lemma}[Tilted Window Probability Lower Bound]
+  Given $\Lambda'(t) = a$, there exists a constant $c > 0$ such that for sufficiently large $n$, $\Q_{n,t}(\overline{X}_n \in [a, a+\delta]) \ge c$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ : 0 < δ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    ∃ c > 0, ∀ᶠ n in atTop,
+      c ≤ ((ℚₙₜ X ℙ n t)
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal
+\end{lstlisting}
+\begin{lemma}[Measure via Tilted Integral]
+  $\P(E) = \E[\exp(f)] \int_E \exp(-f) d\Q$.
+\end{lemma}
+\begin{lstlisting}
+private lemma measure_eq_integral_exp_neg_tilted (f : Ω → ℝ) (E : Set Ω)
+    (h_int : Integrable (fun ω => Real.exp (f ω)) ℙ)
+    (hE : MeasurableSet E) :
+    (ℙ E).toReal =
+      (𝔼[fun ω => Real.exp (f ω)]) * (∫ ω in E, Real.exp (-f ω) ∂(Measure.tilted ℙ f))
+\end{lstlisting}
+\begin{lemma}[Change of Measure Lower Bound]
+  For $E = \{\overline{X}_n \in [a, a+\delta]\}$ and $t > 0$, $\P(E) \ge e^{-n(t(a+\delta) - \Lambda(t))} \Q_{n,t}(E)$.
+\end{lemma}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/LowerBound.lean}]
+lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
+    (h_int : Integrable (fun ω => Real.exp (t * partialSum X n ω)) ℙ) :
+    let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+    (ℙ E).toReal ≥
+      Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+      ((ℚₙₜ X ℙ n t) E).toReal
+\end{lstlisting}
+\newpage
+\begin{lemma}[Error Term Tends to Zero]
+  Given $\Lambda'(t) = a$, $\frac{1}{n} \log \Q_{n,t}(\overline{X}_n \in [a, a+\delta]) \to 0$.
+\end{lemma}
+\begin{lstlisting}
+private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    Tendsto (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log ((ℚₙₜ X ℙ n t)
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})) atTop (𝓝 0)
+\end{lstlisting}
+\begin{lemma}[Liminf Bound via Tilting]
+  For $\delta, t > 0$ with $\Lambda'(t) = a$, $\liminf_{n\to\infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge -(ta - \Lambda(t)) - t\delta$.
+\end{lemma}
+\begin{lstlisting}
+private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    liminf (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+    ≥ (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal)
+\end{lstlisting}
+\begin{lemma}[Tilting Parameter is Non-Negative]
+  For $a \ge \E[X]$, if $\Lambda'(t) = a$, then $t \ge 0$.
+\end{lemma}
+\begin{lstlisting}
+private lemma deriv_cgf_nonneg_of_ge_mean (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) (t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    0 ≤ t
+\end{lstlisting}
+\begin{lemma}[Global Analyticity of the CGF]
+  The CGF $\Lambda$ is analytic on all of $\R$.
+\end{lemma}
+\begin{lstlisting}
+private lemma analyticOn_cgf_univ : AnalyticOn ℝ (cgf (X 0) ℙ) Set.univ
+\end{lstlisting}
+\begin{lemma}[Legendre Transform Maximum]
+  Given $\Lambda'(t) = a$, $I(a) = ta - \Lambda(t)$.
+\end{lemma}
+\begin{lstlisting}
+private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    I X a = t * a - cgf (X 0) ℙ t
+\end{lstlisting}
+\begin{lemma}[Lower Bound at the Mean]
+  For $a = \E[X_1]$, the lower bound holds with the trivial rate: $\liminf_{n\to\infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge 0$.
+\end{lemma}
+\begin{lstlisting}
+private lemma cramer_lower_bound_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0) ℙ) 0 = a) :
+    (0 : EReal) ≤
+      liminf (fun n : ℕ =>
+        ((1 : ℝ) / (n : ℝ) : EReal) *
+          ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+\end{lstlisting}
+\begin{theorem}[Cram{\'e}r's Theorem Lower Bound]
+  \label[theorem]{thm:cramer_lower_formal}
+  For $a \ge \E[X_0]$, $\liminf_{n\to\infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) \ge -I(a)$.
+\end{theorem}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/LowerBound.lean}]
+theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    (- I X a : EReal) ≤
+      liminf (fun n : ℕ =>
+        ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+\end{lstlisting}
+\newpage
+The following lemmas are supplementary and not needed for the lower bound proof presented here.
+We retain them as results of additional interest based on the Chebyshev concentration of the tilted
+measure.
+
+\begin{lemma}[Vanishing Variance Term]
+  For constant $C$ and $\delta > 0$, $\lim_{n\to\infty} \frac{1}{n} \frac{C}{\delta^2} = 0$.
+\end{lemma}
+\begin{lstlisting}
+private lemma variance_term_tendsto_zero (C : ℝ) (δ : ℝ) :
+    Tendsto (fun n : ℕ => ENNReal.ofReal ((1 / n) * C / δ ^ 2)) atTop (𝓝 0)
+\end{lstlisting}
+\begin{lemma}[Equality from Integral Identity]
+  Under a probability measure $\mu$, if $f$ is integrable, $f \le c$ almost everywhere, and $\int f \, d\mu = c$, then $f = c$ almost everywhere.
+\end{lemma}
+\begin{lstlisting}
+private lemma ae_eq_const_of_integral_eq_const_of_le {α : Type*} {m : MeasurableSpace α}
+    (μ : Measure α) [IsProbabilityMeasure μ] {f : α → ℝ} (c : ℝ)
+    (hf : Integrable f μ) (h_le : ∀ᵐ ω ∂μ, f ω ≤ c) (h_int : μ[f] = c) :
+    ∀ᵐ ω ∂μ, f ω = c
+\end{lstlisting}
+\begin{lemma}[CGF of Partial Sum as a Function] $\Lambda_{S_n}(t) = n \Lambda_{X_1}(t)$
+\end{lemma}
+\begin{lstlisting}
+private lemma cgf_partialSum_eq_smul_cgf (n : ℕ) :
+    cgf (partialSum X n) ℙ = fun s => n * cgf (X 0) ℙ s
+\end{lstlisting}
+\begin{lemma}[Derivative of CGF for Sum]
+  $\Lambda_{S_n}'(t) = n \Lambda_{X_1}'(t)$.
+\end{lemma}
+\begin{lstlisting}
+private lemma deriv_cgf_sum (t : ℝ) (n : ℕ) :
+    deriv (cgf (partialSum X n) ℙ) t = n * deriv (cgf (X 0) ℙ) t
+\end{lstlisting}
+\begin{lemma}[Second Derivative of CGF for Sum]
+  $\Lambda_{S_n}''(t) = n \Lambda_{X_1}''(t)$.
+\end{lemma}
+\begin{lstlisting}
+private lemma iteratedDeriv_two_cgf_sum (t : ℝ) (n : ℕ) :
+    iteratedDeriv 2 (cgf (partialSum X n) ℙ) t =
+      n * iteratedDeriv 2 (cgf (X 0) ℙ) t
+\end{lstlisting}
+\begin{lemma}[Moments of Partial Sum under Tilting]
+  Under $\Q_{n,t}$, $\E[S_n] = \Lambda_{S_n}'(t)$ and $\Var(S_n) = \Lambda_{S_n}''(t)$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tilted_Sn_moments (t : ℝ) (n : ℕ) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * partialSum X n ω)
+    μ_t[partialSum X n] = deriv (cgf (partialSum X n) ℙ) t ∧
+    variance (partialSum X n) μ_t = iteratedDeriv 2 (cgf (partialSum X n) ℙ) t
+\end{lstlisting}
+\begin{lemma}[Moments of Empirical Mean under Tilting]
+  Under $\Q_{n,t}$, $\E[\overline{X}_n] = \Lambda'(t)$ and $\Var(\overline{X}_n) = \frac{1}{n} \Lambda''(t)$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tilted_empirical_moments (t : ℝ) (n : ℕ) (hn : n ≠ 0) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * partialSum X n ω)
+    μ_t[empiricalMean X n] = deriv (cgf (X 0) ℙ) t ∧
+    variance (empiricalMean X n) μ_t = (1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t
+\end{lstlisting}
+\newpage
+\begin{lemma}[Tilted Empirical Mean Equals $a$ at Matching Derivative]
+  For $n \ge 1$, if $\Lambda'(t) = a$ then $\E_{\Q_{n,t}}[\overline{X}_n] = a$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tilted_empirical_mean_eq_of_deriv (t a : ℝ) (n : ℕ) (hn : n ≠ 0)
+    (h_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    (Measure.tilted ℙ (fun ω => t * partialSum X n ω))[empiricalMean X n] = a
+\end{lstlisting}
+\begin{lemma}[Chebyshev Deviation Bound for Tilted Measure]
+  $\Q_{n,t}(|\overline{X}_n - a| \ge \delta) \le \frac{1}{n} \frac{\Lambda''(t)}{\delta^2}$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tilted_deviation_bound (t a : ℝ) (n : ℕ) (hn : n ≠ 0) (δ : ℝ) (hδ : 0 < δ)
+    (h_match : deriv (cgf (X 0) ℙ) t = a) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * partialSum X n ω)
+    μ_t {ω | δ ≤ |empiricalMean X n ω - a|} ≤
+      ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2)
+\end{lstlisting}
+\begin{lemma}[Window Concentration under Tilting]
+  $\Q_{n,t}(|\overline{X}_n - a| < \delta) \to 1$ as $n \to \infty$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
+    (h_match : deriv (cgf (X 0) ℙ) t = a) :
+    Tendsto (fun n => ((ℚₙₜ X ℙ n t)
+      {ω | |empiricalMean X n ω - a| < δ}).toReal) atTop (𝓝 1)
+\end{lstlisting}
+\begin{lemma}[Positivity of the Tilted Tail at $a$]
+  Given $\Lambda'(t) = a$ and $n \ge 1$, $\Q_{n,t}(\overline{X}_n \ge a) > 0$.
+\end{lemma}
+\begin{lstlisting}
+private lemma tilted_prob_ge_mean_pos (a t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (n : ℕ) (hn : n ≠ 0) :
+    0 < (ℚₙₜ X ℙ n t) {ω | a ≤ empiricalMean X n ω}
+\end{lstlisting}
+\newpage
+\section{Putting it All Together}
+\label{sec:main-result}
+\subsection{Cram{\'e}r's Theorem}
+
+With both the upper and lower bounds established, we now combine them to prove the main theorem stated in \cref{sec:theorem}.
+
+\begin{proof}[Proof of \Cref{thm:cramers}]
+  We need to show that $\overline{X}_n$ satisfies a Large Deviation Principle with rate function
+  $I$. That is, for all $a \in \R$:
+  \begin{align}
+    \limsup_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) &\le -I(a) \label{eq:ldp_upper_goal} \\
+    \liminf_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) &\ge -I(a) \label{eq:ldp_lower_goal}
+  \end{align}
+  Recall that we defined the \emph{effective} rate function piecewise as
+  \begin{equation}
+    I(a) =
+    \begin{cases} \sup_{t \in \R} \{ta - \Lambda(t)\} & \text{if } a \ge \E[X_1] \\ 0 & \text{if } a < \E[X_1]
+    \end{cases}
+  \end{equation}
+  We proceed by cases.
+
+  \textbf{Case 1: $a \ge \E[X_1]$.}
+  In this case, $I(a) = \sup_{t \in \R}\{ta - \Lambda(t)\}$ is the Legendre transform. The upper bound \eqref{eq:ldp_upper_goal} is precisely \cref{thm:cramer_upper}, established by the Chernoff bound in \cref{sec:upper-bound}. The lower bound \eqref{eq:ldp_lower_goal} is \cref{thm:cramer_lower}, established by exponential tilting in \cref{sec:lower-bound}.
+  Combined, they give the desired asymptotic result:
+  \begin{equation}
+    \lim_{n \to \infty} \frac{1}{n} \log \P(\overline{X}_n \ge a) = -I(a)
+  \end{equation}
+
+  \textbf{Case 2: $a < \E[X_1]$.}
+  In this case, $I(a) = 0$ by definition of \leancode{upperTailRateFunction}, so we must show that both the limsup and the liminf of $\frac{1}{n}\log\P(\overline{X}_n \ge a)$ are 0.
+
+  \emph{Upper bound.} This follows trivially from the fact that probabilities are bounded above
+  by 1. We have
+  \begin{equation}
+    \frac{1}{n}\log \P(\overline{X}_n \ge a)
+    \le \frac{1}{n}\log 1
+    = 0 = -I(a)
+  \end{equation}
+  for every $n \ge 1$. Taking the limsup preserves this bound, giving \eqref{eq:ldp_upper_goal}.
+
+  \emph{Lower bound.} By the strong law of large numbers, $\overline{X}_n \to \E[X_1]$ almost surely. Since $a < \E[X_1]$, we have that $\P(\overline{X}_n \ge a) \to 1$.
+  As the logarithm is continuous at 1, $\log \P(\overline{X}_n \ge a) \to 0$.
+  Then as $\frac{1}{n} \to 0$,
+  \begin{equation}
+    \frac{1}{n} \log \P(\overline{X}_n \ge a) \to 0 = -I(a)
+  \end{equation}
+  In particular, the liminf equals zero, giving \eqref{eq:ldp_lower_goal}.
+\end{proof}
+
+\subsection{Formalized Results}
+\label{subsec:main-formal}
+
+As before, we list the formalized statements that make up the main theorem's proof, giving a brief mathematical description of each statement, and omitting the proofs, which are listed in full in \Cref{subsection:lean-listing-theorem}.
+
+\begin{lemma}[Typical Event Limit]
+  For $a < \E[X_0]$, $\P(\overline{X}_n \ge a) \to 1$ as $n \to \infty$.
+\end{lemma}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Theorem.lean}]
+private lemma tendsto_prob_empiricalMean_ge_of_lt_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
+  Tendsto (fun n : ℕ => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1)
+\end{lstlisting}
+\newpage
+\begin{theorem}[Cram{\'e}r's Theorem]
+  \label[theorem]{thm:cramers_formal}
+  The empirical mean of i.i.d. random variables with finite MGF satisfies a Large Deviation Principle with rate function \leancode{upperTailRateFunction}.
+\end{theorem}
+\begin{lstlisting}[caption={LargeDeviations/Cramers/Theorem.lean}]
+theorem cramers_theorem :
+    LargeDeviationPrinciple (empiricalMean X) (upperTailRateFunction X)
+\end{lstlisting}
+\newpage
+\section{Conclusions and Future Work}
+\label{sec:conclusion}
+
+\subsection{Summary}
+
+We have presented a formally verified proof of Cram{\'e}r's theorem on Large Deviations, developed in the Lean~4 proof assistant and building on top of the Mathlib mathematical library.
+
+The formalization comprises approximately 2,003 lines of code across six files and, to our
+knowledge, constitutes the first formalization of any large deviation result in a proof
+assistant.
+
+Our contributions include the introduction of the Large Deviation Principle as a formal Lean
+structure, a proof of the upper bound by the Chernoff bound, a proof of the lower bound by
+exponentially tilted measures, and a proof of the Central Limit Theorem for sample means under
+a sequence of exponentially tilted measures.
+
+The formalization builds on Mathlib's existing infrastructure for measure and probability theory, limits and filters, tilted measures, the strong law of large numbers, and the extended reals, demonstrating that the library has sufficient maturity to support further work in
+advanced probability theory.
+
+\subsection{Reflections on Formalization}
+
+Several aspects of the formalization merit discussion as lessons for future work in formalization.
+
+\paragraph{Type coercion overhead.}
+The LDP statement we defined uses the extended real numbers $\overline{\R}$ to correctly express $\log 0 = -\infty$, while intermediate computations like bounding exponentials to get the Chernoff
+bound or optimizing over tilting parameters were done in $\R$.
+Transferring results between these required additional work in proving coercion lemmas
+throughout the formalization. In set-theoretic mathematics, the fact that
+$\R \subset \overline{\R}$ is taken for granted, whereas with Lean's type-theoretic foundations,
+even with Lean's extensive syntactic support, such type lifts often need to be made explicit.
+
+\paragraph{Lower bound complexity.}
+\texttt{LowerBound.lean} and \texttt{TiltedCLT.lean} together account for the majority of the
+total codebase. This is despite the lower bound having comparable length to the upper bound
+in many informal mathematical treatments, and despite Mathlib already containing
+formalizations of tilted measures and the standard CLT.
+The disparity primarily comes from being forced to express, in full rigor, every aspect and
+subtlety of the lower bound and the tilted CLT. Whereas informal proofs may hand-wave
+the argument around the change of measure and the sequence of tilted measures, we keep extensive
+formal bookkeeping. Many steps that may otherwise be considered routine or obvious --- such as the
+fairly nontrivial property that the random variables are still i.i.d.\ under the tilted measures ---
+require explicit justification in Lean.
+
+\paragraph{Filter-based asymptotics.}
+Mathlib's filters provide a unified formalization of limits, convergence, and asymptotic statements. Although the single unified framework is somewhat more elegant than the usual
+assortment of ad hoc $\varepsilon$-$\delta$ or $\varepsilon$-$N$ proofs, working with it requires adjusting to a technique that differs from the conventions of standard mathematical literature.
+
+\paragraph{Mathlib as an enabler.}
+Building on top of Mathlib's foundations --- including existing formalizations of measure-theoretic
+probability, Chernoff bounds, exponentially tilted measures, the strong law of large numbers, and
+miscellaneous results in analysis, probability, and limits --- was crucial to the success of this
+work.
+Without such precursors, not only would the scope of implementation substantially increase, but the
+mental overhead of deciding how best to represent abstract mathematical concepts in Lean's
+type-theoretic foundations would have added another degree of challenge.
+The rapid growth of Mathlib's probability foundations made work of this level feasible, and
+recent additions on martingale convergence~\cite{ying2023martingale},
+Markov kernels~\cite{degenne2025kernels}, and sub-Gaussian variables are indicative of future
+avenues of formalization potential.
+
+Conversely, our formalization contributed various results that could be applied more broadly in
+future proofs:
+In addition to the various intermediate results already stated, two general-purpose
+lemmas on cumulant generating functions were in fact implemented directly in Mathlib's existing
+Moments module, and are listed in \Cref{subsection:lean-listing-moments-basic}.
+
+\subsection{Future Work}
+
+Several natural extensions of this work present themselves.
+
+\paragraph{Generalizing the LDP.}
+We have provided a formalization of the LDP for upper tail events $\{\overline{X}_n \ge a\}$ of
+real-valued random variables. A more general statement of the principle, as given by Dembo and
+Zeitouni~\cite{dembo1998large}, is in terms of a family of measures $\{\mu_\varepsilon\}$ on
+a topological space $\mathcal{X}$ with an associated $\sigma$-algebra $\mathcal{B}$. We say that $\{\mu_\varepsilon\}$ satisfies an LDP with rate function $I$ if, for all $B \in \mathcal{B}$,
+
+\begin{equation}
+  -\inf_{x\in \mathring{B}} I(x)
+  \le \liminf_{\varepsilon\to 0} \varepsilon \log \mu_\varepsilon(B)
+  \le \limsup_{\varepsilon\to 0} \varepsilon \log \mu_\varepsilon(B)
+  \le -\inf_{x\in \overline{B}} I(x)
+\end{equation}
+
+Formalizing this general statement is a natural next step and would build upon Mathlib's well-developed
+topological and measure-theoretic foundations.
+
+\paragraph{Relaxing requirements on the MGF.}
+As preliminaries for the formalization, we took as assumptions that the MGF is finite everywhere
+(\leancode{h\_mgf}) and that the rate function is bounded everywhere.
+
+For many distributions of interest these conditions do not hold, yet LDP statements can still be made. For instance, our worked example of deriving the bounds for the exponential
+distribution in \Cref{subsec:worked-example} and \Cref{subsec:worked-example-lbd} did not require
+the MGF to exist everywhere; the MGF was instead finite only on a particular domain.
+Similarly, the assumption \leancode{h\_exposed} requires that all $a \ge \E[X_1]$ are in the range
+of the CGF, which excludes, for instance, the Bernoulli distribution.
+A formalization that relaxes the various requirements we've imposed could cover a much broader
+class of distributions.
+
+\paragraph{Higher-dimensional and abstract extensions.}
+There are many possible extensions of Cram{\'e}r's theorem: the theorem can be extended directly
+to $\R^d$, where we have an LDP result with rate function given by the Legendre transform of the
+multidimensional CGF~\cite{dembo1998large}. The G{\"a}rtner-Ellis theorem \cite{ellis1985} relaxes
+the restriction that the random variables $X_i$ be independent and identically distributed,
+providing looser conditions in terms of the existence of a limiting scaled cumulant generating
+function
+$\Lambda(\lambda) = \lim_{n \to \infty} \frac{1}{n} \log \E[e^{\langle \lambda, S_n \rangle}]$.
+Sanov's theorem~\cite{dembo1998large} states an LDP result for the empirical measures of sequences of i.i.d.\ random
+variables with the Kullback-Leibler divergence as the rate function, while Mogulskii's theorem gives an LDP for random walks~\cite{dembo1998large, varadhan1984}. The contraction principle~\cite{dembo1998large} provides machinery for deriving new LDPs from existing ones through continuous
+mappings. Each of these generalizations would build upon Mathlib's infrastructure and require the
+development of new foundations.
+
+% \paragraph{Applications.}
+% Large Deviations Theory has applications across several fields that could motivate further formalization. In statistical mechanics, Cram{\'e}r's theorem underpins the equivalence of microcanonical and canonical ensembles \cite{ellis1985}; in information theory, Sanov's theorem provides the foundation for source coding and hypothesis testing \cite{dembo1998large}; and in mathematical finance, large deviation estimates quantify the probability of extreme portfolio losses over long horizons. Formalizing these connections would both extend the reach of the current work and provide concrete examples where the rate function has direct physical or operational interpretation.
+
+\paragraph{AI-assisted formalization.}
+Large Language Models (LLMs) have seen significant adoption by the Lean community as aids in
+developing formal proofs: the proof-writing process can be tedious, discovering relevant existing
+lemmas is challenging, and the selection and application of appropriate tactics is often an uninteresting and mechanical process.
+To assist with such work, a wide variety of tooling has been developed, ranging from those that
+simply augment the writing experience like Lean Copilot \cite{song2024leancopilot}, which provides
+in-editor tactic suggestions, to attempts at complete automation like Aristotle
+\cite{achim2025aristotle} that combines higher-level LLM reasoning with lower-level formal proof
+search, achieving the ability to solve competition-level problems.
+In this project, we also used Claude Code as an assistant for Lean~4 coding and for broader research and mathematical reasoning, finding it particularly helpful for navigating Mathlib's API, discovering proofs and strategies, and helping debug with type errors.
+
+Interactive proof assistants aided by LLMs hint at an interesting direction for the future of
+formal math:
+Unlike most other LLM-generated content, Lean proofs can be completely mechanically checked,
+allowing for such models to be used as a smarter, directed search over the space of derivations
+for a proof. This hints at a model of research where a human engages in higher-level exploration
+of a theory and an LLM semi-autonomously formalizes and verifies the work.
+
+\newpage
+\appendix
+\addtocontents{toc}{\protect\vspace{1em}\noindent\textbf{Appendix}\par}
+\input{appendix/appendix-code.tex}
+\newpage
+\addtocontents{toc}{\protect\setcounter{tocdepth}{2}}
+\input{appendix/appendix-mathlib.tex}
+\addtocontents{toc}{\protect\setcounter{tocdepth}{3}}
+
+\newpage
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\end{document}

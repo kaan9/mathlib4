@@ -1,0 +1,2115 @@
+\section{Lean 4 Formalization Code Listings}
+\label[appendix]{apx:code}
+\subsection{Mathlib/Probability/LargeDeviations/Defs.lean}
+\label[appendix]{subsection:lean-listing-defs}
+\begin{lstlisting}
+module
+public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
+public import Mathlib.MeasureTheory.Measure.MeasureSpace
+public import Mathlib.Probability.Notation
+/-!
+# Large Deviation Principles
+
+This file defines the `LargeDeviationPrinciple` for sequences of random variables.
+
+A large deviation principle (LDP) characterizes the rate at which the probability of
+tail events decay. Formally, we say that a sequence of random variables `(Yₙ)` satisfies
+an LDP with rate function `I` if for every `a` the limsup (resp. liminf) of
+`(1/n) * log ℙ(Yₙ ≥ a)` is at most (resp. at least) `-I(a)`.
+
+## Main definitions
+- `LargeDeviationPrinciple`: A Prop-valued structure containing the upper and lower bound
+## Notes
+The definition splits the upper and lower bounds so that each side can be proven separately.
+
+This statement is given for sequences of real-valued random variables. However, this
+could be further generalized to be in terms of Borel-measurable sets in Polish spaces.
+## References
+* <https://en.wikipedia.org/wiki/Large_deviation_theory>
+* <https://en.wikipedia.org/wiki/Cramér%27s_theorem_(large_deviations)>
+-/
+
+open MeasureTheory ProbabilityTheory Filter Topology
+open scoped ENNReal
+
+@[expose] public section
+namespace ProbabilityTheory
+
+variable {Ω : Type*} [MeasureSpace Ω]
+
+/-- A sequence of real-valued random variables `(Yₙ)` satisfies a **Large Deviation
+Principle** with rate function `I : ℝ → ℝ` if for every `a` the limsup (resp. liminf)
+of the scaled log-tail probability `(1/n) * log ℙ(Yₙ ≥ a)` is at most (resp. at least)
+`-I(a)`.
+The sub-goals are defined in terms of the extended real numbers to account for events
+with probability 0.
+-/
+structure LargeDeviationPrinciple (Y : ℕ → Ω → ℝ) (I : ℝ → ℝ) : Prop where
+  /-- Upper bound: limsup_n (1/n) log ℙ(Yₙ ≥ a) ≤ -I(a) -/
+  upperBound : ∀ a : ℝ,
+    limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a}))
+      atTop ≤ (- I a : EReal)
+  /-- Lower bound: liminf_n (1/n) log ℙ(Yₙ ≥ a) ≥ -I(a) -/
+  lowerBound : ∀ a : ℝ,
+    (- I a : EReal) ≤
+      liminf (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a}))
+        atTop
+end ProbabilityTheory
+\end{lstlisting}
+\newpage
+\subsection{Mathlib/Probability/LargeDeviations/Cramers/Basic.lean}
+\label[appendix]{subsection:lean-listing-basic}
+\begin{lstlisting}
+module
+public import Mathlib.Probability.IdentDistrib
+public import Mathlib.Probability.Independence.Basic
+public import Mathlib.Probability.Moments.Basic
+public import Mathlib.Probability.Moments.IntegrableExpMul
+public import Mathlib.Probability.Moments.Tilted
+public import Mathlib.Probability.Independence.Integration
+public import Mathlib.Analysis.Convex.Integral
+public import Mathlib.Analysis.Convex.SpecificFunctions.Basic
+public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
+public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
+public import Mathlib.Analysis.SpecificLimits.Basic
+public import Mathlib.Analysis.Calculus.Deriv.Basic
+
+/-!
+# Cramér's Theorem — Basic Definitions and Infrastructure
+
+This file contains the core definitions and shared lemmas for Cramér's theorem:
+- The definitions `partialSum`, `empiricalMean`, `I` (rate function), `upperTailRateFunction`.
+- Basic measurability and integrability results.
+- MGF/CGF sum formulas via independence.
+
+The upper and lower bounds are proven in `UpperBound.lean` and `LowerBound.lean`;
+the main theorem is assembled in `Theorem.lean`.
+-/
+
+open ProbabilityTheory MeasureTheory Filter Topology
+open scoped ENNReal
+
+@[expose] public section
+
+namespace ProbabilityTheory
+
+variable {Ω : Type*} [MeasureSpace Ω]
+variable (X : ℕ → Ω → ℝ)
+
+/-- The partial sum X₁ + ... + Xₙ. -/
+def partialSum (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
+
+/-- The empirical mean Sₙ / n. -/
+noncomputable def empiricalMean (n : ℕ) : Ω → ℝ := fun ω => partialSum X n ω / n
+
+/-- The Legendre transform of the CGF. This is the rate function for Cramér's theorem. -/
+noncomputable def I (x : ℝ) : ℝ := ⨆ t : ℝ, t * x - cgf (X 0) ℙ t
+
+/-- The "Effective" Rate Function for the upper tail probability `ℙ(empiricalMean X n ≥ a)`.
+Cramér's theorem only holds when `a ≥ 𝔼[X 0]`, so to state a general Large Deviation Principle
+for all `a`, we define the rate function to be `I(a)` for `a ≥ 𝔼[X 0]`, and `0` otherwise. -/
+noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
+  if 𝔼[X 0] ≤ a then I X a else 0
+
+/-- The exponentially tilted measure, tilted by `t · Sₙ`. -/
+noncomputable def ℚₙₜ (X : ℕ → Ω → ℝ) (μ : Measure Ω) (n : ℕ) (t : ℝ) : Measure Ω :=
+  Measure.tilted μ (fun ω => t * partialSum X n ω)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/- Assumptions for Cramér's theorem -/
+-- The random variables Xᵢ are independent.
+variable (h_indep : iIndepFun X ℙ)
+-- The random variables Xᵢ are identically distributed.
+variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
+-- The random variables Xᵢ are measurable.
+variable (h_meas : ∀ n, Measurable (X n))
+-- The random variable X₀ is integrable.
+-- Note: This is implied by h_mgf but we assume it directly for convenience.
+variable (h_int : Integrable (X 0) ℙ)
+-- The random variable X₀ has a finite moment generating function for all `t ∈ ℝ`.
+variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
+-- Assume that this is a "good" rate function, i.e. bounded above.
+-- Note: This is implied by h_mgf but difficult to prove directly and beyond scope here.
+variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
+-- Assume the distribution is non-degenerate (has positive variance everywhere)
+-- Note that `Λ''(0) = Var[X]`, so this implies `Var[X] > 0` which implies `X` is non-const a.e.
+-- Cumulant generating functions, when they exist and are non-degenerate, are strictly convex.
+variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
+-- For the lower bound, we assume points are "exposed" (in range of cgf derivative).
+-- This is equivalent to stating that we can find a t such that the probability measure
+-- tilted by `t · X` has expectation `a`, and thus the measure tilted by `t · Sₙ`
+-- has expectation `n · a`.
+variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
+
+/-! ### Basic measurability and integrability helpers -/
+
+include h_ident h_mgf in
+/-- The random variables Xᵢ have finite moment generating functions. -/
+lemma integrable_exp_of_identDistrib (i : ℕ) (t : ℝ) :
+    Integrable (fun ω => Real.exp (t * X i ω)) ℙ :=
+  ((h_ident i).comp (measurable_const.mul measurable_id).exp).integrable_iff.mpr (h_mgf t)
+
+include h_meas in
+/-- The partial sum `Sₙ` is measurable. -/
+lemma measurable_partialSum (n : ℕ) : Measurable (partialSum X n) := by
+  simpa [partialSum, ← Finset.sum_apply] using
+    Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)
+
+include h_meas in
+/-- The empirical mean `Sₙ/n` is measurable. -/
+lemma measurable_empiricalMean (n : ℕ) : Measurable (empiricalMean X n) :=
+  (measurable_partialSum X h_meas n).div_const (n : ℝ)
+
+include h_mgf in
+/-- All `t ∈ ℝ` lie in the interior of the domain for which `exp(tX₀)` is integrable. -/
+lemma mem_interior_integrableExpSet (t : ℝ) : t ∈ interior (integrableExpSet (X 0) ℙ) := by
+  simp [Set.eq_univ_of_forall h_mgf (s := integrableExpSet (X 0) ℙ)]
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-! ### Lemmas requiring `IsProbabilityMeasure` -/
+
+variable [IsProbabilityMeasure (ℙ : Measure Ω)]
+
+/-- For a random variable Y with finite MGF, the CGF satisfies `Λ_Y(t) ≥ t · 𝔼[Y]`.
+This follows from Jensen's inequality applied to the convex function `eᵗˣ` for fixed `t`. -/
+lemma cgf_ge_mul_expect (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
+    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ) (t : ℝ) :
+    cgf Y ℙ t ≥ t * 𝔼[Y] := by
+  -- Λ(t) = log 𝔼[exp(tY)] ≥ log exp(t 𝔼[Y]) = t 𝔼[Y]
+  rw [cgf, mgf]
+  -- Apply Jensen's inequality: exp(𝔼[tY]) ≤ 𝔼[exp(tY)]
+  have jensen := ConvexOn.map_integral_le
+    (g := Real.exp) (s := Set.univ) (f := fun ω => t * Y ω)
+    (convexOn_exp) Real.continuous_exp.continuousOn isClosed_univ
+    (ae_of_all _ (fun _ => Set.mem_univ _))
+    (h_int.const_mul t) (h_mgf t)
+  -- Extract t: t 𝔼[Y] ≤ 𝔼[exp(tY)]
+  rw [integral_const_mul] at jensen
+  -- Take log of both sides
+  exact (Real.log_exp _).symm.trans_le (Real.log_le_log (Real.exp_pos _) jensen)
+
+/-- When `t < 0` and `a ≥ 𝔼[Y]`, we have `t · a - Λ_Y(t) ≤ 0`. -/
+lemma rate_function_neg_param_le_zero (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
+    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ)
+    (t a : ℝ) (ht : t < 0) (ha : 𝔼[Y] ≤ a) :
+    t * a - cgf Y ℙ t ≤ 0 := by
+    -- Λ(t) ≥ t · 𝔼[Y] ≥ t · a  (since t < 0, inequality flips)
+  nlinarith [cgf_ge_mul_expect Y h_int h_mgf t, mul_le_mul_of_nonpos_left ha ht.le]
+
+include h_indep h_ident h_meas h_mgf in
+/-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
+lemma integrable_exp_sum (t : ℝ) (n : ℕ) :
+    Integrable (fun ω => Real.exp (t * partialSum X n ω)) ℙ := by
+  have h_rw : (fun ω => Real.exp (t * partialSum X n ω)) =
+      fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω) := by
+    ext ω; simp [partialSum, Finset.sum_apply, Finset.mul_sum, Real.exp_sum]
+  rw [h_rw]; clear h_rw
+  induction n with
+  | zero => simp
+  | succ n ih =>
+      -- Show product `e^(t * Xᵢ)` over range `n + 1`
+      --   = (product `e^(t * Xᵢ)` over range `n`) * `e^(t * Xₙ)`
+    simp only [Finset.prod_range_succ]
+    have h_indep_exp : iIndepFun (fun i ω => Real.exp (t * X i ω)) ℙ := by
+      simpa [Function.comp_def] using h_indep.comp (fun _ x => Real.exp (t * x))
+        (fun _ => (measurable_const.mul measurable_id).exp)
+    -- `∏ᵢⁿ⁻¹ e^{t * Xᵢ}` is independent of `e^{t * Xₙ}`
+    have h_indep_prod : IndepFun (fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω))
+        (fun ω => Real.exp (t * X n ω)) ℙ := by
+      convert h_indep_exp.indepFun_finset_prod_of_notMem
+        (fun i => (h_meas i).const_mul t |>.exp) (by simp : n ∉ Finset.range n) using 2
+      simp [Finset.prod_apply]
+    exact h_indep_prod.integrable_mul ih
+      (integrable_exp_of_identDistrib X h_ident h_mgf n t)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf in
+/-- The tilted measure by `t · Sₙ` is a probability measure. -/
+lemma isProbabilityMeasure_tilted_partialSum (t : ℝ) (n : ℕ) :
+    IsProbabilityMeasure (ℚₙₜ X ℙ n t) :=
+  isProbabilityMeasure_tilted (integrable_exp_sum X h_indep h_ident h_meas h_mgf t n)
+
+include h_indep h_ident h_meas h_mgf in
+/-- All `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
+lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
+    t ∈ interior (integrableExpSet (partialSum X n) ℙ) := by
+  simp [Set.eq_univ_of_forall
+    (fun s => integrable_exp_sum X h_indep h_ident h_meas h_mgf s n)
+    (s := integrableExpSet (partialSum X n) ℙ)]
+
+include h_bdd h_mgf h_int in
+/-- For `a ≥ 𝔼[X]`, the supremum in the rate function is achieved by non-negative `t`.
+That is, `I(a) = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
+lemma rateFunction_eq_sup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    I X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t := by
+  rw [I]
+  have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
+  have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} =>
+      (t : ℝ) * a - cgf (X 0) ℙ t) :=
+    let ⟨b, hb⟩ := h_bdd a
+    ⟨b, fun _ ⟨t, ht⟩ => ht ▸ hb ⟨t.val, rfl⟩⟩
+  refine le_antisymm (ciSup_le fun t => ?_) (ciSup_le fun t => le_ciSup (h_bdd a) (t : ℝ))
+  by_cases ht : 0 ≤ t
+  -- Case t ≥ 0: It's in the restricted set so the supremum exists by h_bdd
+  · exact le_ciSup h_bdd_restrict ⟨t, ht⟩
+  -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with a t ≥ 0
+  · calc t * a - cgf (X 0) ℙ t
+        ≤ 0 := rate_function_neg_param_le_zero (X 0) h_int h_mgf t a (not_le.mp ht) h_mean
+      _ = (0 : ℝ) * a - cgf (X 0) ℙ 0 := by simp [cgf_zero]
+      _ ≤ _ := le_ciSup h_bdd_restrict ⟨0, by simp⟩
+
+include h_indep h_ident h_meas h_mgf in
+/-- `M_Sₙ(t) = exp(n · Λ_X₀(t))` -/
+lemma mgf_sum_eq_exp_n_prod_cgf (n : ℕ) (t : ℝ) :
+    mgf (partialSum X n) ℙ t = Real.exp (n * cgf (X 0) ℙ t) := by
+  rcases n with _ | n
+  · simp [partialSum, cgf]
+  change mgf (∑ i ∈ Finset.range (n + 1), X i) ℙ t = _
+  rw [mgf_sum_of_identDistrib h_meas h_indep
+      (fun i _ j _ => (h_ident i).trans (h_ident j).symm)
+      (Finset.mem_range.mpr n.succ_pos) t,
+    Finset.card_range, cgf, mgf]
+  conv_lhs => rw [← Real.exp_log (integral_exp_pos (h_mgf t))]
+  rw [← Real.exp_nsmul, nsmul_eq_mul]
+
+include h_indep h_ident h_meas h_mgf in
+/-- `Λ_Sₙ(t) = n · Λ_X₀(t)` -/
+lemma cgf_sum_eq_n_prod_cgf (n : ℕ) (t : ℝ) :
+    cgf (partialSum X n) ℙ t = (n : ℝ) * cgf (X 0) ℙ t := by
+  rw [cgf, mgf_sum_eq_exp_n_prod_cgf X h_indep h_ident h_meas h_mgf, Real.log_exp]
+
+end ProbabilityTheory
+\end{lstlisting}
+
+\newpage
+\subsection{Mathlib/Probability/LargeDeviations/Cramers/UpperBound.lean}
+\label[appendix]{subsection:lean-listing-upperbound}
+\begin{lstlisting}
+module
+
+public import Mathlib.Probability.LargeDeviations.Cramers.Basic
+
+/-!
+# Cramér's Theorem — Upper Bound
+
+This file proves the upper (Chernoff) bound for Cramér's theorem:
+
+- `cramer_upper_bound`: For any `a ≥ 𝔼[X 0]`, `limsup (1/n) * log ℙ(Sₙ/n ≥ a) ≤ -rateFunction X a`.
+
+The proof applies Markov's inequality to `exp(t * Sₙ)` for each `t ≥ 0`,
+takes the infimum over `t`, and uses the scaling identity `cgf(Sₙ) = n * cgf(X₀)`.
+
+We use `ProbabilityTheory.measure_ge_le_exp_cgf` that gives the Chernoff bound for the upper
+tail of a real-valued random variable.
+-/
+
+open ProbabilityTheory MeasureTheory Filter Topology
+open scoped ENNReal
+
+@[expose] public section
+
+namespace ProbabilityTheory
+
+variable {Ω : Type*} [MeasureSpace Ω] [IsProbabilityMeasure (ℙ : Measure Ω)]
+variable (X : ℕ → Ω → ℝ)
+variable (h_indep : iIndepFun X ℙ)
+variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
+variable (h_meas : ∀ n, Measurable (X n))
+variable (h_int : Integrable (X 0) ℙ)
+variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
+variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
+
+/-! ### Helper lemmas for the upper bound proof -/
+
+/-- For a nonempty bounded-below set in ℝ, the infimum of its elements coerced to EReal
+equals the coercion of its infimum. -/
+private lemma ereal_sInf_coe_eq_coe_sInf {s : Set ℝ} (hne : s.Nonempty) (hbdd : BddBelow s) :
+    sInf ((fun (x : ℝ) => (x : EReal)) '' s) = ↑(sInf s) := by
+  have h_bdd : BddBelow ((fun (x : ℝ) => (x : WithTop ℝ)) '' s) :=
+    Monotone.map_bddBelow (fun _ _ h => WithTop.coe_le_coe.mpr h) hbdd
+  rw [show (fun (x : ℝ) => (x : EReal)) '' s
+        = (fun (y : WithTop ℝ) => (y : WithBot (WithTop ℝ))) ''
+          ((fun (x : ℝ) => (x : WithTop ℝ)) '' s) from
+      (Set.image_image _ (fun x : ℝ => (x : WithTop ℝ)) s).symm]
+  exact (WithBot.coe_sInf' h_bdd).symm.trans (by rw [← WithTop.coe_sInf' hne hbdd]; rfl)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-- For a bounded nonempty set in ℝ, the infimum of negations equals the negation of the supremum,
+    stated in terms of coercions to EReal: `inf {↑-x | x ∈ S} = -sup {↑x | x ∈ S}` -/
+private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
+    (hne : (Set.range f).Nonempty) (hbdd : BddAbove (Set.range f)) :
+    sInf (Set.range fun i => (-(f i) : EReal)) = -((sSup (Set.range f) : ℝ) : EReal) := by
+  obtain ⟨_, i₀, _⟩ := hne
+  obtain ⟨B, hB⟩ := hbdd
+  have h_ne_neg : (Set.range fun i => -f i).Nonempty := ⟨-f i₀, i₀, rfl⟩
+  have h_bdd_neg : BddBelow (Set.range fun i => -f i) :=
+    ⟨-B, fun _ ⟨i, hi⟩ => hi ▸ neg_le_neg (hB ⟨i, rfl⟩)⟩
+  rw [show Set.range (fun i => (-(f i) : EReal)) =
+        ((↑) : ℝ → EReal) '' Set.range (fun i => -f i) by
+      rw [← Set.range_comp]; simp [Function.comp_def],
+    ereal_sInf_coe_eq_coe_sInf h_ne_neg h_bdd_neg,
+    show sInf (Set.range fun i => -f i) = -sSup (Set.range f) by
+      rw [← Real.sInf_neg, ← Set.image_neg_eq_neg, ← Set.range_comp]; rfl,
+    EReal.coe_neg]
+
+include h_indep h_meas h_ident h_mgf in
+/-- **Chernoff bound** for the empirical mean.
+`ℙ(Sₙ/n ≥ a) ≤ exp(-n · (t · a - Λ_X₀(t)))` for `t ≥ 0`. -/
+lemma prob_mean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
+  (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
+    ≤ Real.exp ( - (n : ℝ) * (t * a - cgf (X 0) ℙ t)) := by
+  have h_n_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn_pos
+  rw [show { ω | empiricalMean X n ω ≥ a } = { ω | partialSum X n ω ≥ (n : ℝ) * a } from by
+    ext ω; simp [empiricalMean, ge_iff_le, le_div_iff₀ h_n_pos, mul_comm]]
+  refine (measure_ge_le_exp_cgf _ ht
+    (integrable_exp_sum X h_indep h_ident h_meas h_mgf t n)).trans ?_
+  rw [cgf_sum_eq_n_prod_cgf X h_indep h_ident h_meas h_mgf n t]
+  apply le_of_eq; congr 1; ring
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_meas h_ident h_mgf h_bdd h_int in
+/-- **Cramér's Theorem (Upper Bound)**: For any a ≥ 𝔼[X 0], the scaled log probability that the
+empirical mean exceeds a is bounded above by the negative rate function:
+`limsup_{n→∞} log(ℙ(Sₙ/n ≥ a)) / n ≤ -I(a)`
+Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
+theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    limsup (fun n : ℕ =>
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}))
+        atTop ≤ (- I X a : EReal) := by
+  unfold I
+  set L := limsup (fun n : ℕ =>
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+  set f : {x : ℝ | 0 ≤ x} → ℝ := fun t => t.val * a - cgf (X 0) ℙ t
+  have h0 : (0 : ℝ) ∈ {x : ℝ | 0 ≤ x} := by simp
+  haveI : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, h0⟩⟩
+  suffices h : ∀ t : ℝ, 0 ≤ t → L ≤ (-(t * a - cgf (X 0) ℙ t) : EReal) by
+    calc L
+        ≤ sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => (-(f t) : EReal)) :=
+          le_csInf (Set.range_nonempty _) <| by
+            rintro b ⟨t, rfl⟩; exact h t.val t.property
+      _ = (-(⨆ t : {x : ℝ | 0 ≤ x}, f t) : EReal) := by
+          have h_bdd' : BddAbove (Set.range f) :=
+            let ⟨b, hb⟩ := h_bdd a
+            ⟨b, fun _ ⟨t, ht⟩ => ht ▸ hb ⟨t.val, rfl⟩⟩
+          simpa [iSup] using ereal_sInf_neg_eq_neg_sSup f ⟨_, ⟨0, h0⟩, rfl⟩ h_bdd'
+      _ = (- I X a : EReal) := by
+          norm_cast
+          exact congrArg Neg.neg (rateFunction_eq_sup_nonneg X h_int h_mgf h_bdd a h_mean).symm
+  intro t ht
+  refine limsup_le_of_le (isCoboundedUnder_le_of_le atTop (fun _ => bot_le))
+    (eventually_atTop.mpr ⟨1, fun n hn => ?_⟩)
+  have hn_pos : 0 < n := hn
+  have hn_ne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn_pos.ne'
+  have h_ennreal : ℙ {ω | empiricalMean X n ω ≥ a} ≤
+      ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))) :=
+    (ENNReal.ofReal_toReal_eq_iff.mpr (measure_ne_top _ _)).symm.le.trans
+      (ENNReal.ofReal_le_ofReal
+        (prob_mean_ge_le_exp X h_indep h_ident h_meas h_mgf t a ht n hn_pos))
+  have h_log_exp : ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))))
+      = (((-(n : ℝ) * (t * a - cgf (X 0) ℙ t)) : ℝ) : EReal) := by
+    rw [ENNReal.log_ofReal_of_pos (Real.exp_pos _), Real.log_exp]
+  have h_arith : (1 : ℝ) / (n : ℝ) * (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))
+      = -(t * a - cgf (X 0) ℙ t) := by field_simp
+  calc ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})
+      ≤ ((1 : ℝ) / (n : ℝ) : EReal) *
+          (((-(n : ℝ) * (t * a - cgf (X 0) ℙ t)) : ℝ) : EReal) := by
+        rw [← h_log_exp]; gcongr
+    _ = (-(t * a - cgf (X 0) ℙ t) : EReal) := by
+        simp only [← EReal.coe_mul]; exact congrArg (fun x : ℝ => (x : EReal)) h_arith
+
+end ProbabilityTheory
+\end{lstlisting}
+
+\newpage
+\subsection{Mathlib/Probability/LargeDeviations/Cramers/TiltedCLT.lean}
+\label[appendix]{subsection:lean-listing-tiltedclt}
+\begin{lstlisting}
+module
+
+public import Mathlib.Probability.LargeDeviations.Cramers.Basic
+public import Mathlib.Probability.CentralLimitTheorem
+public import Mathlib.Probability.Independence.CharacteristicFunction
+public import Mathlib.MeasureTheory.Measure.LevyConvergence
+public import Mathlib.MeasureTheory.Measure.Portmanteau
+
+/-!
+# Cramér's Theorem — CLT over Tilted Measures
+
+This file provides a proof of the Central Limit Theorem over a sequence of tilted measures,
+used in the proof of the lower bound of Cramér's theorem.
+
+Under the assumptions of Cramér's theorem, for `t` with `Λ'(t) = a` the family of tilted measures
+`ℚₙₜ := ℙ.tilted (t · Sₙ)` satisfies a CLT statement:
+The normalized partial sum `Zₙ := (Sₙ - n Λ'(t))/√(n Λ''(t))` converges in distribution to `𝒩(0,1)`
+under `ℚₙₜ` as `n → ∞`.
+An immediate corollary is a concentration statement used in `LowerBound.lean`.
+
+## Main Definitions
+
+* `μₜ X t`: the pushforward measure of `ℙ` by `X₀`, tilted by `t · x`,
+* `νₜ X t`: the pushforward measure of `μₜ X t` by a linear function to standardize it to zero mean
+  and unit variance.
+* `Z X t n`: the standardized partial sum `(Sₙ - n Λ'(t)) / √(n Λ''(t))`.
+
+## Main Results
+
+* `tendsto_charFun_Z_ℚₙₜ`: under `ℚₙₜ`, the characteristic function of `Zₙ` converges pointwise to
+  that of `𝒩(0,1)`.
+* `eventually_ℚₙₜ_empiricalMean_mem_Icc_ge`: the concentration statement for the lower bound proof:
+  For every `δ, ε > 0` and `t` with `Λ'(t) = a`, eventually `1/2 - ε ≤ ℚₙₜ(Sₙ/n ∈ [a, a+δ])`.
+
+-/
+
+open ProbabilityTheory MeasureTheory Filter Topology
+open scoped ENNReal NNReal
+
+@[expose] public section
+
+namespace ProbabilityTheory
+
+variable {Ω : Type*} [MeasureSpace Ω]
+
+/-- The law of `X 0` under `ℙ`, tilted by `t · x`. -/
+noncomputable def μₜ (X : ℕ → Ω → ℝ) (t : ℝ) : Measure ℝ :=
+  ((ℙ : Measure Ω).map (X 0)).tilted (fun x => t * x)
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-- The push-forward of `μₜ` by the map `x ↦ (x - Λ'(t)) / √Λ''(t)`,
+  so that it has zero mean and unit variance. -/
+noncomputable def νₜ (X : ℕ → Ω → ℝ) (t : ℝ) : Measure ℝ :=
+  (μₜ X t).map
+    (fun x => (x - deriv (cgf (X 0) ℙ) t) / Real.sqrt (iteratedDeriv 2 (cgf (X 0) ℙ) t))
+
+/-- The standardized partial sum under `ℚₙₜ`: `Z = (Sₙ - n Λ'(t)) / √(n Λ''(t))`. -/
+noncomputable def Z (X : ℕ → Ω → ℝ) (t : ℝ) (n : ℕ) : Ω → ℝ := fun ω =>
+  (partialSum X n ω - n * deriv (cgf (X 0) ℙ) t) /
+    Real.sqrt (n * iteratedDeriv 2 (cgf (X 0) ℙ) t)
+
+variable (X : ℕ → Ω → ℝ)
+
+/- Assumptions for Cramér's theorem -/
+variable (h_indep : iIndepFun X ℙ)
+variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
+variable (h_meas : ∀ n, Measurable (X n))
+variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
+variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
+
+include h_meas in
+/-- The MGF of the identity under `μₜ` at `u` equals `mgf(X₀)(t + u)/mgf(X₀)(t)`. -/
+lemma mgf_id_tiltedLaw (t u : ℝ) :
+    mgf id (μₜ X t) u = mgf (X 0) ℙ (t + u) / mgf (X 0) ℙ t := by
+  have hX0 : AEMeasurable (X 0) ℙ := (h_meas 0).aemeasurable
+  simp only [mgf, μₜ, id]
+  rw [integral_exp_tilted (fun x => t * x) (fun x => u * x),
+    integral_map hX0 (by fun_prop), integral_map hX0 (by fun_prop)]
+  simp [add_mul]
+
+include h_meas h_mgf in
+private lemma t_mem_interior_integrableExpSet_id (t : ℝ) :
+    t ∈ interior (integrableExpSet id ((ℙ : Measure Ω).map (X 0))) := by
+  have h_univ : integrableExpSet id ((ℙ : Measure Ω).map (X 0)) = Set.univ := by
+    ext s
+    simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true, id]
+    exact (integrable_map_measure (by fun_prop) (h_meas 0).aemeasurable).mpr (h_mgf s)
+  rw [h_univ, interior_univ]
+  exact Set.mem_univ t
+
+include h_meas in
+private lemma cgf_id_map_eq : cgf id ((ℙ : Measure Ω).map (X 0)) = cgf (X 0) ℙ := by
+  ext s; simp [cgf, mgf_id_map (h_meas 0).aemeasurable]
+
+private lemma t_mul_eq_mul_id (t : ℝ) : (fun x : ℝ => t * x) = (t * id ·) := rfl
+
+include h_meas h_mgf in
+/-- The mean of `μₜ` is `Λ'(t)`. -/
+lemma integral_id_tiltedLaw (t : ℝ) : ∫ x, x ∂(μₜ X t) = deriv (cgf (X 0) ℙ) t := by
+  simp only [μₜ]
+  rw [t_mul_eq_mul_id, ← cgf_id_map_eq X h_meas]
+  exact integral_tilted_mul_self (t_mem_interior_integrableExpSet_id X h_meas h_mgf t)
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_meas h_mgf in
+/-- The variance of `μₜ` is `Λ''(t)`. -/
+lemma variance_id_tiltedLaw (t : ℝ) :
+    Var[id; μₜ X t] = iteratedDeriv 2 (cgf (X 0) ℙ) t := by
+  simp only [μₜ]
+  rw [t_mul_eq_mul_id, ← cgf_id_map_eq X h_meas]
+  exact variance_tilted_mul (t_mem_interior_integrableExpSet_id X h_meas h_mgf t)
+
+include h_meas h_mgf in
+/-- The identity is in `L²` under `μₜ`. -/
+lemma memLp_id_tiltedLaw (t : ℝ) : MemLp (id : ℝ → ℝ) 2 (μₜ X t) := by
+  simp only [μₜ]
+  rw [t_mul_eq_mul_id]
+  exact memLp_tilted_mul (t_mem_interior_integrableExpSet_id X h_meas h_mgf t) 2
+
+/-! ### Algebraic Identities -/
+
+/-- Algebraic identity: for `t` with `Λ'(t) = a` and `n ≥ 1`, the event
+`{Sₙ/n ∈ [a, a+δ]}` is exactly `{Zₙ ∈ [0, δ · √(n / Λ''(t))]}`. -/
+lemma empiricalMean_mem_Icc_iff_Z_mem_Icc (t a δ : ℝ) (n : ℕ) (hn : 0 < n)
+    (h_non_deg_t : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (ω : Ω) :
+    empiricalMean X n ω ∈ Set.Icc a (a + δ) ↔
+      Z X t n ω ∈ Set.Icc (0 : ℝ)
+        (δ * Real.sqrt (n / iteratedDeriv 2 (cgf (X 0) ℙ) t)) := by
+  rw [Set.mem_Icc, Set.mem_Icc, empiricalMean, Z, ht_deriv]
+  set v := iteratedDeriv 2 (cgf (X 0) ℙ) t
+  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
+  have hnv : (0 : ℝ) < Real.sqrt (n * v) := Real.sqrt_pos.mpr (by positivity)
+  rw [le_div_iff₀ hn', div_le_iff₀ hn', le_div_iff₀ hnv, div_le_iff₀ hnv]
+  have key : Real.sqrt (n / v) * Real.sqrt (n * v) = n := by
+    rw [← Real.sqrt_mul (by positivity), show (n / v * (n * v) : ℝ) = n ^ 2 by field_simp,
+      Real.sqrt_sq hn'.le]
+  refine ⟨fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩, fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩⟩ <;> nlinarith [key]
+
+include h_meas h_mgf h_non_deg in
+/-- The second moment of `νₜ` is `1`. -/
+lemma integral_sq_id_stdTiltedLaw (t : ℝ) :
+    ∫ x, x ^ 2 ∂(νₜ X t) = 1 := by
+  have hv := h_non_deg t
+  set m := deriv (cgf (X 0) ℙ) t
+  set v := iteratedDeriv 2 (cgf (X 0) ℙ) t
+  simp only [νₜ]
+  rw [integral_map (by fun_prop) (by fun_prop)]
+  have hμ_mean : ∫ x, x ∂μₜ X t = m :=
+    integral_id_tiltedLaw X h_meas h_mgf t
+  have hvar : Var[id; μₜ X t] = v :=
+    variance_id_tiltedLaw X h_meas h_mgf t
+  have hint_sq : ∫ x, (x - m) ^ 2 ∂μₜ X t = v := by
+    rw [← hvar, variance_eq_integral aemeasurable_id]
+    congr 1; ext x; simp [hμ_mean]
+  rw [show (fun x : ℝ => ((x - m) / Real.sqrt v) ^ 2) = fun x => (x - m) ^ 2 / v from
+    funext fun x => by rw [div_pow, Real.sq_sqrt hv.le], integral_div, hint_sq, div_self hv.ne']
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-! ### Lemmas requiring `ℙ` to be a probability measure -/
+
+variable [IsProbabilityMeasure (ℙ : Measure Ω)]
+
+include h_meas h_mgf in
+/-- `μₜ` is a probability measure. -/
+lemma isProbabilityMeasure_tiltedLaw (t : ℝ) :
+    IsProbabilityMeasure (μₜ X t) := by
+  haveI : IsProbabilityMeasure ((ℙ : Measure Ω).map (X 0)) :=
+    Measure.isProbabilityMeasure_map (h_meas 0).aemeasurable
+  exact isProbabilityMeasure_tilted
+    ((integrable_map_measure (by fun_prop) (h_meas 0).aemeasurable).mpr (h_mgf t))
+
+/-! ### Properties of `νₜ` -/
+
+include h_meas h_mgf in
+/-- `νₜ` is a probability measure. -/
+lemma isProbabilityMeasure_stdTiltedLaw (t : ℝ) :
+    IsProbabilityMeasure (νₜ X t) :=
+  haveI := isProbabilityMeasure_tiltedLaw X h_meas h_mgf t
+  Measure.isProbabilityMeasure_map (by fun_prop)
+
+include h_meas h_mgf in
+/-- The mean of `νₜ` is `0`. -/
+lemma integral_id_stdTiltedLaw (t : ℝ) :
+    ∫ x, x ∂(νₜ X t) = 0 := by
+  simp only [νₜ]
+  haveI : IsProbabilityMeasure (μₜ X t) :=
+    isProbabilityMeasure_tiltedLaw X h_meas h_mgf t
+  have hid : Integrable (fun x : ℝ => x) (μₜ X t) :=
+    (memLp_id_tiltedLaw X h_meas h_mgf t).integrable (by norm_num)
+  rw [integral_map (by fun_prop) (by fun_prop), integral_div,
+    integral_sub hid (integrable_const _), integral_const, probReal_univ, one_smul,
+    integral_id_tiltedLaw X h_meas h_mgf t, sub_self, zero_div]
+
+include h_meas h_mgf in
+/-- The identity is in `L²` under `νₜ`. -/
+lemma memLp_id_stdTiltedLaw (t : ℝ) :
+    MemLp (id : ℝ → ℝ) 2 (νₜ X t) := by
+  simp only [νₜ]
+  rw [memLp_map_measure_iff (by fun_prop) (by fun_prop)]
+  haveI : IsProbabilityMeasure (μₜ X t) :=
+    isProbabilityMeasure_tiltedLaw X h_meas h_mgf t
+  have h_sub : MemLp (fun x : ℝ => x - deriv (cgf (X 0) ℙ) t) 2 (μₜ X t) :=
+    (memLp_id_tiltedLaw X h_meas h_mgf t).sub (memLp_const _)
+  have h_div : MemLp (fun x : ℝ => (x - deriv (cgf (X 0) ℙ) t) *
+      (Real.sqrt (iteratedDeriv 2 (cgf (X 0) ℙ) t))⁻¹) 2 (μₜ X t) :=
+    h_sub.mul_const _
+  exact h_div.congr_norm (by fun_prop) (Eventually.of_forall fun x => by
+    simp [Function.comp, div_eq_mul_inv])
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-! ### Factorization of `X₀, …, Xₙ₋₁` under `ℚₙₜ`
+
+Under the tilted measure `ℚₙₜ = ℙ.tilted(t · Sₙ)`, the coordinates `X₀, …, Xₙ₋₁` are
+still independent and each has law `μₜ`.
+These follow from factoring the tilting density `exp(t Sₙ) = ∏ᵢ exp(t Xᵢ)`. -/
+
+private lemma measurable_ennreal_ofReal_exp_t_mul (t : ℝ) :
+    Measurable (fun x : ℝ => ENNReal.ofReal (Real.exp (t * x))) :=
+  (measurable_id.const_mul t |>.exp).ennreal_ofReal
+
+omit [MeasureSpace Ω] [IsProbabilityMeasure (ℙ : Measure Ω)] in
+/-- `↑e^(t · Sₙ) = ∏ᵢ ↑e^(t Xᵢ)` where `↑` is coercion to extended reals. -/
+private lemma ennreal_ofReal_exp_t_partialSum_eq_prod (t : ℝ) (n : ℕ) (ω : Ω) :
+    ENNReal.ofReal (Real.exp (t * partialSum X n ω)) =
+    ∏ j ∈ Finset.range n, ENNReal.ofReal (Real.exp (t * X j ω)) := by
+  rw [show Real.exp (t * partialSum X n ω) = ∏ j ∈ Finset.range n, Real.exp (t * X j ω) by
+    simp [partialSum, Finset.sum_apply, Finset.mul_sum, Real.exp_sum],
+    ENNReal.ofReal_prod_of_nonneg (fun _ _ => (Real.exp_pos _).le)]
+
+omit [IsProbabilityMeasure (ℙ : Measure Ω)] in
+include h_meas in
+/-- `↑e^(t Xᵢ)` is measurable for each `i`. -/
+private lemma measurable_ennreal_ofReal_exp_t_mul_X (t : ℝ) (j : ℕ) :
+    Measurable (fun ω => ENNReal.ofReal (Real.exp (t * X j ω))) :=
+  (measurable_ennreal_ofReal_exp_t_mul t).comp (h_meas j)
+
+omit [IsProbabilityMeasure (ℙ : Measure Ω)] in
+include h_indep in
+/-- The family `↑e^(t Xᵢ)` is independent. -/
+private lemma iIndepFun_ennreal_ofReal_exp_t_mul_X (t : ℝ) :
+    iIndepFun (fun j ω => ENNReal.ofReal (Real.exp (t * X j ω))) ℙ :=
+  h_indep.comp (fun _ x => ENNReal.ofReal (Real.exp (t * x)))
+    (fun _ => measurable_ennreal_ofReal_exp_t_mul t)
+
+omit [IsProbabilityMeasure (ℙ : Measure Ω)] in
+include h_ident h_mgf in
+/-- The integral of `↑e^(t Xᵢ)` against `ℙ` is `↑ mgf(X 0)(t)`. -/
+private lemma lintegral_ennreal_ofReal_exp_t_mul_X (t : ℝ) (j : ℕ) :
+    ∫⁻ ω, ENNReal.ofReal (Real.exp (t * X j ω)) ∂ℙ = ENNReal.ofReal (mgf (X 0) ℙ t) :=
+  ((h_ident j).comp (measurable_ennreal_ofReal_exp_t_mul t)).lintegral_eq.trans
+    (ofReal_integral_eq_lintegral_ofReal (h_mgf t)
+      (ae_of_all _ fun _ => (Real.exp_pos _).le)).symm
+
+include h_indep h_ident h_meas h_mgf in
+/-- `MGF(X₁)` and `MGF(Sₙ)` are positive and `↑MGF(Sₙ) = (↑MGF(X₁))ⁿ` -/
+private lemma mgf_preamble (n : ℕ) (t : ℝ) :
+    0 < mgf (X 0) ℙ t ∧
+    0 < mgf (partialSum X n) ℙ t ∧
+    ENNReal.ofReal (mgf (partialSum X n) ℙ t) = (ENNReal.ofReal (mgf (X 0) ℙ t)) ^ n := by
+  have hM₀_pos : 0 < mgf (X 0) ℙ t := integral_exp_pos (h_mgf t)
+  refine ⟨hM₀_pos,
+    integral_exp_pos (integrable_exp_sum X h_indep h_ident h_meas h_mgf t n), ?_⟩
+  rw [show mgf (partialSum X n) ℙ t = (mgf (X 0) ℙ t) ^ n by
+      rw [mgf_sum_eq_exp_n_prod_cgf X h_indep h_ident h_meas h_mgf n t, cgf, ← Real.log_pow,
+        Real.exp_log (pow_pos hM₀_pos n)],
+    ENNReal.ofReal_pow hM₀_pos.le]
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf in
+/-- Under `ℚₙₜ`, each `Xᵢ` (for `i < n`) has the same law `μₜ`. -/
+lemma map_X_ℚₙₜ (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) :
+    (ℚₙₜ X ℙ n t).map (X i) = μₜ X t := by
+  obtain ⟨hM₀_pos, hMₙ_pos, hMₙ_pow⟩ := mgf_preamble X h_indep h_ident h_meas h_mgf n t
+  have hi_mem : i ∈ Finset.range n := Finset.mem_range.mpr hi
+  have hn_pos : 0 < n := Nat.lt_of_le_of_lt (Nat.zero_le _) hi
+  set M₀ := mgf (X 0) ℙ t with hM₀_def
+  set Mₙ := mgf (partialSum X n) ℙ t with hMₙ_def
+  have hM₀_nn : ENNReal.ofReal M₀ ≠ 0 := (ENNReal.ofReal_pos.mpr hM₀_pos).ne'
+  have hMₙ_nn : ENNReal.ofReal Mₙ ≠ 0 := (ENNReal.ofReal_pos.mpr hMₙ_pos).ne'
+  have hMₙ_inv_ne_top : (ENNReal.ofReal Mₙ)⁻¹ ≠ ∞ := ENNReal.inv_ne_top.mpr hMₙ_nn
+  have hM₀_inv_ne_top : (ENNReal.ofReal M₀)⁻¹ ≠ ∞ := ENNReal.inv_ne_top.mpr hM₀_nn
+  have hk_meas : Measurable (fun x : ℝ => ENNReal.ofReal (Real.exp (t * x))) :=
+    measurable_ennreal_ofReal_exp_t_mul t
+  set e : ℕ → Ω → ℝ≥0∞ := fun j ω => ENNReal.ofReal (Real.exp (t * X j ω))
+  have he_meas := measurable_ennreal_ofReal_exp_t_mul_X X h_meas t
+  have he_indep := iIndepFun_ennreal_ofReal_exp_t_mul_X X h_indep t
+  have he_lint := lintegral_ennreal_ofReal_exp_t_mul_X X h_ident h_mgf t
+  apply Measure.ext_of_lintegral
+  intro g hg
+  have hg_exp : Measurable (fun x : ℝ => g x * ENNReal.ofReal (Real.exp (t * x))) :=
+    hg.mul hk_meas
+  set I₀ : ℝ≥0∞ := ∫⁻ ω, g (X 0 ω) * e 0 ω ∂ℙ with hI₀_def
+  have hI_eq : (∫⁻ ω, g (X i ω) * e i ω ∂ℙ) = I₀ :=
+    ((h_ident i).comp hg_exp).lintegral_eq
+  have hmeas_gxe : Measurable (fun ω : Ω => g (X i ω) * e i ω) :=
+    (hg.comp (h_meas i)).mul (he_meas i)
+  have hmeas_prod : Measurable fun ω => ∏ j ∈ (Finset.range n).erase i, e j ω :=
+    Finset.measurable_prod _ fun j _ => he_meas j
+  set ψ : ℕ → ℝ → ℝ≥0∞ := fun j x =>
+    if j = i then g x * ENNReal.ofReal (Real.exp (t * x))
+    else ENNReal.ofReal (Real.exp (t * x))
+  have hψ_meas : ∀ j, Measurable (ψ j) := fun j => by
+    simp only [ψ]; split_ifs; exacts [hg_exp, hk_meas]
+  have hindep : IndepFun (fun ω => g (X i ω) * e i ω)
+      (fun ω => ∏ j ∈ (Finset.range n).erase i, e j ω) ℙ := by
+    have h : IndepFun (∏ j ∈ (Finset.range n).erase i, (ψ j ∘ X j)) (ψ i ∘ X i) ℙ :=
+      (h_indep.comp ψ hψ_meas).indepFun_finset_prod_of_notMem
+        (fun j => (hψ_meas j).comp (h_meas j)) (Finset.notMem_erase i _)
+    convert h.symm using 1
+    · ext ω; simp [ψ, e]
+    · ext ω; rw [Finset.prod_apply]
+      exact Finset.prod_congr rfl fun j hj => by simp [ψ, e, Finset.ne_of_mem_erase hj]
+  rw [lintegral_map hg (h_meas i)]
+  simp only [ℚₙₜ, μₜ, lintegral_tilted]
+  have hsum_prod : ∀ ω, ENNReal.ofReal (Real.exp (t * partialSum X n ω) /
+      ∫ x, Real.exp (t * partialSum X n x) ∂ℙ) * g (X i ω) =
+      (g (X i ω) * e i ω) * (∏ j ∈ (Finset.range n).erase i, e j ω) *
+        (ENNReal.ofReal Mₙ)⁻¹ := fun ω => by
+    rw [show (∫ x, Real.exp (t * partialSum X n x) ∂ℙ) = Mₙ from rfl,
+      ENNReal.ofReal_div_of_pos hMₙ_pos, div_eq_mul_inv,
+      ennreal_ofReal_exp_t_partialSum_eq_prod X t n ω,
+      ← Finset.mul_prod_erase _ (e · ω) hi_mem]
+    ring
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+  simp_rw [hsum_prod]
+  rw [lintegral_mul_const' _ _ hMₙ_inv_ne_top,
+    lintegral_mul_eq_lintegral_mul_lintegral_of_indepFun''
+      hmeas_gxe.aemeasurable hmeas_prod.aemeasurable hindep,
+    lintegral_prod_eq_prod_lintegral_of_indepFun _ _ he_indep he_meas,
+    Finset.prod_congr rfl (fun j _ => he_lint j), Finset.prod_const,
+    Finset.card_erase_of_mem hi_mem, Finset.card_range, hI_eq, hMₙ_pow]
+  have hmap_mgf : (∫ x : ℝ, Real.exp (t * x) ∂Measure.map (X 0) ℙ) = M₀ :=
+    integral_map (h_meas 0).aemeasurable ((measurable_id.const_mul t).exp).aestronglyMeasurable
+  conv_rhs => rw [show (fun x : ℝ => ENNReal.ofReal (Real.exp (t * x) /
+      ∫ y, Real.exp (t * y) ∂Measure.map (X 0) ℙ) * g x) = fun x =>
+    (g x * ENNReal.ofReal (Real.exp (t * x))) * (ENNReal.ofReal M₀)⁻¹ from funext fun x => by
+      rw [hmap_mgf, ENNReal.ofReal_div_of_pos hM₀_pos, div_eq_mul_inv]; ring]
+  rw [lintegral_mul_const' _ _ hM₀_inv_ne_top, lintegral_map hg_exp (h_meas 0), ← hI₀_def]
+  rw [show (ENNReal.ofReal M₀) ^ n = (ENNReal.ofReal M₀) ^ (n - 1) * ENNReal.ofReal M₀ by
+      conv_lhs => rw [show n = (n - 1) + 1 from (Nat.sub_add_cancel hn_pos).symm, pow_succ],
+    ENNReal.mul_inv (Or.inl (pow_ne_zero _ hM₀_nn))
+      (Or.inl (ENNReal.pow_ne_top ENNReal.ofReal_lt_top.ne)),
+    mul_assoc, ← mul_assoc ((ENNReal.ofReal M₀) ^ (n - 1)),
+    ENNReal.mul_inv_cancel (pow_ne_zero _ hM₀_nn) (ENNReal.pow_ne_top ENNReal.ofReal_lt_top.ne),
+    one_mul]
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf in
+/-- Under `ℚₙₜ`, `Xᵢ` (for `i < n`) are independent. -/
+lemma iIndepFun_range_ℚₙₜ (t : ℝ) (n : ℕ) :
+    iIndepFun (fun i : Finset.range n => X i.val) (ℚₙₜ X ℙ n t) := by
+  classical
+  obtain ⟨hM₀_pos, hMₙ_pos, hMₙ_pow⟩ := mgf_preamble X h_indep h_ident h_meas h_mgf n t
+  set M₀ := mgf (X 0) ℙ t with hM₀_def
+  set Mₙ := mgf (partialSum X n) ℙ t with hMₙ_def
+  have hM₀_nn : ENNReal.ofReal M₀ ≠ 0 := (ENNReal.ofReal_pos.mpr hM₀_pos).ne'
+  have hM₀_top : ENNReal.ofReal M₀ ≠ ∞ := ENNReal.ofReal_lt_top.ne
+  have hMₙ_nn : ENNReal.ofReal Mₙ ≠ 0 := (ENNReal.ofReal_pos.mpr hMₙ_pos).ne'
+  have hMₙ_inv_ne_top : (ENNReal.ofReal Mₙ)⁻¹ ≠ ∞ := ENNReal.inv_ne_top.mpr hMₙ_nn
+  set e : ℕ → Ω → ℝ≥0∞ := fun j ω => ENNReal.ofReal (Real.exp (t * X j ω)) with he_def
+  have he_meas := measurable_ennreal_ofReal_exp_t_mul_X X h_meas t
+  have he_indep := iIndepFun_ennreal_ofReal_exp_t_mul_X X h_indep t
+  have he_lint := lintegral_ennreal_ofReal_exp_t_mul_X X h_ident h_mgf t
+  have hsum_eq : ∀ ω,
+      ENNReal.ofReal (Real.exp (t * partialSum X n ω)) =
+      ∏ j ∈ Finset.range n, e j ω :=
+    fun ω => ennreal_ofReal_exp_t_partialSum_eq_prod X t n ω
+  rw [iIndepFun_iff_measure_inter_preimage_eq_mul]
+  intro S sets hsets
+  let A' : ℕ → Set ℝ := fun j =>
+    if hj : j < n then
+      if h : ⟨j, Finset.mem_range.mpr hj⟩ ∈ S then sets ⟨j, Finset.mem_range.mpr hj⟩
+      else Set.univ
+    else Set.univ
+  have hA'_meas : ∀ j, MeasurableSet (A' j) := fun j => by
+    simp only [A']; split_ifs with hj hjS
+    exacts [hsets _ hjS, MeasurableSet.univ, MeasurableSet.univ]
+  have hA'_inS : ∀ (i : Finset.range n), i ∈ S → A' (i : ℕ) = sets i := by
+    intro i hi
+    have hi_lt : (i : ℕ) < n := Finset.mem_range.mp i.2
+    have heq : (⟨(i : ℕ), Finset.mem_range.mpr hi_lt⟩ : Finset.range n) = i := Subtype.ext rfl
+    simp only [A', dif_pos hi_lt]
+    rw [dif_pos (by rw [heq]; exact hi), heq]
+  let φ : ℕ → ℝ → ℝ≥0∞ := fun j x =>
+    (A' j).indicator (fun _ => (1 : ℝ≥0∞)) x * ENNReal.ofReal (Real.exp (t * x))
+  have hφ_meas : ∀ j, Measurable (φ j) := fun j =>
+    (measurable_const.indicator (hA'_meas j)).mul (measurable_ennreal_ofReal_exp_t_mul t)
+  have hφ_comp_indep : iIndepFun (fun j => φ j ∘ X j) ℙ := h_indep.comp φ hφ_meas
+  have hφ_meas' : ∀ j, Measurable (fun ω => φ j (X j ω)) :=
+    fun j => (hφ_meas j).comp (h_meas j)
+  have hφ_lint_not_inS : ∀ j, (∀ hj : j < n, ⟨j, Finset.mem_range.mpr hj⟩ ∉ S) →
+      ∫⁻ ω, φ j (X j ω) ∂ℙ = ENNReal.ofReal M₀ := by
+    intro j hj_notmem
+    refine (lintegral_congr fun ω => ?_).trans (he_lint j)
+    simp only [φ, A']; split_ifs with hj hjS
+    · exact absurd hjS (hj_notmem hj)
+    · rw [Set.indicator_univ]; simp
+    · rw [Set.indicator_univ]; simp
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+  have hprod_indicator : ∀ ω,
+      ∏ j ∈ Finset.range n, φ j (X j ω) =
+      (⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i).indicator (fun _ => (1 : ℝ≥0∞)) ω *
+        ∏ j ∈ Finset.range n, e j ω := by
+    intro ω
+    by_cases hω : ω ∈ ⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i
+    · rw [Set.indicator_of_mem hω, one_mul]
+      refine Finset.prod_congr rfl fun j hj => ?_
+      have hjn : j < n := Finset.mem_range.mp hj
+      change (A' j).indicator _ (X j ω) * _ = e j ω
+      by_cases hjS : (⟨j, Finset.mem_range.mpr hjn⟩ : Finset.range n) ∈ S
+      · rw [hA'_inS ⟨j, Finset.mem_range.mpr hjn⟩ hjS]
+        have hmem : X j ω ∈ sets ⟨j, Finset.mem_range.mpr hjn⟩ :=
+          Set.mem_iInter₂.mp hω _ hjS
+        rw [Set.indicator_of_mem hmem, one_mul]
+      · have hA'_univ : A' j = Set.univ := by
+          simp only [A', dif_pos hjn, dif_neg hjS]
+        rw [hA'_univ, Set.indicator_univ, one_mul]
+    · rw [Set.indicator_of_notMem hω, zero_mul]
+      have : ∃ i ∈ S, X (i : ℕ) ω ∉ sets i := by
+        by_contra! h_all
+        exact hω (Set.mem_iInter₂.mpr h_all)
+      obtain ⟨i, hiS, hi⟩ := this
+      apply Finset.prod_eq_zero (i.2 : (i : ℕ) ∈ Finset.range n)
+      change (A' (i : ℕ)).indicator _ (X (i : ℕ) ω) * _ = 0
+      rw [hA'_inS i hiS, Set.indicator_of_notMem hi, zero_mul]
+  have hIcap_meas : MeasurableSet
+      (⋂ i ∈ S, (fun ω => X (i : ℕ) ω) ⁻¹' sets i) :=
+    .biInter (Set.to_countable _) fun i hi => (h_meas _) (hsets i hi)
+  have hfun_eq : ∀ ω,
+      ENNReal.ofReal (Real.exp (t * partialSum X n ω) / Mₙ) =
+      ENNReal.ofReal (Real.exp (t * partialSum X n ω)) * (ENNReal.ofReal Mₙ)⁻¹ := fun ω => by
+    rw [ENNReal.ofReal_div_of_pos hMₙ_pos, div_eq_mul_inv]
+  have hLHS :
+      (ℚₙₜ X ℙ n t) (⋂ i ∈ S, (fun ω => X i.val ω) ⁻¹' sets i) =
+      (ENNReal.ofReal Mₙ)⁻¹ *
+        ∫⁻ ω, ∏ j ∈ Finset.range n, φ j (X j ω) ∂ℙ := by
+    simp only [ℚₙₜ]
+    rw [tilted_apply' _ _ hIcap_meas]
+    change ∫⁻ ω in _, ENNReal.ofReal (Real.exp (t * partialSum X n ω) / Mₙ) ∂ℙ = _
+    rw [setLIntegral_congr_fun hIcap_meas (fun ω _ => hfun_eq ω),
+      lintegral_mul_const' _ _ hMₙ_inv_ne_top, mul_comm, ← lintegral_indicator hIcap_meas]
+    congr 1
+    refine lintegral_congr fun ω => ?_
+    rw [hprod_indicator ω]
+    by_cases hω : ω ∈ ⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i
+    · rw [Set.indicator_of_mem hω, Set.indicator_of_mem hω, one_mul, hsum_eq ω]
+    · rw [Set.indicator_of_notMem hω, Set.indicator_of_notMem hω, zero_mul]
+  have hLHS_factor :
+      ∫⁻ ω, ∏ j ∈ Finset.range n, φ j (X j ω) ∂ℙ =
+      ∏ j ∈ Finset.range n, ∫⁻ ω, φ j (X j ω) ∂ℙ :=
+    lintegral_prod_eq_prod_lintegral_of_indepFun _ _ hφ_comp_indep hφ_meas'
+  have hAᵢ_meas : ∀ i ∈ S, MeasurableSet ((X (i : ℕ)) ⁻¹' sets i) := fun i hi =>
+    (h_meas _) (hsets i hi)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+  have h_single : ∀ (i : Finset.range n) (hi : i ∈ S),
+      (ℚₙₜ X ℙ n t) ((X (i : ℕ)) ⁻¹' sets i) =
+      (ENNReal.ofReal Mₙ)⁻¹ *
+        (∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
+          e (i : ℕ) ω ∂ℙ) *
+        ∏ j ∈ (Finset.range n).erase (i : ℕ), ENNReal.ofReal M₀ := by
+    intro i hi
+    have hmeas_i : MeasurableSet ((X (i : ℕ)) ⁻¹' sets i) := hAᵢ_meas _ hi
+    simp only [ℚₙₜ]
+    rw [tilted_apply' _ _ hmeas_i]
+    change ∫⁻ ω in _, ENNReal.ofReal (Real.exp (t * partialSum X n ω) / Mₙ) ∂ℙ = _
+    rw [setLIntegral_congr_fun hmeas_i (fun ω _ => hfun_eq ω),
+      lintegral_mul_const' _ _ hMₙ_inv_ne_top, mul_right_comm, ← lintegral_indicator hmeas_i]
+    have hi_range : (i : ℕ) ∈ Finset.range n := i.2
+    have hrewrite : ∀ ω,
+        ((X (i : ℕ)) ⁻¹' sets i).indicator
+          (fun a => ENNReal.ofReal (Real.exp (t * partialSum X n a))) ω =
+        ((sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) * e (i : ℕ) ω) *
+          ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω := by
+      intro ω
+      rw [Set.indicator]
+      by_cases hω : X (i : ℕ) ω ∈ sets i
+      · rw [hsum_eq ω]
+        have hhω : ω ∈ (X (i : ℕ)) ⁻¹' sets i := hω
+        simp only [hhω, if_true]
+        rw [Set.indicator_of_mem hω]
+        rw [← Finset.mul_prod_erase _ _ hi_range]
+        ring
+      · have hhω : ω ∉ (X (i : ℕ)) ⁻¹' sets i := hω
+        simp only [hhω, if_false]
+        rw [Set.indicator_of_notMem hω]
+        simp
+    rw [lintegral_congr hrewrite]
+    have hmeas_first : AEMeasurable
+        (fun ω => (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
+          e (i : ℕ) ω) ℙ :=
+      ((measurable_const.indicator (hsets _ hi)).comp (h_meas _)).mul
+        (he_meas _) |>.aemeasurable
+    have hmeas_rest : AEMeasurable
+        (fun ω => ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω) ℙ :=
+      (Finset.measurable_prod _ (fun j _ => he_meas j)).aemeasurable
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+    have hindep_first_rest :
+        IndepFun (fun ω => (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
+            e (i : ℕ) ω)
+          (fun ω => ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω) ℙ := by
+      let ψ : ℕ → ℝ → ℝ≥0∞ := fun j x =>
+        if j = (i : ℕ) then
+          (sets i).indicator (fun _ => (1 : ℝ≥0∞)) x * ENNReal.ofReal (Real.exp (t * x))
+        else ENNReal.ofReal (Real.exp (t * x))
+      have hψ_meas : ∀ j, Measurable (ψ j) := by
+        intro j
+        simp only [ψ]
+        split_ifs
+        · exact (measurable_const.indicator (hsets _ hi)).mul
+            (measurable_ennreal_ofReal_exp_t_mul t)
+        · exact measurable_ennreal_ofReal_exp_t_mul t
+      convert ((h_indep.comp ψ hψ_meas).indepFun_finset_prod_of_notMem
+        (fun j => (hψ_meas j).comp (h_meas j))
+        (Finset.notMem_erase (i : ℕ) (Finset.range n))).symm using 1
+      · ext ω
+        show (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) * e (i : ℕ) ω
+             = (ψ (i : ℕ) ∘ X (i : ℕ)) ω
+        simp [ψ, e]
+      · ext ω
+        show ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω
+             = (∏ j ∈ (Finset.range n).erase (i : ℕ), (ψ j ∘ X j)) ω
+        rw [Finset.prod_apply]
+        apply Finset.prod_congr rfl
+        intro j hj
+        have hj_ne : j ≠ (i : ℕ) := Finset.ne_of_mem_erase hj
+        simp [ψ, e, hj_ne]
+    rw [lintegral_mul_eq_lintegral_mul_lintegral_of_indepFun''
+      hmeas_first hmeas_rest hindep_first_rest]
+    rw [lintegral_prod_eq_prod_lintegral_of_indepFun _ e he_indep he_meas]
+    rw [Finset.prod_congr rfl (fun j _ => he_lint j)]
+    ring
+  rw [hLHS, hLHS_factor]
+  rw [show (∏ i ∈ S, (ℚₙₜ X ℙ n t) ((fun ω => X i.val ω) ⁻¹' sets i)) =
+      ∏ i ∈ S, (ℚₙₜ X ℙ n t) ((X (i : ℕ)) ⁻¹' sets i) from rfl]
+  rw [Finset.prod_congr rfl (fun i hi => h_single i hi)]
+  have hprod_const_erase : ∀ (i : Finset.range n),
+      (∏ j ∈ (Finset.range n).erase (i : ℕ), ENNReal.ofReal M₀) =
+        (ENNReal.ofReal M₀) ^ (n - 1) := fun i => by
+    rw [Finset.prod_const, Finset.card_erase_of_mem i.2, Finset.card_range]
+  have h_image_S : (S.image (Subtype.val : Finset.range n → ℕ)) ⊆ Finset.range n :=
+    fun j hj => by obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hj; exact i.2
+  have h_g_inS : ∀ (i : Finset.range n) (hi : i ∈ S),
+      ∫⁻ ω, φ (i : ℕ) (X (i : ℕ) ω) ∂ℙ =
+      ∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
+        e (i : ℕ) ω ∂ℙ := fun i hi =>
+    lintegral_congr fun ω => by
+      change (A' (i : ℕ)).indicator _ _ * _ = _; rw [hA'_inS i hi]
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+  have h_g_notinS : ∀ j ∈ Finset.range n,
+      j ∉ S.image (Subtype.val : Finset.range n → ℕ) →
+      ∫⁻ ω, φ j (X j ω) ∂ℙ = ENNReal.ofReal M₀ := fun j _ hj_notmem =>
+    hφ_lint_not_inS j fun hj hjS =>
+      hj_notmem (Finset.mem_image.mpr ⟨⟨j, Finset.mem_range.mpr hj⟩, hjS, rfl⟩)
+  rw [show ∏ j ∈ Finset.range n, ∫⁻ ω, φ j (X j ω) ∂ℙ =
+      (∏ j ∈ S.image (Subtype.val : Finset.range n → ℕ), ∫⁻ ω, φ j (X j ω) ∂ℙ) *
+        (∏ j ∈ Finset.range n \ S.image (Subtype.val : Finset.range n → ℕ),
+          ∫⁻ ω, φ j (X j ω) ∂ℙ) from by rw [← Finset.prod_sdiff h_image_S, mul_comm],
+    Finset.prod_congr rfl (fun j hj => h_g_notinS j (Finset.mem_sdiff.mp hj).1
+      (Finset.mem_sdiff.mp hj).2), Finset.prod_const,
+    show ∏ j ∈ S.image (Subtype.val : Finset.range n → ℕ), ∫⁻ ω, φ j (X j ω) ∂ℙ =
+        ∏ i ∈ S, ∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
+          e (i : ℕ) ω ∂ℙ from by
+      rw [Finset.prod_image (fun _ _ _ _ => Subtype.ext)]
+      exact Finset.prod_congr rfl h_g_inS,
+    show (Finset.range n \ S.image (Subtype.val : Finset.range n → ℕ)).card = n - S.card from by
+      rw [Finset.card_sdiff_of_subset h_image_S, Finset.card_range,
+        Finset.card_image_of_injective _ fun _ _ hxy => Subtype.ext hxy]]
+  simp_rw [hprod_const_erase, Finset.prod_mul_distrib, Finset.prod_const, hMₙ_pow,
+    ENNReal.inv_pow]
+  have hS_card_le : S.card ≤ n :=
+    (Finset.card_le_card (Finset.subset_univ _)).trans_eq <| by
+      rw [Finset.card_univ, Fintype.card_coe, Finset.card_range]
+  have hcancel : (ENNReal.ofReal M₀)⁻¹ * ENNReal.ofReal M₀ = 1 :=
+    ENNReal.inv_mul_cancel hM₀_nn hM₀_top
+  have hcancel_pow : ∀ k, (ENNReal.ofReal M₀)⁻¹ ^ k * (ENNReal.ofReal M₀) ^ k = 1 :=
+    fun k => by rw [← mul_pow, hcancel, one_pow]
+  set s := S.card with hs_def
+  set P : ℝ≥0∞ := ∏ i ∈ S, ∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞))
+    (X (i : ℕ) ω) * e (i : ℕ) ω ∂ℙ
+  conv_lhs => rw [show (ENNReal.ofReal M₀)⁻¹ ^ n =
+      (ENNReal.ofReal M₀)⁻¹ ^ s * (ENNReal.ofReal M₀)⁻¹ ^ (n - s) by
+    rw [← pow_add, Nat.add_sub_cancel' hS_card_le]]
+  rw [mul_assoc, ← mul_assoc ((ENNReal.ofReal M₀)⁻¹ ^ (n - s)), mul_comm _ P, mul_assoc,
+    hcancel_pow, mul_one]
+  rw [← pow_mul, ← pow_mul]
+  have h_expand : n * s = s + (n - 1) * s := by
+    rcases Nat.eq_zero_or_pos n with hn | hn
+    · have hs0 : s = 0 := Nat.le_zero.mp (hn ▸ hS_card_le)
+      simp [hn, hs0]
+    · conv_lhs => rw [show n = 1 + (n - 1) from (Nat.add_sub_cancel' hn).symm]
+      rw [Nat.add_mul, one_mul]
+  rw [h_expand, pow_add, show (ENNReal.ofReal M₀)⁻¹ ^ s * (ENNReal.ofReal M₀)⁻¹ ^ ((n - 1) * s) *
+      P * ENNReal.ofReal M₀ ^ ((n - 1) * s) = (ENNReal.ofReal M₀)⁻¹ ^ s * P *
+      ((ENNReal.ofReal M₀)⁻¹ ^ ((n - 1) * s) * ENNReal.ofReal M₀ ^ ((n - 1) * s)) by ring,
+    hcancel_pow, mul_one]
+
+include h_indep h_ident h_meas h_mgf in
+/-- Under `ℚₙₜ`, `Xᵢ` (for `i < n`) are identically distributed. -/
+lemma identDistrib_X_X0_ℚₙₜ (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) (h0 : 0 < n) :
+    IdentDistrib (X i) (X 0) (ℚₙₜ X ℙ n t) (ℚₙₜ X ℙ n t) where
+  aemeasurable_fst := (h_meas i).aemeasurable
+  aemeasurable_snd := (h_meas 0).aemeasurable
+  map_eq := (map_X_ℚₙₜ X h_indep h_ident h_meas h_mgf t n hi).trans
+    (map_X_ℚₙₜ X h_indep h_ident h_meas h_mgf t n h0).symm
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-! ### Characteristic function of `Z` under `ℚₙₜ` -/
+
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- Under `ℚₙₜ`, the characteristic function of `Zₙ` at `s` is `[charFun νₜ ((√n)⁻¹ · s)]ⁿ`. -/
+lemma charFun_map_Z_ℚₙₜ (t : ℝ) (n : ℕ) (s : ℝ) :
+    charFun ((ℚₙₜ X ℙ n t).map (Z X t n)) s =
+      (charFun (νₜ X t) ((Real.sqrt n)⁻¹ * s)) ^ n := by
+  haveI : IsProbabilityMeasure (ℚₙₜ X ℙ n t) :=
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+  set m := deriv (cgf (X 0) ℙ) t
+  set v := iteratedDeriv 2 (cgf (X 0) ℙ) t
+  have hv_ne : Real.sqrt v ≠ 0 := (Real.sqrt_pos.mpr (h_non_deg t)).ne'
+  set Y : ℕ → Ω → ℝ := fun k ω => (X k ω - m) / Real.sqrt v with hY_def
+  have hY_meas : ∀ k, Measurable (Y k) := fun _ => by fun_prop
+  --  `Z = (√n)⁻¹ * ∑ⁿ Yᵢ`.
+  have hZ_eq : Z X t n = fun ω => (Real.sqrt n)⁻¹ * ∑ k ∈ Finset.range n, Y k ω := by
+    ext ω
+    simp only [Z, hY_def, partialSum, Finset.sum_apply,
+      Real.sqrt_mul (Nat.cast_nonneg _), ← Finset.sum_div, Finset.sum_sub_distrib,
+      Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+    ring
+  rw [hZ_eq, charFun_map_mul_comp
+    (Finset.aemeasurable_fun_sum _ fun k _ => (hY_meas k).aemeasurable)]
+  -- Independence of the family `Yᵢ` under `ℚₙₜ`.
+  have hY_indep : iIndepFun ((Finset.range n).restrict Y) (ℚₙₜ X ℙ n t) :=
+    (iIndepFun_range_ℚₙₜ X h_indep h_ident h_meas h_mgf t n).comp
+      (fun _ : Finset.range n => fun x : ℝ => (x - m) / Real.sqrt v) (fun _ => by fun_prop)
+  -- Apply the characteristic function factorization on `1..n`.
+  rw [hY_indep.charFun_map_fun_finset_sum_eq_prod (fun k _ => (hY_meas k).aemeasurable)]
+  -- Every factor is `charFun (νₜ X t) ((√n)⁻¹ * s)`.
+  have hY_map : ∀ i ∈ Finset.range n,
+      (ℚₙₜ X ℙ n t).map (Y i) = νₜ X t := fun i hi => by
+    rw [show Y i = (fun x : ℝ => (x - m) / Real.sqrt v) ∘ X i from rfl,
+      ← Measure.map_map (by fun_prop) (h_meas i),
+      map_X_ℚₙₜ X h_indep h_ident h_meas h_mgf t n (Finset.mem_range.mp hi)]
+    rfl
+  rw [Finset.prod_apply, Finset.prod_congr rfl fun i hi => by rw [hY_map i hi],
+    Finset.prod_const, Finset.card_range]
+
+include h_meas h_mgf h_non_deg in
+/-- `(charFun νₜ ((√n)⁻¹ · s))ⁿ → e^(-s²/2)` as `n → ∞`, the characteristic function of `𝒩(0, 1)` -/
+lemma tendsto_charFun_stdTiltedLaw_pow (t : ℝ) (s : ℝ) :
+    Tendsto (fun n : ℕ => (charFun (νₜ X t) ((Real.sqrt n)⁻¹ * s)) ^ n)
+      atTop (𝓝 (Complex.exp (-s ^ 2 / 2))) := by
+  haveI : IsProbabilityMeasure (νₜ X t) :=
+    isProbabilityMeasure_stdTiltedLaw X h_meas h_mgf t
+  have h0 : (νₜ X t)[id] = 0 := integral_id_stdTiltedLaw X h_meas h_mgf t
+  have h1 : (νₜ X t)[(id : ℝ → ℝ) ^ 2] = 1 := by
+    simpa using integral_sq_id_stdTiltedLaw X h_meas h_mgf h_non_deg t
+  have hmap : (νₜ X t).map id = νₜ X t := Measure.map_id
+  have := tendsto_charFun_inv_sqrt_mul_pow (P := νₜ X t) (X := id)
+    aemeasurable_id h0 h1 s
+  rwa [hmap] at this
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-! ### Central Limit Theorem under the tilted measures -/
+
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- **CLT for tilted measures (characteristic function form):** under `ℚₙₜ`, the
+characteristic function of `Zₙ` converges pointwise to that of `𝒩(0, 1)` (i.e `e^(-s²/2)`). -/
+theorem tendsto_charFun_Z_ℚₙₜ (t : ℝ) (s : ℝ) :
+    Tendsto (fun n : ℕ => charFun ((ℚₙₜ X ℙ n t).map (Z X t n)) s)
+      atTop (𝓝 (Complex.exp (-s ^ 2 / 2))) := by
+  refine (tendsto_charFun_stdTiltedLaw_pow X h_meas h_mgf h_non_deg t s).congr' ?_
+  exact Filter.Eventually.of_forall fun n =>
+    (charFun_map_Z_ℚₙₜ X h_indep h_ident h_meas h_mgf h_non_deg t n s).symm
+
+/-! ### Consequence: concentration of the empirical mean
+
+As a consequence of the CLT, we show that given `Λ'(t) = a`, `{Sₙ/n ∈ [a, a+δ]} → 1/2}`, which is
+used in the proof of the lower bound of Cramér's theorem, by demonstrating that this is equivalent
+to `{Zₙ ∈ [0, δ · √(n/Λ''(t))]}` and using the convergence of `Zₙ` to `𝒩(0, 1)`. -/
+
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- For `t` with `Λ'(t) = a` and any `M > 0`, eventually the tilted probability that
+`Zₙ ∈ [0, M]` is at least `𝒩(0,1)([0, M]) - ε`. -/
+lemma liminf_ℚₙₜ_Z_Icc_ge (t : ℝ) (M : ℝ) (hM : 0 ≤ M) (ε : ℝ) (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal - ε ≤
+      ((ℚₙₜ X ℙ n t).map (Z X t n) (Set.Icc (0 : ℝ) M)).toReal := by
+  haveI : ∀ n, IsProbabilityMeasure (ℚₙₜ X ℙ n t) := fun n =>
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+  haveI : ∀ n, IsProbabilityMeasure ((ℚₙₜ X ℙ n t).map (Z X t n)) := fun n =>
+    Measure.isProbabilityMeasure_map
+      (((measurable_partialSum X h_meas n).sub_const _).div_const _).aemeasurable
+  haveI : NoAtoms (gaussianReal 0 1) := noAtoms_gaussianReal one_ne_zero
+  set μ_n : ℕ → ProbabilityMeasure ℝ := fun n =>
+    ⟨(ℚₙₜ X ℙ n t).map (Z X t n), inferInstance⟩
+  set μ : ProbabilityMeasure ℝ := ⟨gaussianReal 0 1, inferInstance⟩
+  -- apply Lévy's convergence theorem
+  have h_weak : Tendsto μ_n atTop (𝓝 μ) :=
+    ProbabilityMeasure.tendsto_iff_tendsto_charFun.2 fun s => by
+      have h_gauss : charFun (gaussianReal 0 1 : Measure ℝ) s =
+          Complex.exp (-s ^ 2 / 2) := by rw [charFun_gaussianReal]; push_cast; ring_nf
+      simpa [μ_n, μ, h_gauss] using
+        tendsto_charFun_Z_ℚₙₜ X h_indep h_ident h_meas h_mgf h_non_deg t s
+  have h_fr : (μ : Measure ℝ) (frontier (Set.Icc (0 : ℝ) M)) = 0 := by
+    rw [show (μ : Measure ℝ) = gaussianReal 0 1 from rfl, frontier_Icc hM]
+    exact Set.Finite.measure_zero (by simp) _
+  have h_lt : ((μ : Measure ℝ) (Set.Icc (0 : ℝ) M)).toReal - ε <
+      ((μ : Measure ℝ) (Set.Icc (0 : ℝ) M)).toReal := by linarith
+  simpa using ((ENNReal.tendsto_toReal (measure_ne_top _ _)).comp
+    (ProbabilityMeasure.tendsto_measure_of_null_frontier_of_tendsto'
+      h_weak h_fr)).eventually_const_le h_lt
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-- The standard Gaussian has mass `1/2` on `(-∞, 0]`. -/
+private lemma gaussianReal_Iic_zero_eq_half :
+    (gaussianReal 0 1) (Set.Iic (0 : ℝ)) = 1 / 2 := by
+  haveI : NoAtoms (gaussianReal 0 1) := noAtoms_gaussianReal one_ne_zero
+  set N := gaussianReal 0 1
+  -- By symmetry, `N((-∞, 0]) = N([0, ∞))`.
+  have hIoi_eq_Iic : N (Set.Ioi (0 : ℝ)) = N (Set.Iic 0) := by
+    have hsym : N.map (fun x : ℝ => -x) = N := by
+      simpa using gaussianReal_map_neg (μ := (0 : ℝ)) (v := (1 : ℝ≥0))
+    refine (measure_congr Ioi_ae_eq_Ici).trans ?_
+    conv_lhs => rw [← hsym, Measure.map_apply (by fun_prop) measurableSet_Ici]
+    congr 1; ext x; simp
+  -- `N((-∞, 0]) = 1/2` as `N((-∞, 0]) + N([0, ∞)) = N(ℝ) = 1`.
+  have hcompl : N (Set.Iic (0 : ℝ)) + N (Set.Iic 0) = 1 := by
+    have := measure_add_measure_compl (μ := N) (s := Set.Iic (0 : ℝ)) measurableSet_Iic
+    rwa [Set.compl_Iic, measure_univ, hIoi_eq_Iic] at this
+  rw [ENNReal.eq_div_iff (by norm_num) (by norm_num), two_mul]; exact hcompl
+
+/-- The standard Gaussian's mass on `[0, M]` tends to `1/2` as `M → ∞`. -/
+lemma tendsto_gaussianReal_Icc_toReal_half :
+    Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
+      atTop (𝓝 (1 / 2)) := by
+  haveI : NoAtoms (gaussianReal 0 1) := noAtoms_gaussianReal one_ne_zero
+  set N := gaussianReal 0 1
+  have hIic0 : N (Set.Iic (0 : ℝ)) = 1 / 2 := gaussianReal_Iic_zero_eq_half
+  have hIio_eq_Iic : N (Set.Iio (0 : ℝ)) = N (Set.Iic 0) := measure_congr Iio_ae_eq_Iic
+  -- For `M ≥ 0`, `N([0, M]) = N((-∞, M]) - 1/2`.
+  have hIcc_eq : ∀ᶠ M : ℝ in atTop,
+      N (Set.Iic M) - (1 / 2 : ℝ≥0∞) = N (Set.Icc (0 : ℝ) M) :=
+    (Filter.eventually_ge_atTop 0).mono fun M hM => by
+      have hunion : N (Set.Iio 0) + N (Set.Icc 0 M) = N (Set.Iic M) := by
+        rw [← Set.Iio_union_Icc_eq_Iic hM]
+        exact (measure_union ((Set.Iio_disjoint_Ici le_rfl).mono_right
+          Set.Icc_subset_Ici_self) measurableSet_Icc).symm
+      rw [← hIic0, ← hIio_eq_Iic]
+      exact (ENNReal.eq_sub_of_add_eq (measure_ne_top N _)
+        ((add_comm (N (Set.Iio 0)) _) ▸ hunion)).symm
+  -- `N([0, M]) → 1/2` in ENNReal
+  have hIcc_tendsto : Tendsto (fun M : ℝ => N (Set.Icc (0 : ℝ) M)) atTop (𝓝 (1 / 2)) := by
+    have hIic_tendsto : Tendsto (fun M : ℝ => N (Set.Iic M)) atTop (𝓝 1) := by
+      simpa using tendsto_measure_Iic_atTop N
+    have key := (ENNReal.Tendsto.sub hIic_tendsto
+      (tendsto_const_nhds (x := (1 / 2 : ℝ≥0∞))) (Or.inl ENNReal.one_ne_top))
+    rw [show (1 : ℝ≥0∞) - 1 / 2 = 1 / 2 from by norm_num] at key
+    exact key.congr' hIcc_eq
+  rw [show (1 : ℝ) / 2 = ((1 : ℝ≥0∞) / 2).toReal from by norm_num]
+  exact (ENNReal.tendsto_toReal (by norm_num)).comp hIcc_tendsto
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- **Corollary of Tilted CLT:** Given `Λ'(t) = a`, for all `δ > 0` and `ε > 0`,
+ `1/2 - ε ≤ ℚₙₜ(Sₙ/n ∈ [a, a+δ])` holds for all sufficiently large `n`. -/
+lemma eventually_ℚₙₜ_empiricalMean_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ) (ε : ℝ) (hε : 0 < ε)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    ∀ᶠ n in atTop,
+      (1 / 2 - ε : ℝ) ≤ ((ℚₙₜ X ℙ n t)
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+  -- Let `v := Λ''(t)`
+  set v := iteratedDeriv 2 (cgf (X 0) ℙ) t with hv_def
+  have hv_pos : 0 < v := h_non_deg t
+  haveI hℚ_prob : ∀ n, IsProbabilityMeasure (ℚₙₜ X ℙ n t) := fun n =>
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+  have hZ_meas : ∀ n, Measurable (Z X t n) := fun n => by
+    unfold Z
+    exact ((measurable_partialSum X h_meas n).sub_const _).div_const _
+  -- Pick `M₀ ≥ 0` with `1/2 - ε/2 < N([0, M₀])`.
+  obtain ⟨M₀, hM₀_lb, hM₀_nonneg⟩ :=
+    ((tendsto_gaussianReal_Icc_toReal_half.eventually_const_lt
+        (show (1/2 - ε/2 : ℝ) < 1/2 by linarith)).and (Filter.eventually_ge_atTop 0)).exists
+  -- Apply `liminf_ℚₙₜ_Z_Icc_ge` with `M₀` and `ε/2`.
+  have h_liminf := liminf_ℚₙₜ_Z_Icc_ge X h_indep h_ident h_meas h_mgf h_non_deg
+    t M₀ hM₀_nonneg (ε/2) (by linarith)
+  -- `δ · √(n/v) → ∞` as `n → ∞`.
+  have h_Mn_ge : ∀ᶠ n : ℕ in atTop, M₀ ≤ δ * Real.sqrt ((n : ℝ) / v) :=
+    ((Real.tendsto_sqrt_atTop.comp
+      (Filter.Tendsto.atTop_div_const hv_pos tendsto_natCast_atTop_atTop)).const_mul_atTop
+        hδ).eventually_ge_atTop M₀
+  filter_upwards [h_liminf, h_Mn_ge, Filter.eventually_gt_atTop 0]
+    with n h_lim hMn_ge hn_pos
+  -- `M_n = δ * √(n / v) ≥ M₀ ≥ 0`.
+  set M_n := δ * Real.sqrt ((n : ℝ) / v)
+  haveI : IsProbabilityMeasure ((ℚₙₜ X ℙ n t).map (Z X t n)) :=
+    Measure.isProbabilityMeasure_map (hZ_meas n).aemeasurable
+  -- Rewrite the preimage of `Z([0, Mₙ])` as `{ω | Sₙ(ω)/n ∈ [a, a+δ]}`
+  have h_set_eq :
+      (Z X t n) ⁻¹' Set.Icc (0 : ℝ) M_n =
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} := by
+    ext ω
+    simp only [Set.mem_preimage, Set.mem_setOf_eq]
+    rw [empiricalMean_mem_Icc_iff_Z_mem_Icc X t a δ n hn_pos (h_non_deg t) ht_deriv ω]
+  -- `[0, M₀] ⊆ [0, M_n]` implies `Zₙ([0, M₀]) ≤ Zₙ([0, M_n])` under `ℚₙₜ`.
+  have h_toReal_mono :
+      (((ℚₙₜ X ℙ n t).map (Z X t n)) (Set.Icc (0 : ℝ) M₀)).toReal ≤
+        (((ℚₙₜ X ℙ n t).map (Z X t n)) (Set.Icc (0 : ℝ) M_n)).toReal :=
+    ENNReal.toReal_mono (measure_ne_top _ _)
+      (measure_mono (Set.Icc_subset_Icc le_rfl hMn_ge))
+  -- Combine: `1/2 - ε ≤ N([0, M₀]) - ε/2 ≤ ℚₙₜ.map(Zₙ)([0, Mₙ]) = ℚₙₜ(Sₙ / n ∈ [a, a+δ])`.
+  rw [← h_set_eq, ← Measure.map_apply (hZ_meas n) measurableSet_Icc]
+  linarith [h_lim, h_toReal_mono]
+
+end ProbabilityTheory
+\end{lstlisting}
+
+\newpage
+\subsection{Mathlib/Probability/LargeDeviations/Cramers/LowerBound.lean}
+\label[appendix]{subsection:lean-listing-lowerbound}
+\begin{lstlisting}
+module
+
+public import Mathlib.Probability.LargeDeviations.Cramers.Basic
+public import Mathlib.Probability.LargeDeviations.Cramers.TiltedCLT
+
+/-!
+# Cramér's Theorem — Lower Bound
+
+This file proves the lower (exponential tilting) bound for Cramér's theorem:
+
+- `cramer_lower_bound`: For any `a ≥ 𝔼[X 0]`, `liminf n⁻¹ * log ℙ(Sₙ/n ≥ a) ≥ -I(a)`.
+
+The proof uses the change-of-measure approach with the family of tilted measures
+`ℚₙₜ = ℙ.tilted(t * Sₙ)` where `t` is chosen so that `cgf'(t) = a`.
+-/
+
+open ProbabilityTheory MeasureTheory Filter Topology
+open scoped ENNReal
+
+@[expose] public section
+
+namespace ProbabilityTheory
+
+variable {Ω : Type*} [MeasureSpace Ω]
+variable (X : ℕ → Ω → ℝ)
+
+/- Assumptions for Cramér's theorem -/
+variable (h_indep : iIndepFun X ℙ)
+variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
+variable (h_meas : ∀ n, Measurable (X n))
+variable (h_int : Integrable (X 0) ℙ)
+variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
+variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
+variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
+variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
+
+omit [MeasureSpace Ω] in
+/-- `0 < t` and `Sₙ/n ∈ [a, a + δ]` implies `exp(-t · Sₙ) ≥ exp(-t · n · (a + δ))` -/
+private lemma exp_neg_mul_S_ge_on_set (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
+    (ω : Ω) (hω : empiricalMean X n ω ∈ Set.Icc a (a + δ)) :
+    Real.exp (-t * partialSum X n ω) ≥ Real.exp (-t * n * (a + δ)) := by
+  apply Real.exp_le_exp.mpr
+  rw [empiricalMean] at hω
+  rcases eq_or_ne n 0 with hn | hn
+  · simp [hn, partialSum]
+  · have hn' : (0 : ℝ) < n := Nat.cast_pos.mpr (Nat.pos_of_ne_zero hn)
+    nlinarith [(div_le_iff₀ hn').mp hω.2, mul_nonneg ht hn'.le]
+
+/-- `0 ≤ (1 / n : EReal)` lifted from `ℝ` via `Nat.cast_nonneg`. -/
+private lemma ereal_one_div_nat_nonneg (n : ℕ) : (0 : EReal) ≤ ((1 : ℝ) / n : EReal) :=
+  EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg n))
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-- `(1 / ↑n) · ↑c → 0` where we lift to `EReal` from `ℝ`. -/
+lemma ereal_inv_nat_mul_const_tendsto_zero (c : ℝ) :
+    Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * (c : EReal)) atTop (𝓝 0) := by
+  have h_real : Tendsto (fun n : ℕ => (1 / n * c : ℝ)) atTop (𝓝 0) := by
+    simpa using ((tendsto_const_nhds (x := (1 : ℝ))).div_atTop
+      tendsto_natCast_atTop_atTop).mul (tendsto_const_nhds (x := c))
+  exact_mod_cast continuous_coe_real_ereal.continuousAt.tendsto.comp h_real
+
+/-- For `y ∈ (0, ∞)` and `n ≥ 1`, `n⁻¹ log(exp(x) · y) = n⁻¹x + n⁻¹ · log(y)`, where we lift
+    values to EReal and ENNReal where needed for later results. -/
+private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
+    (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
+    ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal (Real.exp x * y.toReal)) =
+    ((1 : ℝ) / n : EReal) * (x : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y := by
+  have hy_pos : 0 < y.toReal := ENNReal.toReal_pos hy_ne_zero hy_ne_top
+  rw [ENNReal.log_ofReal_of_pos (mul_pos (Real.exp_pos x) hy_pos),
+    Real.log_mul (Real.exp_pos x).ne' hy_pos.ne', Real.log_exp,
+    ENNReal.log_pos_real hy_ne_zero hy_ne_top, EReal.coe_add]
+  exact EReal.left_distrib_of_nonneg_of_ne_top (EReal.coe_nonneg.mpr (by positivity))
+    (EReal.coe_ne_top _) _ _
+
+/-- For `y ∈ (0, ∞)` and `n ≥ 1`,
+  `n⁻¹ log(exp(-n (t · (a + δ) - l)) · y) = -(ta - l) - tδ + n⁻¹ log(y)`
+  which we will later use with `l := Λ(t)` -/
+private lemma log_exp_product_eq_neg_coef_plus_log (n : ℕ) (t a δ : ℝ) (l : ℝ)
+    (y : ENNReal) (hn : n ≥ 1) (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
+    ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal
+      (Real.exp (-n * (t * (a + δ) - l)) * y.toReal)) =
+    (-(t * a - l) - t * δ : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y := by
+  rw [log_product_split n _ y hn hy_ne_zero hy_ne_top]
+  congr 1
+  have h_eq : (1 / (n : ℝ)) * (-n * (t * (a + δ) - l)) = -(t * a - l) - t * δ := by
+    field_simp; ring
+  convert congrArg (fun x : ℝ => (x : EReal)) h_eq using 2
+
+/-- Given `c ∈ [-∞,∞]` and `f(n) → 0` as `n → ∞`, `f(n) + c → c` as `n → ∞` -/
+private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
+    (h : Tendsto f atTop (𝓝 0)) : Tendsto (fun n => c + f n) atTop (𝓝 c) := by
+  simpa using (EReal.continuousAt_add (by simp) (by simp)).tendsto.comp
+    (tendsto_const_nhds.prodMk_nhds h)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-- Given `x, y ∈ [-∞, ∞]`, if `∀ε ∈ ℝ⁺, x - ε ≤ y`, then `x ≤ y`. -/
+private lemma EReal.le_of_forall_pos_sub_le {x y : EReal}
+    (h : ∀ ε : ℝ, 0 < ε → x - (ε : EReal) ≤ y) : x ≤ y := by
+  induction x using EReal.rec with
+  | bot => exact bot_le
+  | top =>
+    have := h 1 zero_lt_one
+    rwa [EReal.top_sub_coe] at this
+  | coe x_val =>
+    induction y using EReal.rec with
+    | bot =>
+      have := h 1 zero_lt_one
+      simp only [EReal.coe_one] at this
+      exact absurd (le_bot_iff.mp this) (EReal.coe_ne_bot _)
+    | top => exact le_top
+    | coe y_val =>
+      exact_mod_cast _root_.le_of_forall_sub_le fun ε hε => by exact_mod_cast h ε hε
+
+/-! ### Lemmas requiring IsProbabilityMeasure -/
+
+variable [IsProbabilityMeasure (ℙ : Measure Ω)]
+
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- `ℚₙₜ(Sₙ/n ∈ [a, a+δ])` is eventually always positive as `n → ∞`.
+That is, `∃ c > 0` s.t. `ℚₙₜ(Sₙ/n ∈ [a, a+δ]) > c` for all sufficiently large `n`.
+This is a consequence of the Central Limit Theorem assumption. -/
+private lemma tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ : 0 < δ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    ∃ c > 0, ∀ᶠ n in atTop,
+      c ≤ ((ℚₙₜ X ℙ n t)
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+  refine ⟨1/4, by norm_num, ?_⟩
+  filter_upwards [eventually_ℚₙₜ_empiricalMean_mem_Icc_ge X h_indep h_ident h_meas h_mgf
+    h_non_deg t a δ hδ (1/4) (by norm_num) ht_deriv] with n hn
+  linarith
+
+/-- For an event `E ⊆ Ω` and a random variable `f : Ω → ℝ`, we have  `ℙ(E) = 𝔼[eᶠ] ∫_E exp(-f) dℙ_f`
+where `ℙ_f` is the measure `ℙ` exponentially tilted with respect to `f`. That is, it has density
+proportional to `exp(f)`. -/
+private lemma measure_eq_integral_exp_neg_tilted (f : Ω → ℝ) (E : Set Ω)
+    (h_int : Integrable (fun ω => Real.exp (f ω)) ℙ)
+    (hE : MeasurableSet E) :
+    (ℙ E).toReal =
+      (𝔼[fun ω => Real.exp (f ω)]) * (∫ ω in E, Real.exp (-f ω) ∂(Measure.tilted ℙ f)) := by
+  rw [setIntegral_tilted' f (fun ω => Real.exp (-f ω)) hE]
+  have h_ne : 𝔼[fun x => Real.exp (f x)] ≠ 0 := (integral_exp_pos h_int).ne'
+  simp_rw [smul_eq_mul, div_mul_eq_mul_div, ← Real.exp_add, add_neg_cancel, Real.exp_zero, one_div,
+    setIntegral_const, Measure.real, smul_eq_mul]
+  field_simp
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf in
+/-- `ℙ(Sₙ/n ∈ [a, a + δ]) ≥ exp(-n(ta - Λ(t))) · ℚₙₜ(Sₙ/n ∈ [a, a + δ])` -/
+lemma change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
+    (h_int : Integrable (fun ω => Real.exp (t * partialSum X n ω)) ℙ) :
+    let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+    (ℙ E).toReal ≥
+      Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+      ((ℚₙₜ X ℙ n t) E).toReal := by
+  intro E
+  have hE : MeasurableSet E :=
+    measurableSet_Icc.preimage (measurable_empiricalMean X h_meas n)
+  rw [measure_eq_integral_exp_neg_tilted (fun ω => t * partialSum X n ω) E h_int hE]
+  change mgf (partialSum X n) ℙ t * _ ≥ _
+  rw [mgf_sum_eq_exp_n_prod_cgf X h_indep h_ident h_meas h_mgf n t]
+  haveI : IsProbabilityMeasure (ℚₙₜ X ℙ n t) :=
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+  have h_bound :
+      ∫ ω in E, Real.exp (-t * partialSum X n ω)
+        ∂(ℚₙₜ X ℙ n t) ≥
+      Real.exp (-t * n * (a + δ)) *
+        ((ℚₙₜ X ℙ n t) E).toReal := by
+    calc ∫ ω in E, Real.exp (-t * partialSum X n ω)
+        ∂(ℚₙₜ X ℙ n t)
+        ≥ ∫ ω in E, Real.exp (-t * n * (a + δ))
+          ∂(ℚₙₜ X ℙ n t) :=
+          setIntegral_mono_on (integrable_const _).integrableOn
+            (Integrable.integrableOn <| by
+              rw [show (ℚₙₜ X ℙ n t) = Measure.tilted ℙ (fun ω => t * partialSum X n ω) from rfl,
+                integrable_tilted_iff h_int]
+              simp [← Real.exp_add])
+            hE (exp_neg_mul_S_ge_on_set X t n a δ ht.le)
+      _ = ((ℚₙₜ X ℙ n t).real E) •
+            Real.exp (-t * n * (a + δ)) := setIntegral_const _
+      _ = Real.exp (-t * n * (a + δ)) *
+            ((ℚₙₜ X ℙ n t) E).toReal := by
+          rw [Measure.real, smul_eq_mul]; ring
+  have key : Real.exp (n * cgf (X 0) ℙ t) *
+      (Real.exp (-t * n * (a + δ)) *
+        ((ℚₙₜ X ℙ n t) E).toReal) =
+    Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+      ((ℚₙₜ X ℙ n t) E).toReal := by
+    rw [← mul_assoc, ← Real.exp_add]; ring_nf
+  rw [← key]
+  gcongr
+  convert h_bound.le using 2
+  ring_nf
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- The error term `n⁻¹ * log(ℚₙₜ(Sₙ/n ∈ [a, a+δ])) → 0` as `n → ∞` -/
+private lemma error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    Tendsto (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log ((ℚₙₜ X ℙ n t)
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})) atTop (𝓝 0) := by
+  obtain ⟨c, hc_pos, h_bounded⟩ :=
+    tilted_window_lower_bound_from_concentration X h_indep h_ident h_meas h_mgf h_non_deg
+      a t δ hδ ht_deriv
+  haveI : ∀ m, IsProbabilityMeasure (ℚₙₜ X ℙ m t) := fun m =>
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t m
+  have h_lower_tendsto : Tendsto (fun m : ℕ =>
+      ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)) atTop (𝓝 0) := by
+    rw [ENNReal.log_ofReal_of_pos hc_pos]
+    exact ereal_inv_nat_mul_const_tendsto_zero (Real.log c)
+  have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
+  have h_eventually : ∀ᶠ (m : ℕ) in atTop,
+      ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)
+      ≤ ((1 : ℝ) / m : EReal) * ENNReal.log ((ℚₙₜ X ℙ m t)
+          {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
+      ∧ ((1 : ℝ) / m : EReal) * ENNReal.log ((ℚₙₜ X ℙ m t)
+          {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
+      ≤ 0 := by
+    filter_upwards [h_bounded] with m hm_bound
+    refine ⟨mul_le_mul_of_nonneg_left ?_ (ereal_one_div_nat_nonneg m),
+      mul_nonpos_of_nonneg_of_nonpos (ereal_one_div_nat_nonneg m) ?_⟩
+    · exact ENNReal.log_le_log <| (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).mpr
+        hm_bound
+    · exact ENNReal.log_le_zero_iff.mpr prob_le_one
+  exact tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
+    (h_eventually.mono fun m h => h.1) (h_eventually.mono fun m h => h.2)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- For `δ,t > 0` with `Λ'(t) = a`, we have `liminfₙ n⁻¹ log ℙ(Sₙ/n ≥ a) ≥ -(ta - Λ(t)) - tδ ` -/
+private lemma lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    liminf (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+    ≥ (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal) := by
+  -- `n⁻¹ log ℙ(Sₙ/n ≥ a) ≥ (ta - Λ(t)) - tδ + n⁻¹ log ℚₙₜ(Sₙ/n ∈ [a, a + δ])`
+  have h_pointwise : ∀ n : ℕ, n ≥ 1 →
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})
+      ≥ (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+        + ((1 : ℝ) / n : EReal) * ENNReal.log ((ℚₙₜ X ℙ n t)
+            {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}) := by
+    intro n hn
+    haveI : IsProbabilityMeasure (ℚₙₜ X ℙ n t) :=
+      isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+    have h_subset : {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} ⊆
+        {ω | empiricalMean X n ω ≥ a} := fun _ hω => hω.1
+    let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+    let F := {ω | empiricalMean X n ω ≥ a}
+    have h_prob_mono : (ℙ F).toReal ≥ (ℙ E).toReal :=
+      ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono h_subset)
+    have h_log_ineq : ENNReal.log (ℙ F) ≥
+        ENNReal.log (ENNReal.ofReal (Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+          ((ℚₙₜ X ℙ n t) E).toReal)) := by
+      apply ENNReal.log_le_log
+      rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
+      linarith [h_prob_mono, change_of_measure_lower_bound X h_indep h_ident h_meas h_mgf
+        a δ t n ht (integrable_exp_sum X h_indep h_ident h_meas h_mgf t n)]
+    calc ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ F)
+        ≥ ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal
+            (Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+              ((ℚₙₜ X ℙ n t) E).toReal)) :=
+          mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq)
+            (ereal_one_div_nat_nonneg n)
+      _ = (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+          + ((1 : ℝ) / n : EReal) *
+            ENNReal.log ((ℚₙₜ X ℙ n t) E) := by
+        by_cases h_tilted_zero : (ℚₙₜ X ℙ n t) E = 0
+        · rw [h_tilted_zero]
+          simp only [ENNReal.toReal_zero, mul_zero, ENNReal.ofReal_zero, ENNReal.log_zero]
+          have h1n_pos : (0 : EReal) < ((1 : ℝ) / n : EReal) := EReal.coe_pos.mpr (by positivity)
+          rw [EReal.mul_bot_of_pos h1n_pos]
+          simp only [EReal.add_bot]
+        · exact log_exp_product_eq_neg_coef_plus_log n t a δ (cgf (X 0) ℙ t) _ hn
+            h_tilted_zero (measure_ne_top _ _)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+  -- The error term `n⁻¹ log ℚₙₜ(Sₙ/n ∈ [a, a + δ])` vanishes as `n → ∞`.
+  have h_error_vanish := @error_term_vanishes _ _ X h_indep h_ident h_meas h_mgf h_non_deg
+    _ a t δ hδ ht_deriv
+  let rhs_seq : ℕ → EReal := fun n =>
+    (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+    + ((1 : ℝ) / n : EReal) * ENNReal.log ((ℚₙₜ X ℙ n t)
+        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})
+  have h_rhs_limit : Tendsto rhs_seq atTop
+      (𝓝 ((-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal))) :=
+    tendsto_const_add_vanishing _ _ h_error_vanish
+  -- Combine the pointwise inequality and vanishing error term to conclude
+  have h_eventually : ∀ᶠ (n : ℕ) in atTop,
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})
+      ≥ rhs_seq n :=
+    Filter.eventually_atTop.mpr ⟨1, h_pointwise⟩
+  rw [← h_rhs_limit.liminf_eq]
+  exact liminf_le_liminf h_eventually
+
+include h_mgf h_non_deg in
+/-- If `a ≥ 𝔼[X₁]` and `Λ'(t) = a`, then `0 ≤ t` -/
+private lemma deriv_cgf_nonneg_of_ge_mean (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) (t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    0 ≤ t := by
+  by_contra! ht_neg
+  have h_strict_mono : StrictMono (deriv (cgf (X 0) ℙ)) :=
+    strictMono_of_deriv_pos fun x => by simpa [iteratedDeriv_succ] using h_non_deg x
+  have := h_strict_mono ht_neg
+  rw [ht_deriv, deriv_cgf_zero (mem_interior_integrableExpSet X h_mgf 0)] at this
+  simp at this
+  linarith
+
+omit [IsProbabilityMeasure (ℙ : Measure Ω)] in
+include h_mgf in
+/-- The CGF of `X 0` is analytic on all of `ℝ`. -/
+private lemma analyticOn_cgf_univ : AnalyticOn ℝ (cgf (X 0) ℙ) Set.univ :=
+  Set.eq_univ_of_forall (mem_interior_integrableExpSet X h_mgf) ▸ analyticOn_cgf
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+omit [IsProbabilityMeasure (ℙ : Measure Ω)] in
+include h_mgf h_bdd h_non_deg in
+/-- Given `Λ'(t) = a`, the rate function satisfies `I(a) = ta - Λ(t)`. -/
+private lemma rateFunction_eq_of_deriv_eq (a t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    I X a = t * a - cgf (X 0) ℙ t := by
+  rw [I]
+  have h_analytic : AnalyticOn ℝ (cgf (X 0) ℙ) Set.univ := analyticOn_cgf_univ X h_mgf
+  -- We proceed by proving inequality in both directions
+  refine le_antisymm (ciSup_le fun s => ?_) (le_ciSup (h_bdd a) t)
+  -- Sub-goal `sa - Λ(s) ≤ ta - Λ(t)`, i.e. `Λ(s) ≥ Λ(t) + a(s - t)`: the CGF is above its
+  -- tangent line at `t`, as it is strictly convex (from `h_non_deg`: `Λ''(x) > 0`).
+  have h_convex : StrictConvexOn ℝ Set.univ (cgf (X 0) ℙ) :=
+    strictConvexOn_of_deriv2_pos' convex_univ h_analytic.continuousOn
+      fun x _ => by simpa [← iteratedDeriv_eq_iterate] using h_non_deg x
+  have h_diff : DifferentiableAt ℝ (cgf (X 0) ℙ) t :=
+    h_analytic.differentiableOn.differentiableAt (isOpen_univ.mem_nhds (Set.mem_univ t))
+  suffices h_tangent : cgf (X 0) ℙ s ≥ cgf (X 0) ℙ t + a * (s - t) by linarith
+  rcases lt_trichotomy s t with hst | rfl | hts
+  · have h_slope := h_convex.convexOn.slope_le_of_hasDerivAt
+      (Set.mem_univ s) (Set.mem_univ t) hst h_diff.hasDerivAt
+    rw [ht_deriv, slope_def_field] at h_slope
+    rw [ge_iff_le, ← sub_nonneg]
+    have : 0 < t - s := sub_pos.mpr hst
+    nlinarith [(div_le_iff₀ this).mp h_slope]
+  · simp
+  · have h_slope := h_convex.convexOn.deriv_le_slope
+      (Set.mem_univ t) (Set.mem_univ s) hts h_diff
+    rw [ht_deriv, slope_def_field] at h_slope
+    rw [ge_iff_le, ← sub_nonneg]
+    have : 0 < s - t := sub_pos.mpr hts
+    nlinarith [(le_div_iff₀ this).mp h_slope]
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf h_non_deg in
+/-- Edge-case of `cramer_lower_bound` at `a = 𝔼[X 0]` -/
+private lemma cramer_lower_bound_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0) ℙ) 0 = a) :
+    (0 : EReal) ≤
+      liminf (fun n : ℕ =>
+        ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
+  -- `Var[X] > 0`
+  have h_var_pos : 0 < variance (X 0) ℙ := by
+    have h_int_zero : (0 : ℝ) ∈ interior (integrableExpSet (X 0) ℙ) :=
+      mem_interior_integrableExpSet X h_mgf 0
+    have h := variance_tilted_mul (X := X 0) (μ := ℙ) h_int_zero
+    simp only [zero_mul, show (fun _ : Ω => (0 : ℝ)) = 0 from rfl, tilted_zero] at h
+    exact h ▸ h_non_deg 0
+  -- `∃ c > 0` such that for all sufficiently large `n`, `ℙ(Sₙ/n ≥ a) ≥ c`
+  -- i.e. the asymptotic lower bound `ℙ(Sₙ/n ≥ a)` is greater than 0, which we derive from CLT
+  -- on the tilted measures, noting that at `t = 0`, the tilted measures `ℚₙₜ` coincide with `ℙ`.
+  have h_prob_lower_bound : ∃ c > 0, ∀ᶠ n in atTop,
+      c ≤ (ℙ {ω | a ≤ empiricalMean X n ω}).toReal := by
+    have h_bound := eventually_ℚₙₜ_empiricalMean_mem_Icc_ge X h_indep h_ident h_meas h_mgf
+      h_non_deg 0 a 1 (by norm_num) (1/4) (by norm_num) ht_deriv
+    refine ⟨1/4, by norm_num, ?_⟩
+    filter_upwards [h_bound] with n hn
+    have h_eq_meas : ℚₙₜ X ℙ n 0 = ℙ := by
+      change Measure.tilted ℙ (fun ω => 0 * partialSum X n ω) = ℙ
+      simp_rw [zero_mul]; exact tilted_zero ℙ
+    rw [h_eq_meas] at hn
+    calc (1 / 4 : ℝ)
+        = 1 / 2 - 1 / 4 := by norm_num
+      _ ≤ (ℙ {ω | empiricalMean X n ω ∈ Set.Icc a (a + 1)}).toReal := hn
+      _ ≤ (ℙ {ω | a ≤ empiricalMean X n ω}).toReal :=
+        ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono fun _ hω => hω.1)
+  obtain ⟨c, hc_pos, h_eventually_lower⟩ := h_prob_lower_bound
+  have h_lower_tendsto :
+      Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal c))
+        atTop (𝓝 0) := by
+    rw [ENNReal.log_ofReal_of_pos hc_pos]
+    exact ereal_inv_nat_mul_const_tendsto_zero (Real.log c)
+  have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
+  -- Establish bounds to apply squeeze theorem `n⁻¹ log (c) ≤ n⁻¹ log ℙ(Sₙ/n ≥ a) ≤ 0`
+  have h_squeeze : ∀ᶠ (m : ℕ) in atTop,
+      ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ENNReal.ofReal c)
+      ≤ ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X m ω})
+      ∧ ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X m ω}) ≤ 0 := by
+    filter_upwards [h_eventually_lower] with m hm_lower
+    refine ⟨mul_le_mul_of_nonneg_left ?_ (ereal_one_div_nat_nonneg m),
+      mul_nonpos_of_nonneg_of_nonpos (ereal_one_div_nat_nonneg m) ?_⟩
+    · exact ENNReal.log_le_log <|
+        (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).mpr hm_lower
+    · exact ENNReal.log_le_zero_iff.mpr prob_le_one
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+  -- `n⁻¹ log ℙ(Sₙ/n ≥ a) → 0` by squeeze theorem
+  have h_tendsto :
+      Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
+        atTop (𝓝 0) :=
+    tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
+      (h_squeeze.mono fun _ hn => hn.1) (h_squeeze.mono fun _ hn => hn.2)
+  change (0 : EReal) ≤
+    liminf (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
+      atTop
+  rw [h_tendsto.liminf_eq]
+
+include h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed in
+/-- **Cramér's Theorem (Lower Bound)**: Given `a ≥ E[X 0]`, `-I(a) ≤ liminfₙ n⁻¹ log ℙ(Sₙ/n ≥ a)` -/
+theorem cramer_lower_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    (- I X a : EReal) ≤
+      liminf (fun n : ℕ =>
+        ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
+  -- Get the `t` such that `Λ'(t) = a`.
+  obtain ⟨t, ht_deriv⟩ := h_exposed a h_mean
+  have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_ge_mean X h_mgf h_non_deg a h_mean t ht_deriv
+  have h_rate_eq : I X a = t * a - cgf (X 0) ℙ t :=
+    rateFunction_eq_of_deriv_eq X h_mgf h_bdd h_non_deg a t ht_deriv
+  rw [h_rate_eq]
+  let LHS_val :=
+    liminf (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}))
+      atTop
+  -- Casework on whether `t = 0`
+  by_cases ht_zero : t = 0
+  · -- `t = 0` (which implies `a = 𝔼[X]` from solving `a = Λ'(t) = Λ'(0)`).
+    subst ht_zero
+    simp only [zero_mul, cgf_zero, sub_zero, EReal.coe_zero, neg_zero]
+    exact cramer_lower_bound_at_mean X h_indep h_ident h_meas h_mgf h_non_deg a ht_deriv
+  have ht_pos : 0 < t := lt_of_le_of_ne ht_nonneg (Ne.symm ht_zero)
+  -- Bound the liminf from below for any fixed positive `δ` using the tilted measure bounds.
+  have h_bound_for_all_delta : ∀ (δ : ℝ), 0 < δ →
+      (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal) ≤ LHS_val := fun δ hδ =>
+    (lower_bound_via_tilted X h_indep h_ident h_meas h_mgf h_non_deg a t δ hδ ht_pos ht_deriv).le
+  -- Conclude the lower bound by taking `δ → 0`.
+  refine EReal.le_of_forall_pos_sub_le fun ε hε => ?_
+  have h := h_bound_for_all_delta (ε / t) (div_pos hε ht_pos)
+  rwa [show ((t : EReal) * (ε / t : ℝ) : EReal) = ((ε : ℝ) : EReal) from by
+    rw [← EReal.coe_mul]; norm_cast; field_simp] at h
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-! ### Extras: Chebyshev-based concentration of the tilted measure
+The following results are not used by the current lower-bound proof. They establish additional
+elementary results on the concentration by Chebyshev's inequality, instead of the CLT on
+tilted measures approach used by the actual result. -/
+/-- For constant `C` and `δ > 0`, `n⁻¹ C / δ² → 0` as `n → ∞`. -/
+private lemma variance_term_tendsto_zero (C : ℝ) (δ : ℝ) :
+    Tendsto (fun n : ℕ => ENNReal.ofReal ((1 / n) * C / δ ^ 2)) atTop (𝓝 0) := by
+  rw [← ENNReal.ofReal_zero]
+  refine ENNReal.continuous_ofReal.continuousAt.tendsto.comp ?_
+  convert tendsto_const_div_atTop_nhds_zero_nat (C / δ ^ 2) using 1
+  ext n
+  ring
+
+/-- If `f ≤ c` a.e. under `μ`, `f` is integrable, and `∫ f dμ = c`, then `f = c` a.e. under `μ` -/
+private lemma ae_eq_const_of_integral_eq_const_of_le {α : Type*} {m : MeasurableSpace α}
+    (μ : Measure α) [IsProbabilityMeasure μ] {f : α → ℝ} (c : ℝ)
+    (hf : Integrable f μ) (h_le : ∀ᵐ ω ∂μ, f ω ≤ c) (h_int : μ[f] = c) : ∀ᵐ ω ∂μ, f ω = c := by
+  have h_diff_nonneg : ∀ᵐ ω ∂μ, 0 ≤ c - f ω := by
+    filter_upwards [h_le] with ω hω using sub_nonneg.mpr hω
+  have h_int_diff : μ[fun ω => c - f ω] = 0 := by
+    rw [integral_sub (integrable_const c) hf]; simp [h_int]
+  have h_diff_ae_zero : ∀ᵐ ω ∂μ, c - f ω = 0 :=
+    (integral_eq_zero_iff_of_nonneg_ae h_diff_nonneg ((integrable_const c).sub hf)).mp h_int_diff
+  filter_upwards [h_diff_ae_zero] with ω h using by linarith
+
+include h_indep h_ident h_meas h_mgf in
+/-- `Λ_Sₙ = fun t => n · Λ_X(t)` -/
+private lemma cgf_partialSum_eq_smul_cgf (n : ℕ) :
+    cgf (partialSum X n) ℙ = fun s => n * cgf (X 0) ℙ s :=
+  funext <| cgf_sum_eq_n_prod_cgf X h_indep h_ident h_meas h_mgf n
+
+include h_indep h_ident h_meas h_mgf in
+/-- `Λ'_Sₙ(t) = n · Λ'_X(t)` -/
+private lemma deriv_cgf_sum (t : ℝ) (n : ℕ) :
+    deriv (cgf (partialSum X n) ℙ) t = n * deriv (cgf (X 0) ℙ) t := by
+  rw [cgf_partialSum_eq_smul_cgf X h_indep h_ident h_meas h_mgf n]
+  exact deriv_const_mul (n : ℝ) ((analyticOn_cgf_univ X h_mgf).differentiableOn.differentiableAt
+    (isOpen_univ.mem_nhds (Set.mem_univ t)))
+
+include h_indep h_ident h_meas h_mgf in
+/-- `Λ''_Sₙ(t) = n · Λ''_X(t)` -/
+private lemma iteratedDeriv_two_cgf_sum (t : ℝ) (n : ℕ) :
+    iteratedDeriv 2 (cgf (partialSum X n) ℙ) t =
+      n * iteratedDeriv 2 (cgf (X 0) ℙ) t := by
+  rw [cgf_partialSum_eq_smul_cgf X h_indep h_ident h_meas h_mgf n]
+  exact iteratedDeriv_const_mul_field (n : ℝ) (cgf (X 0) ℙ)
+
+include h_indep h_ident h_meas h_mgf in
+/-- `𝔼_ℚₙₜ[Sₙ/n] = Λ'_Sₙ(t)` and `𝕍_ℚₙₜ[Sₙ/n] = Λ''_Sₙ(t)` -/
+private lemma tilted_Sn_moments (t : ℝ) (n : ℕ) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * partialSum X n ω)
+    μ_t[partialSum X n] = deriv (cgf (partialSum X n) ℙ) t ∧
+    variance (partialSum X n) μ_t = iteratedDeriv 2 (cgf (partialSum X n) ℙ) t := by
+  have ht_Sn : t ∈ interior (integrableExpSet (partialSum X n) ℙ) :=
+    mem_interior_integrableExpSet_partialSum X h_indep h_ident h_meas h_mgf t n
+  exact ⟨integral_tilted_mul_self ht_Sn, variance_tilted_mul ht_Sn⟩
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf in
+/-- `𝔼_ℚₙₜ[Sₙ/n] = Λ'(t)` and `𝕍_ℚₙₜ[Sₙ/n] = n⁻¹ Λ''(t)` -/
+private lemma tilted_empirical_moments (t : ℝ) (n : ℕ) (hn : n ≠ 0) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * partialSum X n ω)
+    μ_t[empiricalMean X n] = deriv (cgf (X 0) ℙ) t ∧
+    variance (empiricalMean X n) μ_t = (1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t := by
+  intro μ_t
+  have h_Sn := @tilted_Sn_moments _ _ X h_indep h_ident h_meas h_mgf _ t n
+  refine ⟨?_, ?_⟩
+  · change μ_t[fun ω => partialSum X n ω / n] = deriv (cgf (X 0) ℙ) t
+    rw [integral_div, h_Sn.1, @deriv_cgf_sum _ _ X h_indep h_ident h_meas h_mgf _ t n]
+    field_simp
+  · change variance (fun ω => partialSum X n ω / n) μ_t = (1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t
+    simp_rw [div_eq_inv_mul]
+    rw [show (fun ω => ((n : ℝ))⁻¹ * partialSum X n ω) = ((n : ℝ))⁻¹ • (partialSum X n) from rfl,
+      variance_smul, h_Sn.2, @iteratedDeriv_two_cgf_sum _ _ X h_indep h_ident h_meas h_mgf _ t n]
+    field_simp
+
+include h_indep h_ident h_meas h_mgf in
+/-- Given `Λ'(t) = a`, `𝔼_{ℚₙₜ}[Sₙ/n] = a` -/
+private lemma tilted_empirical_mean_eq_of_deriv (t a : ℝ) (n : ℕ) (hn : n ≠ 0)
+    (h_deriv : deriv (cgf (X 0) ℙ) t = a) :
+    (Measure.tilted ℙ (fun ω => t * partialSum X n ω))[empiricalMean X n] = a :=
+  (tilted_empirical_moments X h_indep h_ident h_meas h_mgf t n hn).1.trans h_deriv
+
+include h_indep h_ident h_meas h_mgf in
+/-- For `δ > 0`, given `Λ'(t) = a`, `ℚₙₜ(δ ≤ |Sₙ/n - a|) ≤ n⁻¹ Λ''(t) / δ²` -/
+private lemma tilted_deviation_bound (t a : ℝ) (n : ℕ) (hn : n ≠ 0) (δ : ℝ) (hδ : 0 < δ)
+    (h_match : deriv (cgf (X 0) ℙ) t = a) :
+    let μ_t := Measure.tilted ℙ (fun ω => t * partialSum X n ω)
+    μ_t {ω | δ ≤ |empiricalMean X n ω - a|} ≤
+      ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) := by
+  intro μ_t
+  have h_mean : μ_t[empiricalMean X n] = a :=
+    tilted_empirical_mean_eq_of_deriv X h_indep h_ident h_meas h_mgf t a n hn h_match
+  haveI : IsProbabilityMeasure μ_t :=
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+  have h_memLp : MemLp (empiricalMean X n) 2 μ_t := by
+    have ht_Sn : t ∈ interior (integrableExpSet (partialSum X n) ℙ) :=
+      mem_interior_integrableExpSet_partialSum X h_indep h_ident h_meas h_mgf t n
+    have : (empiricalMean X n) = fun ω => (n : ℝ)⁻¹ * partialSum X n ω := by
+      ext ω; simp [empiricalMean, div_eq_inv_mul]
+    rw [this]
+    exact (memLp_tilted_mul ht_Sn 2 : MemLp (partialSum X n) 2 μ_t).const_mul _
+  calc μ_t {ω | δ ≤ |empiricalMean X n ω - a|}
+      = μ_t {ω | δ ≤ |empiricalMean X n ω - μ_t[empiricalMean X n]|} := by
+        simp_rw [h_mean]
+    _ ≤ ENNReal.ofReal (variance (empiricalMean X n) μ_t / δ ^ 2) :=
+        meas_ge_le_variance_div_sq h_memLp hδ
+    _ = ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) := by
+        rw [(tilted_empirical_moments X h_indep h_ident h_meas h_mgf t n hn).2]
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf in
+/-- For `δ > 0`, given `Λ'(t) = a`, `ℚₙₜ(|Sₙ/n - a| < δ) → 1` as `n → ∞` -/
+private lemma tilted_measure_concentrates (t a δ : ℝ) (hδ : 0 < δ)
+    (h_match : deriv (cgf (X 0) ℙ) t = a) :
+    Tendsto (fun n => ((ℚₙₜ X ℙ n t)
+      {ω | |empiricalMean X n ω - a| < δ}).toReal) atTop (𝓝 1) := by
+  haveI h_prob_n_all : ∀ n, IsProbabilityMeasure (ℚₙₜ X ℙ n t) := fun n =>
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+  have h_complement_to_zero : Tendsto (fun n => ((ℚₙₜ X ℙ n t)
+      {ω | δ ≤ |empiricalMean X n ω - a|}).toReal) atTop (𝓝 0) := by
+    rw [ENNReal.tendsto_toReal_zero_iff]
+    refine ENNReal.tendsto_nhds_zero.2 (fun ε hε => ?_)
+    obtain ⟨N, hN⟩ := (ENNReal.tendsto_atTop_zero.1
+      (variance_term_tendsto_zero (iteratedDeriv 2 (cgf (X 0) ℙ) t) δ)) ε hε
+    filter_upwards [eventually_ge_atTop (max N 1)] with n hn
+    calc (ℚₙₜ X ℙ n t) {ω | δ ≤ |empiricalMean X n ω - a|}
+        ≤ ENNReal.ofReal ((1 / n) * iteratedDeriv 2 (cgf (X 0) ℙ) t / δ ^ 2) :=
+          tilted_deviation_bound (X := X) (h_indep := h_indep) (h_ident := h_ident)
+            (h_meas := h_meas) (h_mgf := h_mgf) t a n (by omega) δ hδ h_match
+      _ ≤ ε := hN n (by omega)
+  have h_compl : ∀ n, {ω | |empiricalMean X n ω - a| < δ}ᶜ =
+      {ω | δ ≤ |empiricalMean X n ω - a|} := fun _ => by
+    ext; simp [not_lt]
+  have h_eq : ∀ n, (ℚₙₜ X ℙ n t)
+      {ω | |empiricalMean X n ω - a| < δ} =
+      1 - (ℚₙₜ X ℙ n t)
+        {ω | δ ≤ |empiricalMean X n ω - a|} := fun n => by
+    have h_meas' : MeasurableSet {ω | |empiricalMean X n ω - a| < δ} :=
+      measurableSet_lt ((measurable_empiricalMean X h_meas n).sub_const a).abs measurable_const
+    rw [← h_compl n, prob_compl_eq_one_sub h_meas',
+      ENNReal.sub_sub_cancel ENNReal.one_ne_top prob_le_one]
+  simp_rw [h_eq]
+  have h_measure_to_zero : Tendsto (fun n => (ℚₙₜ X ℙ n t)
+      {ω | δ ≤ |empiricalMean X n ω - a|}) atTop (𝓝 0) :=
+    (ENNReal.tendsto_toReal_zero_iff (fun n => measure_ne_top _ _)).mp h_complement_to_zero
+  have h_sub_to_one : Tendsto (fun n => 1 - (ℚₙₜ X ℙ n t)
+      {ω | δ ≤ |empiricalMean X n ω - a|}) atTop (𝓝 1) := by
+    simpa using ENNReal.Tendsto.sub tendsto_const_nhds h_measure_to_zero
+      (Or.inl ENNReal.one_ne_top)
+  rw [← ENNReal.toReal_one]
+  exact (ENNReal.tendsto_toReal ENNReal.one_ne_top).comp h_sub_to_one
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_ident h_meas h_mgf in
+/-- `ℚₙₜ(Sₙ/n ≥ a) > 0`.
+This follows from the fact that the mean of `Sₙ/n` under `ℚₙₜ` is `a`, so there must be mass `≥a` -/
+private lemma tilted_prob_ge_mean_pos (a t : ℝ)
+    (ht_deriv : deriv (cgf (X 0) ℙ) t = a) (n : ℕ) (hn : n ≠ 0) :
+    0 < (ℚₙₜ X ℙ n t) {ω | a ≤ empiricalMean X n ω} := by
+  let μ_t := Measure.tilted ℙ (fun ω => t * partialSum X n ω)
+  haveI h_prob : IsProbabilityMeasure μ_t :=
+    isProbabilityMeasure_tilted_partialSum X h_indep h_ident h_meas h_mgf t n
+  have h_mean : μ_t[empiricalMean X n] = a :=
+    tilted_empirical_mean_eq_of_deriv X h_indep h_ident h_meas h_mgf t a n hn ht_deriv
+  by_contra! h_not_pos
+  have h_zero : μ_t {ω | a ≤ empiricalMean X n ω} = 0 := le_antisymm h_not_pos (zero_le _)
+  have h_ae_lt : ∀ᵐ ω ∂μ_t, empiricalMean X n ω < a := by
+    rw [ae_iff, show {ω | ¬(empiricalMean X n ω < a)} = {ω | a ≤ empiricalMean X n ω} from
+      Set.ext fun _ => not_lt, h_zero]
+  have h_integrable_em : Integrable (empiricalMean X n) μ_t :=
+    (memLp_one_iff_integrable.mp (memLp_tilted_mul
+      (mem_interior_integrableExpSet_partialSum X h_indep h_ident h_meas h_mgf t n) 1)).div_const n
+  have h_ae_eq : ∀ᵐ ω ∂μ_t, empiricalMean X n ω = a :=
+    ae_eq_const_of_integral_eq_const_of_le μ_t a h_integrable_em
+      (h_ae_lt.mono fun _ => le_of_lt) h_mean
+  exact (h_ae_lt.and h_ae_eq).exists.elim fun _ ⟨hlt, heq⟩ => (heq ▸ hlt).ne rfl
+
+end ProbabilityTheory
+\end{lstlisting}
+
+\newpage
+\subsection{Mathlib/Probability/LargeDeviations/Cramers/Theorem.lean}
+\label[appendix]{subsection:lean-listing-theorem}
+\begin{lstlisting}
+module
+
+public import Mathlib.Probability.LargeDeviations.Cramers.LowerBound
+public import Mathlib.Probability.LargeDeviations.Cramers.UpperBound
+public import Mathlib.Probability.LargeDeviations.Defs
+public import Mathlib.Probability.StrongLaw
+
+/-!
+# Cramér's Theorem
+
+This file proves the main result:
+
+- `cramers_theorem`: The empirical mean of i.i.d. random variables with finite MGF satisfies
+  the Large Deviation Principle with rate function `upperTailRateFunction X`.
+
+The proof combines the upper and lower bounds from `UpperBound.lean` and `LowerBound.lean`,
+and handles the case `a < 𝔼[X 0]` using the strong law of large numbers.
+-/
+
+open ProbabilityTheory MeasureTheory Filter Topology
+open scoped ENNReal
+
+@[expose] public section
+
+namespace ProbabilityTheory
+
+variable {Ω : Type*} [MeasureSpace Ω]
+variable (X : ℕ → Ω → ℝ)
+
+/- Assumptions for Cramér's theorem -/
+variable (h_indep : iIndepFun X ℙ)
+variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
+variable (h_meas : ∀ n, Measurable (X n))
+variable (h_int : Integrable (X 0) ℙ)
+variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
+variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
+variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
+variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+/-! ### Lemmas requiring `IsProbabilityMeasure` -/
+
+variable [IsProbabilityMeasure (ℙ : Measure Ω)]
+
+include h_indep h_meas h_ident h_int in
+/-- If `a < 𝔼[X 0]`, `ℙ(Sₙ/n ≥ a) → 1` by the strong law of large numbers. -/
+private lemma tendsto_prob_empiricalMean_ge_of_lt_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
+  Tendsto (fun n : ℕ => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
+  have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) ℙ) :=
+    fun i j hij => h_indep.indepFun hij
+  -- Almost sure convergence: `ℙ(limₙ Sₙ/n = 𝔼[X]) = 1`
+  have h_strong_law :
+      ∀ᵐ ω ∂ℙ, Tendsto (fun n : ℕ => empiricalMean X n ω) atTop (𝓝 𝔼[X 0]) := by
+    have h_orig := strong_law_ae_real X h_int h_pairwise h_ident
+    filter_upwards [h_orig] with ω hω
+    have h_eq : (fun n : ℕ => empiricalMean X n ω) =
+        (fun n => (∑ i ∈ Finset.range n, X i ω) / n) := by
+      ext n
+      unfold empiricalMean partialSum
+      rw [Finset.sum_apply]
+    rwa [h_eq]
+  have h_gap : 0 < 𝔼[X 0] - a := sub_pos.mpr h
+  set ε := (𝔼[X 0] - a) / 2 with hε_def
+  have hε_pos : 0 < ε := by linarith
+  have hε_bound : a + ε < 𝔼[X 0] := by linarith
+  have h_conv_set : ∀ᵐ ω ∂ℙ, ∀ᶠ n in atTop, |empiricalMean X n ω - 𝔼[X 0]| < ε := by
+    filter_upwards [h_strong_law] with ω hω
+    have h_tend := (Metric.tendsto_nhds.mp hω) ε hε_pos
+    filter_upwards [h_tend] with n hn
+    rwa [Real.dist_eq] at hn
+  have h_eventually_large : ∀ᵐ ω ∂ℙ, ∀ᶠ n in atTop, a ≤ empiricalMean X n ω := by
+    filter_upwards [h_conv_set] with ω hω
+    filter_upwards [hω] with n hn
+    have : 𝔼[X 0] - ε < empiricalMean X n ω := by
+      rw [abs_sub_lt_iff] at hn
+      linarith
+    linarith
+  let S : ℕ → Set Ω := fun k => {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
+  have h_mono : Monotone S := by
+    intro k₁ k₂ hk ω hω n hn
+    exact hω n (le_trans hk hn)
+  have h_union : ⋃ k, S k = {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
+    ext ω
+    simp only [Set.mem_iUnion, Set.mem_setOf_eq, Filter.eventually_atTop, S]
+  have h_union_meas : ℙ (⋃ k, S k) = 1 := by
+    have h_union_meas_set : MeasurableSet (⋃ k, S k) := by
+      refine MeasurableSet.iUnion fun k => ?_
+      change MeasurableSet {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
+      have : {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω} =
+          ⋂ n, ⋂ (_ : k ≤ n), {ω | a ≤ empiricalMean X n ω} := by
+        ext; simp
+      rw [this]
+      refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
+      exact measurableSet_le measurable_const (measurable_empiricalMean X h_meas n)
+    rw [h_union]
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+    have h_compl : ℙ {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} = 0 := by
+      rw [← ae_iff]
+      exact h_eventually_large
+    have h_compl_eq : {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω}ᶜ =
+        {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
+      ext; simp
+    rw [← prob_add_prob_compl (μ := ℙ) (h_union ▸ h_union_meas_set), h_compl_eq, h_compl, add_zero]
+  have h_tend_S : Tendsto (fun k => ℙ (S k)) atTop (𝓝 1) := by
+    have := tendsto_measure_iUnion_atTop (μ := ℙ) h_mono
+    rw [h_union_meas] at this
+    exact this
+  have h_superset : ∀ k n, k ≤ n → S k ⊆ {ω | a ≤ empiricalMean X n ω} := by
+    intro k n hkn ω hω
+    exact hω n hkn
+  have h_measure_ge : ∀ k n, k ≤ n → ℙ (S k) ≤ ℙ {ω | a ≤ empiricalMean X n ω} := by
+    intro k n hkn
+    exact measure_mono (h_superset k n hkn)
+  have h_measure_le : ∀ n, ℙ {ω | a ≤ empiricalMean X n ω} ≤ 1 := by
+    intro n
+    exact prob_le_one
+  refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
+    (fun n => h_measure_ge n n le_rfl) h_measure_le
+
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+include h_indep h_meas h_ident h_mgf h_int h_bdd h_non_deg h_exposed in
+/-- **Cramér's Theorem**: For iid. random variables with finite MGF, the empirical mean satisfies
+ a Large Deviation Principle with rate function being the Legendre transform of the CGF. -/
+theorem cramers_theorem :
+    LargeDeviationPrinciple (empiricalMean X) (upperTailRateFunction X) := by
+  constructor
+  · intro a
+    by_cases h : 𝔼[X 0] ≤ a
+    · rw [upperTailRateFunction, if_pos h]
+      exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd a h
+    · norm_cast
+      rw [upperTailRateFunction, if_neg h]
+      have h_prob_bound_2 : ∀ n : ℕ, n ≠ 0 →
+          1 / ↑n * (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
+        intro n h_n_nonneg
+        have h_log_nonpos : (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
+          rw [ENNReal.log_le_zero_iff]
+          exact prob_le_one
+        rw [EReal.mul_nonpos_iff]
+        left
+        constructor
+        · rw [div_eq_mul_inv, one_mul]
+          apply EReal.inv_nonneg_of_nonneg
+          have : 0 < (n : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero h_n_nonneg)
+          exact EReal.coe_nonneg.mpr (le_of_lt this)
+        · exact h_log_nonpos
+      simp only [neg_zero]
+      apply Filter.limsup_le_of_le
+      · exact isCoboundedUnder_le_of_le atTop (fun _ => bot_le)
+      · apply Filter.eventually_atTop.mpr
+        use 1
+        intro n hn
+        exact h_prob_bound_2 n (Nat.one_le_iff_ne_zero.mp hn)
+  · intro a
+    by_cases h : 𝔼[X 0] ≤ a
+    · rw [upperTailRateFunction, if_pos h]
+      exact cramer_lower_bound X h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed a h
+    · rw [upperTailRateFunction, if_neg h]
+      norm_cast
+      rw [neg_zero]
+      have h_a_lt_mean : a < 𝔼[X 0] := not_le.mp h
+      have h_prob_to_one :
+          Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
+        tendsto_prob_empiricalMean_ge_of_lt_mean_one X h_indep h_ident h_meas h_int a
+          h_a_lt_mean
+      have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
+          1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+          (𝓝 (0 : EReal)) := by
+        have h_log_to_zero : Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+            (𝓝 (0 : EReal)) := by
+          simpa [ENNReal.log_one] using (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
+        have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
+          simpa using ereal_inv_nat_mul_const_tendsto_zero (1 : ℝ)
+        simpa using EReal.Tendsto.mul h_inv_to_zero h_log_to_zero
+          (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
+          (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
+\end{lstlisting}
+\newpage
+\begin{lstlisting}
+      have h_lim_eq : liminf (fun (n : ℕ) =>
+          1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+          = (0 : EReal) := Filter.Tendsto.liminf_eq h_seq_to_zero
+      have : liminf (fun n : ℕ =>
+          1 / (n : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = 0 := by
+        convert h_lim_eq using 2
+      rw [this]
+      norm_cast
+
+end ProbabilityTheory
+\end{lstlisting}

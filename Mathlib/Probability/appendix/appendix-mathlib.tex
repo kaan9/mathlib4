@@ -1,0 +1,1033 @@
+\section{Mathlib Definitions and Theorems}
+\label[appendix]{apx:mathlib}
+In this appendix, we list verbatim several existing definitions and theorems from the \texttt{mathlib} library that are used in the proofs listed above.
+
+\subsection{Probability Theory}
+
+\subsubsection{\texttt{Mathlib/Probability/Moments/Basic.lean}}
+\label{subsection:lean-listing-moments-basic}
+\begin{lstlisting}[language=lean]
+/-- Moment-generating function of a real random variable `X`: `fun t => μ[exp(t*X)]`. -/
+def mgf (X : Ω → ℝ) (μ : Measure Ω) (t : ℝ) : ℝ :=
+  μ[fun ω => exp (t * X ω)]
+
+/-- Cumulant-generating function of a real random variable `X`: `fun t => log μ[exp(t*X)]`. -/
+def cgf (X : Ω → ℝ) (μ : Measure Ω) (t : ℝ) : ℝ :=
+  log (mgf X μ t)
+
+/-- **Chernoff bound** on the upper tail of a real random variable. -/
+theorem measure_ge_le_exp_cgf [IsFiniteMeasure μ] (ε : ℝ) (ht : 0 ≤ t)
+    (h_int : Integrable (fun ω => exp (t * X ω)) μ) :
+    μ.real {ω | ε ≤ X ω} ≤ exp (-t * ε + cgf X μ t)
+\end{lstlisting}
+
+\begin{lstlisting}[language=lean]
+@[simp]
+theorem cgf_zero [IsZeroOrProbabilityMeasure μ] : cgf X μ 0 = 0
+
+theorem mgf_sum_of_identDistrib
+    {X : ι → Ω → ℝ}
+    {s : Finset ι} {j : ι}
+    (h_meas : ∀ i, Measurable (X i))
+    (h_indep : iIndepFun X μ)
+    (hident : ∀ i ∈ s, ∀ j ∈ s, IdentDistrib (X i) (X j) μ μ)
+    (hj : j ∈ s) (t : ℝ) : mgf (∑ i ∈ s, X i) μ t = mgf (X j) μ t ^ #s
+
+lemma mgf_id_map (hX : AEMeasurable X μ) : mgf id (μ.map X) = mgf X μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/Tilted.lean}}
+\begin{lstlisting}[language=lean]
+/-- Exponentially tilted measure. When `x ↦ exp (f x)` is integrable, `μ.tilted f` is the
+probability measure with density with respect to `μ` proportional to `exp (f x)`. Otherwise it is 0.
+-/
+noncomputable
+def Measure.tilted (μ : Measure α) (f : α → ℝ) : Measure α :=
+  μ.withDensity (fun x ↦ ENNReal.ofReal (exp (f x) / ∫ x, exp (f x) ∂μ))
+\end{lstlisting}
+
+\begin{lstlisting}[language=lean]
+lemma isProbabilityMeasure_tilted [NeZero μ]
+    (hf : Integrable (fun x ↦ exp (f x)) μ) :
+    IsProbabilityMeasure (μ.tilted f)
+
+@[simp]
+lemma tilted_zero' (μ : Measure α) : μ.tilted 0 = (μ Set.univ)⁻¹ • μ
+
+lemma integrable_tilted_iff {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
+    {f : α → ℝ} (hf : Integrable (fun x ↦ exp (f x)) μ) (g : α → E) :
+    Integrable g (μ.tilted f) ↔ Integrable (fun x ↦ exp (f x) • g x) μ
+\end{lstlisting}
+
+\newpage
+\begin{lstlisting}[language=lean]
+lemma integral_tilted (f : α → ℝ) (g : α → E) :
+    ∫ x, g x ∂(μ.tilted f) = ∫ x, (exp (f x) / ∫ x, exp (f x) ∂μ) • (g x) ∂μ
+
+lemma integral_exp_tilted (f g : α → ℝ) :
+    ∫ x, exp (g x) ∂(μ.tilted f) = (∫ x, exp ((f + g) x) ∂μ) / ∫ x, exp (f x) ∂μ
+
+lemma setIntegral_tilted' (f : α → ℝ) (g : α → E) {s : Set α} (hs : MeasurableSet s) :
+    ∫ x in s, g x ∂(μ.tilted f) = ∫ x in s, (exp (f x) / ∫ x, exp (f x) ∂μ) • (g x) ∂μ
+
+lemma lintegral_tilted (f : α → ℝ) (g : α → ℝ≥0∞) :
+    ∫⁻ x, g x ∂(μ.tilted f)
+      = ∫⁻ x, ENNReal.ofReal (exp (f x) / ∫ x, exp (f x) ∂μ) * (g x) ∂μ
+
+lemma tilted_apply' (μ : Measure α) (f : α → ℝ) {s : Set α} (hs : MeasurableSet s) :
+    μ.tilted f s = ∫⁻ a in s, ENNReal.ofReal (exp (f a) / ∫ x, exp (f x) ∂μ) ∂μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/Moments/Tilted.lean}}
+\begin{lstlisting}[language=lean]
+/-- The integral of `X` against the tilted measure `μ.tilted (t * X ·)` is the first derivative of
+the cumulant-generating function of `X` at `t`. -/
+lemma integral_tilted_mul_self (ht : t ∈ interior (integrableExpSet X μ)) :
+    (μ.tilted (t * X ·))[X] = deriv (cgf X μ) t
+
+lemma memLp_tilted_mul (ht : t ∈ interior (integrableExpSet X μ)) (p : ℝ≥0) :
+    MemLp X p (μ.tilted (t * X ·))
+
+/-- The variance of `X` under the tilted measure `μ.tilted (t * X ·)` is the second derivative of
+the cumulant-generating function of `X` at `t`. -/
+lemma variance_tilted_mul (ht : t ∈ interior (integrableExpSet X μ)) :
+    Var[X; μ.tilted (t * X ·)] = iteratedDeriv 2 (cgf X μ) t
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/StrongLaw.lean}}
+\begin{lstlisting}[language=lean]
+/-- **Strong law of large numbers**, almost sure version: if `X n` is a sequence of independent
+identically distributed integrable real-valued random variables, then `∑ i ∈ range n, X i / n`
+converges almost surely to `𝔼[X 0]`. We give here the strong version, due to Etemadi, that only
+requires pairwise independence. Superseded by `strong_law_ae`, which works for random variables
+taking values in any Banach space. -/
+theorem strong_law_ae_real {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω}
+    (X : ℕ → Ω → ℝ) (hint : Integrable (X 0) μ)
+    (hindep : Pairwise ((· ⟂ᵢ[μ] ·) on X))
+    (hident : ∀ i, IdentDistrib (X i) (X 0) μ μ) :
+    ∀ᵐ ω ∂μ, Tendsto (fun n : ℕ => (∑ i ∈ range n, X i ω) / n) atTop (𝓝 μ[X 0])
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/Probability/Moments/Variance.lean}}
+\begin{lstlisting}[language=lean]
+/-- The `ℝ`-valued variance of a real-valued random variable defined by applying `ENNReal.toReal`
+to `evariance`. -/
+def variance : ℝ := (evariance X μ).toReal
+
+/-- **Chebyshev's inequality**: one can control the deviation probability of a real random variable
+from its expectation in terms of the variance. -/
+theorem meas_ge_le_variance_div_sq [IsFiniteMeasure μ] {X : Ω → ℝ} (hX : MemLp X 2 μ) {c : ℝ}
+    (hc : 0 < c) : μ {ω | c ≤ |X ω - μ[X]|} ≤ ENNReal.ofReal (variance X μ / c ^ 2)
+
+theorem variance_smul (c : ℝ) (X : Ω → ℝ) (μ : Measure Ω) :
+    variance (c • X) μ = c ^ 2 * variance X μ
+
+lemma variance_eq_integral (hX : AEMeasurable X μ) : Var[X; μ] = ∫ ω, (X ω - μ[X]) ^ 2 ∂μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/Moments/IntegrableExpMul.lean}}
+\begin{lstlisting}[language=lean]
+/-- The interval of reals `t` for which `exp (t * X)` is integrable. -/
+def integrableExpSet (X : Ω → ℝ) (μ : Measure Ω) : Set ℝ :=
+  {t | Integrable (fun ω ↦ exp (t * X ω)) μ}
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/Independence/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- A family of functions defined on the same space `Ω` and taking values in possibly different
+spaces, each with a measurable space structure, is independent if the family of measurable space
+structures they generate on `Ω` is independent. For a function `g` with codomain having measurable
+space structure `m`, the generated measurable space structure is `MeasurableSpace.comap g m`. -/
+def iIndepFun {_mΩ : MeasurableSpace Ω} {β : ι → Type*} [m : ∀ x : ι, MeasurableSpace (β x)]
+    (f : ∀ x : ι, Ω → β x) (μ : Measure Ω := by volume_tac) : Prop :=
+  Kernel.iIndepFun f (Kernel.const Unit μ) (Measure.dirac () : Measure Unit)
+
+/-- Two functions are independent if the two measurable space structures they generate are
+independent. For a function `f` with codomain having measurable space structure `m`, the generated
+measurable space structure is `MeasurableSpace.comap f m`.
+We use the notation `f ⟂ᵢ[μ] g` for `IndepFun f g μ` (scoped in `ProbabilityTheory`). -/
+def IndepFun {β γ} {_mΩ : MeasurableSpace Ω} [MeasurableSpace β] [MeasurableSpace γ]
+    (f : Ω → β) (g : Ω → γ) (μ : Measure Ω := by volume_tac) : Prop :=
+  Kernel.IndepFun f g (Kernel.const Unit μ) (Measure.dirac () : Measure Unit)
+\end{lstlisting}
+
+\begin{lstlisting}[language=lean]
+nonrec lemma iIndepFun.comp {β γ : ι → Type*} {mβ : ∀ i, MeasurableSpace (β i)}
+    {mγ : ∀ i, MeasurableSpace (γ i)} {f : ∀ i, Ω → β i}
+    (h : iIndepFun f μ) (g : ∀ i, β i → γ i) (hg : ∀ i, Measurable (g i)) :
+    iIndepFun (fun i ↦ g i ∘ f i) μ
+
+theorem iIndepFun.indepFun {β : ι → Type*}
+    {m : ∀ x, MeasurableSpace (β x)} {f : ∀ i, Ω → β i} (hf_Indep : iIndepFun f μ) {i j : ι}
+    (hij : i ≠ j) :
+    f i ⟂ᵢ[μ] f j
+
+@[to_additive]
+lemma iIndepFun.indepFun_finset_prod_of_notMem (hf_Indep : iIndepFun f μ)
+    (hf_meas : ∀ i, Measurable (f i)) {s : Finset ι} {i : ι} (hi : i ∉ s) :
+    IndepFun (∏ j ∈ s, f j) (f i) μ
+\end{lstlisting}
+\newpage
+
+\subsubsection{\texttt{Mathlib/Probability/Independence/Integration.lean}}
+\begin{lstlisting}[language=lean]
+/-- The product of two independent, integrable, real-valued random variables is integrable. -/
+theorem IndepFun.integrable_mul {β : Type*} [MeasurableSpace β] {X Y : Ω → β}
+    [NormedDivisionRing β] [BorelSpace β] (hXY : X ⟂ᵢ[μ] Y) (hX : Integrable X μ)
+    (hY : Integrable Y μ) : Integrable (X * Y) μ
+
+theorem lintegral_prod_eq_prod_lintegral_of_indepFun {ι : Type*}
+    (s : Finset ι) (X : ι → Ω → ℝ≥0∞) (hX : iIndepFun X μ)
+    (x_mea : ∀ i, Measurable (X i)) :
+    ∫⁻ ω, ∏ i ∈ s, (X i ω) ∂μ = ∏ i ∈ s, ∫⁻ ω, X i ω ∂μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/IdentDistrib.lean}}
+\begin{lstlisting}[language=lean]
+/-- Two functions defined on two (possibly different) measure spaces are identically distributed if
+their image measures coincide. This only makes sense when the functions are ae measurable
+(as otherwise the image measures are not defined), so we require this as well in the definition. -/
+structure IdentDistrib (f : α → γ) (g : β → γ)
+    (μ : Measure α := by volume_tac)
+    (ν : Measure β := by volume_tac) : Prop where
+  aemeasurable_fst : AEMeasurable f μ
+  aemeasurable_snd : AEMeasurable g ν
+  map_eq : Measure.map f μ = Measure.map g ν
+\end{lstlisting}
+
+\begin{lstlisting}[language=lean]
+protected theorem IdentDistrib.comp {u : γ → δ} (h : IdentDistrib f g μ ν) (hu : Measurable u) :
+    IdentDistrib (u ∘ f) (u ∘ g) μ ν
+
+protected theorem IdentDistrib.symm (h : IdentDistrib f g μ ν) : IdentDistrib g f ν μ
+
+protected theorem IdentDistrib.trans {ρ : Measure δ} {h : δ → γ} (h₁ : IdentDistrib f g μ ν)
+    (h₂ : IdentDistrib g h ν ρ) : IdentDistrib f h μ ρ
+
+theorem IdentDistrib.integrable_iff [NormedAddCommGroup γ] [BorelSpace γ]
+    (h : IdentDistrib f g μ ν) :
+    Integrable f μ ↔ Integrable g ν
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/Moments/MGFAnalytic.lean}}
+\begin{lstlisting}[language=lean]
+/-- The cumulant-generating function is analytic on the interior of the interval
+  `integrableExpSet X μ`. -/
+lemma analyticOn_cgf :
+    AnalyticOn ℝ (cgf X μ) (interior (integrableExpSet X μ))
+
+lemma deriv_cgf (h : v ∈ interior (integrableExpSet X μ)) :
+    deriv (cgf X μ) v =
+      μ[fun ω ↦ X ω * exp (v * X ω)] / mgf X μ v
+
+lemma deriv_cgf_zero (h : 0 ∈ interior (integrableExpSet X μ)) :
+    deriv (cgf X μ) 0 = μ[X] / μ.real Set.univ
+\end{lstlisting}
+\newpage
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/Typeclasses/Probability.lean}}
+\begin{lstlisting}[language=lean]
+lemma prob_le_one {μ : Measure α} [IsZeroOrProbabilityMeasure μ] {s : Set α} : μ s ≤ 1
+
+theorem prob_add_prob_compl [IsProbabilityMeasure μ] (h : MeasurableSet s) : μ s + μ sᶜ = 1
+
+/-- Note that this is not quite as useful as it looks because the measure takes values in `ℝ≥0∞`.
+Thus the subtraction appearing is the truncated subtraction of `ℝ≥0∞`, rather than the
+better-behaved subtraction of `ℝ`. -/
+theorem prob_compl_eq_one_sub (hs : MeasurableSet s) : μ sᶜ = 1 - μ s
+
+@[simp] lemma probReal_univ : μ.real univ = 1
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/ProbabilityMeasure.lean}}
+\begin{lstlisting}[language=lean]
+/-- Probability measures are defined as the subtype of measures that have the property of being
+probability measures (i.e., their total mass is one). -/
+def ProbabilityMeasure (Ω : Type*) [MeasurableSpace Ω] : Type _ :=
+  { μ : Measure Ω // IsProbabilityMeasure μ }
+
+theorem Measure.isProbabilityMeasure_map {f : α → β} (hf : AEMeasurable f μ) :
+    IsProbabilityMeasure (map f μ)
+\end{lstlisting}
+
+\subsection{Characteristic Functions and Limit Theorems}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/CharacteristicFunction/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- The characteristic function of a measure in an inner product space. -/
+noncomputable def charFun [Inner ℝ E] (μ : Measure E) (t : E) : ℂ := ∫ x, exp (⟪x, t⟫ * I) ∂μ
+
+lemma charFun_map_mul_comp {X : Type*} {mX : MeasurableSpace X} {μ : Measure X}
+    {f : X → ℝ} (hf : AEMeasurable f μ) (r t : ℝ) :
+    charFun (μ.map (fun x ↦ r * (f x))) t = charFun (μ.map f) (r * t)
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/Independence/CharacteristicFunction.lean}}
+\begin{lstlisting}[language=lean]
+lemma iIndepFun.charFun_map_fun_finset_sum_eq_prod [InnerProductSpace ℝ E]
+    (mX : ∀ i ∈ s, AEMeasurable (X i) P) (hX : iIndepFun (s.restrict X) P) :
+    charFun (P.map (fun ω ↦ ∑ i ∈ s, X i ω)) = ∏ i ∈ s, charFun (P.map (X i))
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/CentralLimitTheorem.lean}}
+\begin{lstlisting}[language=lean]
+lemma tendsto_charFun_inv_sqrt_mul_pow {X : Ω → ℝ}
+    (hX : AEMeasurable X P) (h0 : P[X] = 0) (h1 : P[X ^ 2] = 1) (t : ℝ) :
+    Tendsto (fun (n : ℕ) ↦ (charFun (P.map X) ((√n)⁻¹ * t)) ^ n) atTop (𝓝 (exp (- t ^ 2 / 2)))
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/LevyConvergence.lean}}
+\begin{lstlisting}[language=lean]
+/-- The **Lévy convergence theorem**: the weak convergence of probability measures is equivalent
+to the pointwise convergence of their characteristic functions. -/
+theorem ProbabilityMeasure.tendsto_iff_tendsto_charFun :
+    Tendsto μ atTop (𝓝 μ₀) ↔
+      ∀ t : E, Tendsto (fun n ↦ charFun (μ n) t) atTop (𝓝 (charFun μ₀ t))
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/Portmanteau.lean}}
+\begin{lstlisting}[language=lean]
+theorem ProbabilityMeasure.tendsto_measure_of_null_frontier_of_tendsto' {Ω ι : Type*}
+    {L : Filter ι} [MeasurableSpace Ω] [TopologicalSpace Ω] [OpensMeasurableSpace Ω]
+    [HasOuterApproxClosed Ω] {μ : ProbabilityMeasure Ω} {μs : ι → ProbabilityMeasure Ω}
+    (μs_lim : Tendsto μs L (𝓝 μ)) {E : Set Ω} (E_nullbdry : (μ : Measure Ω) (frontier E) = 0) :
+    Tendsto (fun i ↦ (μs i : Measure Ω) E) L (𝓝 ((μ : Measure Ω) E))
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Probability/Distributions/Gaussian/Real.lean}}
+\begin{lstlisting}[language=lean]
+/-- A Gaussian distribution on `ℝ` with mean `μ` and variance `v`. -/
+noncomputable
+def gaussianReal (μ : ℝ) (v : ℝ≥0) : Measure ℝ :=
+  if v = 0 then Measure.dirac μ else volume.withDensity (gaussianPDF μ v)
+
+/-- The characteristic function of a Gaussian distribution with mean `μ` and variance `v`
+is given by `t ↦ exp (t * μ - v * t ^ 2 / 2)`. -/
+theorem charFun_gaussianReal (t : ℝ) :
+    charFun (gaussianReal μ v) t = cexp (t * μ * I - v * t ^ 2 / 2)
+
+lemma noAtoms_gaussianReal {μ : ℝ} {v : ℝ≥0} (h : v ≠ 0) : NoAtoms (gaussianReal μ v)
+
+lemma gaussianReal_map_neg : (gaussianReal μ v).map (fun x ↦ -x) = gaussianReal (-μ) v
+\end{lstlisting}
+
+\subsection{Measure Theory}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/Typeclasses/Probability.lean}}
+\begin{lstlisting}[language=lean]
+/-- A measure `μ` is called a probability measure if `μ univ = 1`. -/
+class IsProbabilityMeasure (μ : Measure α) : Prop where
+  measure_univ : μ univ = 1
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/Typeclasses/Finite.lean}}
+\begin{lstlisting}[language=lean]
+theorem measure_ne_top (μ : Measure α) [IsFiniteMeasure μ] (s : Set α) : μ s ≠ ∞
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/Typeclasses/NoAtoms.lean}}
+\begin{lstlisting}[language=lean]
+/-- Measure `μ` *has no atoms* if the measure of each singleton is zero.
+
+NB: Wikipedia assumes that for any measurable set `s` with positive `μ`-measure,
+there exists a measurable `t ⊆ s` such that `0 < μ t < μ s`. While this implies `μ {x} = 0`,
+the converse is not true. -/
+class NoAtoms {m0 : MeasurableSpace α} (μ : Measure α) : Prop where
+  measure_singleton : ∀ x, μ {x} = 0
+
+theorem Iio_ae_eq_Iic : Iio a =ᵐ[μ] Iic a
+theorem Ioi_ae_eq_Ici : Ioi a =ᵐ[μ] Ici a
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/MeasureTheory/MeasurableSpace/Defs.lean}}
+\begin{lstlisting}[language=lean]
+@[class] structure MeasurableSpace (α : Type*) where
+  /-- Predicate saying that a given set is measurable. Use `MeasurableSet` in the root namespace
+  instead. -/
+  MeasurableSet' : Set α → Prop
+  /-- The empty set is a measurable set. Use `MeasurableSet.empty` instead. -/
+  measurableSet_empty : MeasurableSet' ∅
+  /-- The complement of a measurable set is a measurable set. Use `MeasurableSet.compl` instead. -/
+  measurableSet_compl : ∀ s, MeasurableSet' s → MeasurableSet' sᶜ
+  /-- The union of a sequence of measurable sets is a measurable set. Use a more general
+  `MeasurableSet.iUnion` instead. -/
+  measurableSet_iUnion : ∀ f : ℕ → Set α, (∀ i, MeasurableSet' (f i)) → MeasurableSet' (⋃ i, f i)
+
+/-- `MeasurableSet s` means that `s` is measurable (in the ambient measure space on `α`) -/
+def MeasurableSet [MeasurableSpace α] (s : Set α) : Prop :=
+  ‹MeasurableSpace α›.MeasurableSet' s
+
+/-- A function `f` between measurable spaces is measurable if the preimage of every
+  measurable set is measurable. -/
+@[fun_prop]
+def Measurable [MeasurableSpace α] [MeasurableSpace β] (f : α → β) : Prop :=
+  ∀ ⦃t : Set β⦄, MeasurableSet t → MeasurableSet (f ⁻¹' t)
+
+@[simp, fun_prop]
+theorem measurable_const {_ : MeasurableSpace α} {_ : MeasurableSpace β} {a : α} :
+    Measurable fun _ : β => a
+
+theorem measurable_id {_ : MeasurableSpace α} : Measurable (@id α)
+
+@[measurability]
+protected theorem MeasurableSet.iUnion [Countable ι] ⦃f : ι → Set α⦄
+    (h : ∀ b, MeasurableSet (f b)) : MeasurableSet (⋃ b, f b)
+@[measurability]
+theorem MeasurableSet.iInter [Countable ι] {f : ι → Set α} (h : ∀ b, MeasurableSet (f b)) :
+    MeasurableSet (⋂ b, f b)
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Group/Arithmetic.lean}}
+\begin{lstlisting}[language=lean]
+@[to_additive (attr := fun_prop)]
+theorem Measurable.mul [MeasurableMul₂ M] (hf : Measurable f) (hg : Measurable g) :
+    Measurable fun a => f a * g a
+@[to_additive (attr := fun_prop)]
+theorem Measurable.const_mul [MeasurableMul M] (hf : Measurable f) (c : M) :
+    Measurable fun x => c * f x
+@[to_additive (attr := fun_prop)]
+theorem Measurable.div_const [MeasurableDiv G] (hf : Measurable f) (c : G) :
+    Measurable fun x => f x / c
+
+@[to_additive (attr := measurability, fun_prop)]
+theorem Finset.measurable_prod (s : Finset ι) (hf : ∀ i ∈ s, Measurable (f i)) :
+    Measurable fun a ↦ ∏ i ∈ s, f i a
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/MeasureTheory/Function/SpecialFunctions/Basic.lean}}
+\begin{lstlisting}[language=lean]
+@[fun_prop]
+protected theorem Measurable.exp : Measurable fun x => Real.exp (f x)
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Constructions/BorelSpace/Order.lean}}
+\begin{lstlisting}[language=lean]
+@[simp, measurability]
+theorem measurableSet_Icc [OrderClosedTopology α] : MeasurableSet (Icc a b)
+
+theorem measurableSet_lt [SecondCountableTopology α] [OrderClosedTopology α]
+    {f g : δ → α} (hf : Measurable f) (hg : Measurable g) :
+    MeasurableSet { a | f a < g a }
+
+theorem measurableSet_le {f g : δ → α} (hf : Measurable f) (hg : Measurable g) :
+    MeasurableSet { a | f a ≤ g a }
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Function/L1Space/Integrable.lean}}
+\begin{lstlisting}[language=lean]
+/-- `Integrable f μ` means that `f` is measurable and that the integral `∫⁻ a, ‖f a‖ ∂μ` is finite.
+  `Integrable f` means `Integrable f volume`. -/
+@[fun_prop]
+def Integrable {α} {_ : MeasurableSpace α} (f : α → ε)
+    (μ : Measure α := by volume_tac) : Prop :=
+  AEStronglyMeasurable f μ ∧ HasFiniteIntegral f μ
+
+@[fun_prop]
+theorem integrable_const [IsFiniteMeasure μ] (c : β) : Integrable (fun _ : α => c) μ
+
+theorem integrable_map_measure {f : α → α'} {g : α' → ε}
+    (hg : AEStronglyMeasurable g (Measure.map f μ)) (hf : AEMeasurable f μ) :
+    Integrable g (Measure.map f μ) ↔ Integrable (g ∘ f) μ
+
+@[fun_prop]
+theorem Integrable.const_mul {f : α → 𝕜} (h : Integrable f μ) (c : 𝕜) :
+    Integrable (fun x => c * f x) μ
+@[fun_prop]
+theorem Integrable.div_const {f : α → 𝕜} (h : Integrable f μ) (c : 𝕜) :
+    Integrable (fun x => f x / c) μ
+@[fun_prop]
+theorem Integrable.sub {f g : α → β} (hf : Integrable f μ) (hg : Integrable g μ) :
+    Integrable (f - g) μ
+
+theorem MemLp.integrable {q : ℝ≥0∞} (hq1 : 1 ≤ q) {f : α → ε} [IsFiniteMeasure μ]
+    (hfq : MemLp f q μ) : Integrable f μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Integral/IntegrableOn.lean}}
+\begin{lstlisting}[language=lean]
+/-- A function is `IntegrableOn` a set `s` if it is almost everywhere strongly measurable on `s`
+and if the integral of its pointwise norm over `s` is less than infinity. -/
+def IntegrableOn (f : α → ε) (s : Set α) (μ : Measure α := by volume_tac) : Prop :=
+  Integrable f (μ.restrict s)
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/MeasureTheory/Function/LpSeminorm/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- The property that `f : α → E` is a.e. strongly measurable and `(∫ ‖f a‖ ^ p ∂μ) ^ (1/p)`
+is finite if `p < ∞`, or `essSup ‖f‖ < ∞` if `p = ∞`. -/
+def MemLp [TopologicalSpace ε] (f : α → ε) (p : ℝ≥0∞) (μ : Measure α := by volume_tac) : Prop :=
+  AEStronglyMeasurable f μ ∧ eLpNorm f p μ < ∞
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Function/LpSeminorm/Basic.lean}}
+\begin{lstlisting}[language=lean]
+theorem memLp_const (c : E) [IsFiniteMeasure μ] : MemLp (fun _ : α => c) p μ
+
+theorem memLp_map_measure_iff (hg : AEStronglyMeasurable g (Measure.map f μ))
+    (hf : AEMeasurable f μ) : MemLp g p (Measure.map f μ) ↔ MemLp (g ∘ f) p μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Integral/Bochner/Basic.lean}}
+\begin{lstlisting}[language=lean]
+theorem integral_map {β} [MeasurableSpace β] {φ : α → β} (hφ : AEMeasurable φ μ) {f : β → G}
+    (hfm : AEStronglyMeasurable f (Measure.map φ μ)) :
+    ∫ y, f y ∂Measure.map φ μ = ∫ x, f (φ x) ∂μ
+
+@[simp]
+theorem integral_const (c : E) : ∫ _ : α, c ∂μ = μ.real univ • c
+
+theorem integral_sub {f g : α → G} (hf : Integrable f μ) (hg : Integrable g μ) :
+    ∫ a, f a - g a ∂μ = ∫ a, f a ∂μ - ∫ a, g a ∂μ
+
+theorem integral_const_mul {L : Type*} [RCLike L] (r : L) (f : α → L) :
+    ∫ a, r * f a ∂μ = r * ∫ a, f a ∂μ
+
+theorem integral_div {L : Type*} [RCLike L] (r : L) (f : α → L) :
+    ∫ a, f a / r ∂μ = (∫ a, f a ∂μ) / r
+
+lemma integral_exp_pos {μ : Measure α} {f : α → ℝ} [hμ : NeZero μ]
+    (hf : Integrable (fun x ↦ Real.exp (f x)) μ) :
+    0 < ∫ x, Real.exp (f x) ∂μ
+
+theorem integral_eq_zero_iff_of_nonneg_ae {f : α → ℝ} (hf : 0 ≤ᵐ[μ] f) (hfi : Integrable f μ) :
+    ∫ x, f x ∂μ = 0 ↔ f =ᵐ[μ] 0
+
+theorem ofReal_integral_eq_lintegral_ofReal {f : α → ℝ} (hfi : Integrable f μ) (f_nn : 0 ≤ᵐ[μ] f) :
+    ENNReal.ofReal (∫ x, f x ∂μ) = ∫⁻ x, ENNReal.ofReal (f x) ∂μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Integral/Bochner/Set.lean}}
+\begin{lstlisting}[language=lean]
+theorem setIntegral_mono_on (hs : MeasurableSet s) (h : ∀ x ∈ s, f x ≤ g x) :
+    ∫ x in s, f x ∂μ ≤ ∫ x in s, g x ∂μ
+
+theorem setIntegral_const [CompleteSpace E] (c : E) : ∫ _ in s, c ∂μ = μ.real s • c
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/MeasureTheory/Integral/Lebesgue/Basic.lean}}
+\begin{lstlisting}[language=lean]
+theorem Measure.ext_of_lintegral (ν : Measure α)
+    (hμν : ∀ f : α → ℝ≥0∞, Measurable f → ∫⁻ a, f a ∂μ = ∫⁻ a, f a ∂ν) : μ = ν
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Integral/Lebesgue/Map.lean}}
+\begin{lstlisting}[language=lean]
+theorem lintegral_map {f : β → ℝ≥0∞} {g : α → β} (hf : Measurable f)
+    (hg : Measurable g) : ∫⁻ a, f a ∂map g μ = ∫⁻ a, f (g a) ∂μ
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Integral/Lebesgue/Add.lean}}
+\begin{lstlisting}[language=lean]
+theorem lintegral_mul_const' (r : ℝ≥0∞) (f : α → ℝ≥0∞) (hr : r ≠ ∞) :
+    ∫⁻ a, f a * r ∂μ = (∫⁻ a, f a ∂μ) * r
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/MeasureSpaceDef.lean}}
+\begin{lstlisting}[language=lean]
+/-- The real-valued version of a measure. Maps infinite measure sets to zero. Use as `μ.real s`.
+The API is developed in `Mathlib/MeasureTheory/Measure/Real.lean`. -/
+protected def Measure.real {α : Type*} {m : MeasurableSpace α} (μ : Measure α) (s : Set α) : ℝ :=
+  (μ s).toReal
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/OuterMeasure/Basic.lean}}
+\begin{lstlisting}[language=lean]
+@[mono, gcongr]
+theorem measure_mono (h : s ⊆ t) : μ s ≤ μ t
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/OuterMeasure/AE.lean}}
+\begin{lstlisting}[language=lean]
+theorem ae_iff {p : α → Prop} : (∀ᵐ a ∂μ, p a) ↔ μ { a | ¬p a } = 0
+
+theorem ae_of_all {p : α → Prop} (μ : F) : (∀ a, p a) → ∀ᵐ a ∂μ, p a
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/MeasureSpace.lean}}
+\begin{lstlisting}[language=lean]
+/-- Continuity from below: the measure of the union of an increasing sequence of (not necessarily
+measurable) sets is the limit of the measures. -/
+theorem tendsto_measure_iUnion_atTop [Preorder ι] [IsCountablyGenerated (atTop : Filter ι)]
+    {s : ι → Set α} (hm : Monotone s) : Tendsto (μ ∘ s) atTop (𝓝 (μ (⋃ n, s n)))
+
+/-- `μ s + μ sᶜ = μ univ`. -/
+theorem measure_add_measure_compl (h : MeasurableSet s) : μ s + μ sᶜ = μ univ
+
+theorem tendsto_measure_Iic_atTop [Preorder α] [(atTop : Filter α).IsCountablyGenerated]
+    (μ : Measure α) : Tendsto (fun x => μ (Iic x)) atTop (𝓝 (μ univ))
+\end{lstlisting}
+\newpage
+\subsubsection{\texttt{Mathlib/MeasureTheory/Measure/Map.lean}}
+\begin{lstlisting}[language=lean]
+@[simp]
+theorem map_apply (hf : Measurable f) {s : Set β} (hs : MeasurableSet s) :
+    μ.map f s = μ (f ⁻¹' s)
+
+/-- Mapping a measure twice is the same as mapping the measure with the composition. This version is
+for measurable functions. See `map_map_of_aemeasurable` when they are just ae measurable. -/
+theorem map_map {g : β → γ} {f : α → β} (hg : Measurable g) (hf : Measurable f) :
+    (μ.map f).map g = μ.map (g ∘ f)
+\end{lstlisting}
+
+\subsection{Analysis}
+
+\subsubsection{\texttt{Mathlib/Analysis/Convex/Integral.lean}}
+\begin{lstlisting}[language=lean]
+theorem ConvexOn.map_integral_le [IsProbabilityMeasure μ] (hg : ConvexOn ℝ s g)
+    (hgc : ContinuousOn g s) (hsc : IsClosed s) (hfs : ∀ᵐ x ∂μ, f x ∈ s) (hfi : Integrable f μ)
+    (hgi : Integrable (g ∘ f) μ) : g (∫ x, f x ∂μ) ≤ ∫ x, g (f x) ∂μ
+
+theorem Convex.integral_mem [IsProbabilityMeasure μ] (hs : Convex ℝ s) (hsc : IsClosed s)
+    (hf : ∀ᵐ x ∂μ, f x ∈ s) (hfi : Integrable f μ) : (∫ x, f x ∂μ) ∈ s
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Convex/Function.lean}}
+\begin{lstlisting}[language=lean]
+/-- Convexity of functions -/
+def ConvexOn : Prop :=
+  Convex 𝕜 s ∧ ∀ ⦃x⦄, x ∈ s → ∀ ⦃y⦄, y ∈ s → ∀ ⦃a b : 𝕜⦄, 0 ≤ a → 0 ≤ b → a + b = 1 →
+    f (a • x + b • y) ≤ a • f x + b • f y
+
+/-- Strict convexity of functions -/
+def StrictConvexOn : Prop :=
+  Convex 𝕜 s ∧ ∀ ⦃x⦄, x ∈ s → ∀ ⦃y⦄, y ∈ s → x ≠ y → ∀ ⦃a b : 𝕜⦄, 0 < a → 0 < b → a + b = 1 →
+    f (a • x + b • y) < a • f x + b • f y
+
+theorem StrictConvexOn.convexOn {s : Set E} {f : E → β} (hf : StrictConvexOn 𝕜 s f) :
+    ConvexOn 𝕜 s f
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Convex/SpecificFunctions/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- `Real.exp` is convex on the whole real line. -/
+theorem convexOn_exp : ConvexOn ℝ univ exp
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/Analysis/Convex/Deriv.lean}}
+\begin{lstlisting}[language=lean]
+/-- Reformulation of `ConvexOn.le_slope_of_hasDerivAt` using `deriv` -/
+lemma deriv_le_slope (hfc : ConvexOn ℝ S f) (hx : x ∈ S) (hy : y ∈ S) (hxy : x < y)
+    (hfd : DifferentiableAt ℝ f x) :
+    deriv f x ≤ slope f x y
+
+/-- Reformulation of `ConvexOn.slope_le_of_hasDerivAt` using `deriv`. -/
+lemma slope_le_deriv (hfc : ConvexOn ℝ S f) (hx : x ∈ S) (hy : y ∈ S) (hxy : x < y)
+    (hfd : DifferentiableAt ℝ f y) :
+    slope f x y ≤ deriv f y
+
+/-- If a function `f` is continuous on a convex set `D ⊆ ℝ` and `f''` is strictly positive on `D`,
+then `f` is strictly convex on `D`.
+Note that we don't require twice differentiability explicitly as it is already implied by the second
+derivative being strictly positive, except at at most one point. -/
+theorem strictConvexOn_of_deriv2_pos' {D : Set ℝ} (hD : Convex ℝ D) {f : ℝ → ℝ}
+    (hf : ContinuousOn f D) (hf'' : ∀ x ∈ D, 0 < (deriv^[2] f) x) : StrictConvexOn ℝ D f
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/SpecialFunctions/Exp.lean}}
+\begin{lstlisting}[language=lean]
+@[continuity]
+theorem continuous_exp : Continuous exp
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Complex/Exponential.lean}}
+\begin{lstlisting}[language=lean]
+theorem exp_sum {α : Type*} (s : Finset α) (f : α → ℝ) :
+    exp (∑ x ∈ s, f x) = ∏ x ∈ s, exp (f x)
+
+@[bound]
+theorem exp_pos (x : ℝ) : 0 < exp x
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/SpecialFunctions/Log/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- The real logarithm function, equal to the inverse of the exponential for `x > 0`,
+to `log |x|` for `x < 0`, and to `0` for `0`. We use this unconventional extension to
+`(-∞, 0]` as it gives the formula `log (x * y) = log x + log y` for all nonzero `x` and `y`, and
+the derivative of `log` is `1/x` away from `0`. -/
+@[pp_nodot]
+noncomputable def log (x : ℝ) : ℝ :=
+  if hx : x = 0 then 0 else expOrderIso.symm ⟨|x|, abs_pos.2 hx⟩
+
+@[simp, push]
+theorem log_exp (x : ℝ) : log (exp x) = x
+theorem exp_log (hx : 0 < x) : exp (log x) = x
+
+@[gcongr, bound]
+lemma log_le_log (hx : 0 < x) (hxy : x ≤ y) : log x ≤ log y
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/Data/Real/Sqrt.lean}}
+\begin{lstlisting}[language=lean]
+/-- The square root of a real number. This returns 0 for negative inputs.
+
+This has notation `√x`. Note that `√x⁻¹` is parsed as `√(x⁻¹)`. -/
+@[irreducible] noncomputable def sqrt (x : ℝ) : ℝ :=
+  NNReal.sqrt (Real.toNNReal x)
+
+@[simp]
+theorem sqrt_pos : 0 < √x ↔ 0 < x
+@[simp]
+theorem sqrt_mul {x : ℝ} (hx : 0 ≤ x) (y : ℝ) : √(x * y) = √x * √y
+@[simp]
+theorem sq_sqrt (h : 0 ≤ x) : √x ^ 2 = x
+lemma tendsto_sqrt_atTop : Tendsto (√·) atTop atTop
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Calculus/Deriv/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- Derivative of `f` at the point `x`, if it exists.  Zero otherwise.
+
+If the derivative exists (i.e., `∃ f', HasDerivAt f f' x`), then
+`f x' = f x + (x' - x) • deriv f x + o(x' - x)` where `x'` converges to `x`.
+-/
+def deriv (f : 𝕜 → F) (x : 𝕜) :=
+  fderiv 𝕜 f x 1
+
+/-- `f` has the derivative `f'` at the point `x`.
+
+That is, `f x' = f x + (x' - x) • f' + o(x' - x)` where `x'` converges to `x`.
+-/
+def HasDerivAt (f : 𝕜 → F) (f' : F) (x : 𝕜) :=
+  HasDerivAtFilter f f' (𝓝 x ×ˢ pure x)
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Calculus/Deriv/MeanValue.lean}}
+\begin{lstlisting}[language=lean]
+/-- Let `f : ℝ → ℝ` be a differentiable function. If `f'` is positive, then
+`f` is a strictly monotone function.
+Note that we don't require differentiability explicitly as it already implied by the derivative
+being strictly positive. -/
+theorem strictMono_of_deriv_pos {f : ℝ → ℝ} (hf' : ∀ x, 0 < deriv f x) : StrictMono f
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Calculus/FDeriv/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- A function `f` is differentiable at a point `x` if it admits a derivative there (possibly
+non-unique). -/
+@[fun_prop]
+def DifferentiableAt (f : E → F) (x : E) :=
+  ∃ f' : E →L[𝕜] F, HasFDerivAt f f' x
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/Analysis/Calculus/ContDiff/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- A function is continuously differentiable up to `n` at a point `x` if, for any integer `k ≤ n`,
+there is a neighborhood of `x` where `f` admits derivatives up to order `n`, which are continuous.
+The parameter `n` belongs to `WithTop ℕ∞`, i.e., it can be a natural number, `∞`, or `ω`
+(when the `ContDiff` scope is open).
+
+For `n = ∞`, we only require that this holds up to any finite order (where the neighborhood may
+depend on the finite order we consider).
+For `n = ω`, we require the function to be analytic at `x`. The precise
+definition we give (all the derivatives should be analytic) is more involved to work around issues
+when the space is not complete, but it is equivalent when the space is complete.
+-/
+@[fun_prop]
+def ContDiffAt (n : WithTop ℕ∞) (f : E → F) (x : E) : Prop :=
+  ContDiffWithinAt 𝕜 n f univ x
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Calculus/IteratedDeriv/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- The `n`-th iterated derivative of a function from `𝕜` to `F`, as a function from `𝕜` to `F`. -/
+def iteratedDeriv (n : ℕ) (f : 𝕜 → F) (x : 𝕜) : F :=
+  (iteratedFDeriv 𝕜 n f x : (Fin n → 𝕜) → F) fun _ : Fin n => 1
+
+/-- The `n+1`-th iterated derivative can be obtained by differentiating the `n`-th
+iterated derivative. -/
+theorem iteratedDeriv_succ : iteratedDeriv (n + 1) f = deriv (iteratedDeriv n f)
+
+/-- The `n`-th iterated derivative can be obtained by iterating `n` times the
+differentiation operation. -/
+theorem iteratedDeriv_eq_iterate : iteratedDeriv n f = deriv^[n] f
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Analytic/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- `f` is analytic within `s` if it is analytic within `s` at each point of `s`.  Note that
+this is weaker than `AnalyticOnNhd 𝕜 f s`, as `f` is allowed to be arbitrary outside `s`. -/
+def AnalyticOn (f : E → F) (s : Set E) : Prop :=
+  ∀ x ∈ s, AnalyticWithinAt 𝕜 f s x
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/Calculus/FDeriv/Analytic.lean}}
+\begin{lstlisting}[language=lean]
+theorem AnalyticOn.differentiableOn (h : AnalyticOn 𝕜 f s) : DifferentiableOn 𝕜 f s
+\end{lstlisting}
+
+\newpage
+
+\subsection{Order and Filters}
+
+\subsubsection{\texttt{Mathlib/Order/Filter/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- `Filter.Tendsto` is the generic "limit of a function" predicate.
+  `Tendsto f l₁ l₂` asserts that for every `l₂` neighborhood `a`,
+  the `f`-preimage of `a` is an `l₁` neighborhood. -/
+def Tendsto (f : α → β) (l₁ : Filter α) (l₂ : Filter β) :=
+  l₁.map f ≤ l₂
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/LiminfLimsup.lean}}
+\begin{lstlisting}[language=lean]
+/-- The `limsup` of a function `u` along a filter `f` is the infimum of the `a` such that
+the inequality `u x ≤ a` eventually holds for `f`. -/
+def limsup (u : β → α) (f : Filter β) : α :=
+  limsSup (map u f)
+
+/-- The `liminf` of a function `u` along a filter `f` is the supremum of the `a` such that
+the inequality `u x ≥ a` eventually holds for `f`. -/
+def liminf (u : β → α) (f : Filter β) : α :=
+  limsInf (map u f)
+
+theorem limsup_le_of_le {f : Filter β} {u : β → α} {a}
+    (hf : f.IsCoboundedUnder (· ≤ ·) u := by isBoundedDefault)
+    (h : ∀ᶠ n in f, u n ≤ a) : limsup u f ≤ a
+
+theorem liminf_le_liminf {α : Type*} [ConditionallyCompleteLattice β] {f : Filter α} {u v : α → β}
+    (h : ∀ᶠ a in f, u a ≤ v a)
+    (hu : f.IsBoundedUnder (· ≥ ·) u := by isBoundedDefault)
+    (hv : f.IsCoboundedUnder (· ≥ ·) v := by isBoundedDefault) :
+    liminf u f ≤ liminf v f
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/Filter/IsBounded.lean}}
+\begin{lstlisting}[language=lean]
+lemma isCoboundedUnder_le_of_le [Preorder α] (l : Filter ι) [NeBot l] {f : ι → α} {x : α}
+    (hf : ∀ i, x ≤ f i) :
+    IsCoboundedUnder (· ≤ ·) l f
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Topology/Order/LiminfLimsup.lean}}
+\begin{lstlisting}[language=lean]
+/-- If a function has a limit, then its liminf coincides with its limit. -/
+theorem Filter.Tendsto.liminf_eq {f : Filter β} {u : β → α} {a : α} [NeBot f]
+    (h : Tendsto u f (𝓝 a)) : liminf u f = a
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/Topology/Order/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- **Squeeze theorem** (also known as **sandwich theorem**). This version assumes that inequalities
+hold everywhere. -/
+theorem tendsto_of_tendsto_of_tendsto_of_le_of_le [OrderTopology α] {f g h : β → α} {b : Filter β}
+    {a : α} (hg : Tendsto g b (𝓝 a)) (hh : Tendsto h b (𝓝 a)) (hgf : g ≤ f) (hfh : f ≤ h) :
+    Tendsto f b (𝓝 a)
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/Filter/AtTopBot/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- `atTop` is the filter representing the limit `→ ∞` on an ordered set.
+It is generated by the collection of up-sets `{b | a ≤ b}`.
+(The preorder need not have a top element for this to be well defined,
+and indeed is trivial when a top element `x` exists, i.e., it coincides with `pure x`.) -/
+@[to_dual
+/-- `atBot` is the filter representing the limit `→ -∞` on an ordered set.
+It is generated by the collection of down-sets `{b | b ≤ a}`.
+(The preorder need not have a bottom element for this to be well defined,
+and indeed is trivial when a bottom element `x` exists, i.e., it coincides with `pure x`.) -/]
+def atTop [Preorder α] : Filter α :=
+  ⨅ a, 𝓟 (Ici a)
+
+@[to_dual eventually_le_atBot]
+theorem eventually_ge_atTop [Preorder α] (a : α) : ∀ᶠ x in atTop, a ≤ x
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/Filter/AtTopBot/Basic.lean}}
+\begin{lstlisting}[language=lean]
+@[simp] lemma eventually_atTop : (∀ᶠ x in atTop, p x) ↔ ∃ a, ∀ b ≥ a, p b := mem_atTop_sets
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/Filter/AtTopBot/Archimedean.lean}}
+\begin{lstlisting}[language=lean]
+theorem tendsto_natCast_atTop_atTop [Semiring R] [PartialOrder R] [IsOrderedRing R]
+    [Archimedean R] :
+    Tendsto ((↑) : ℕ → R) atTop atTop
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/Filter/AtTopBot/Field.lean}}
+\begin{lstlisting}[language=lean]
+/-- If `r` is a positive constant, `fun x ↦ r * f x` tends to infinity along a filter
+if and only if `f` tends to infinity along the same filter. -/
+theorem tendsto_const_mul_atTop_of_pos (hr : 0 < r) :
+    Tendsto (fun x => r * f x) l atTop ↔ Tendsto f l atTop
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Topology/Neighborhoods.lean}}
+\begin{lstlisting}[language=lean]
+theorem tendsto_const_nhds {f : Filter α} : Tendsto (fun _ : α => x) f (𝓝 x)
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Topology/Order/DenselyOrdered.lean}}
+\begin{lstlisting}[language=lean]
+@[simp]
+theorem frontier_Icc [NoMinOrder α] [NoMaxOrder α] {a b : α} (h : a ≤ b) :
+    frontier (Icc a b) = {a, b}
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/Bounds/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- A set is bounded above if there exists an upper bound. -/
+@[to_dual /-- A set is bounded below if there exists a lower bound. -/]
+def BddAbove (s : Set α) :=
+  (upperBounds s).Nonempty
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/ConditionallyCompleteLattice/Defs.lean}}
+\begin{lstlisting}[language=lean]
+/-- A conditionally complete lattice is a lattice in which
+every nonempty subset which is bounded above has a supremum, and
+every nonempty subset which is bounded below has an infimum.
+Typical examples are real numbers or natural numbers.
+
+To differentiate the statements from the corresponding statements in (unconditional)
+complete lattices, we prefix `sInf` and `sSup` by a `c` everywhere. The same statements should
+hold in both worlds, sometimes with additional assumptions of nonemptiness or
+boundedness. -/
+class ConditionallyCompleteLattice (α : Type*) extends Lattice α, SupSet α, InfSet α where
+  /-- Every nonempty subset which is bounded above has a least upper bound. -/
+  isLUB_csSup : ∀ s : Set α, s.Nonempty → BddAbove s → IsLUB s (sSup s)
+  /-- Every nonempty subset which is bounded below has a greatest lower bound. -/
+  isGLB_csInf : ∀ s : Set α, s.Nonempty → BddBelow s → IsGLB s (sInf s)
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Order/ConditionallyCompleteLattice/Indexed.lean}}
+\begin{lstlisting}[language=lean]
+/-- The indexed supremum of a function is bounded above by a uniform bound -/
+theorem ciSup_le [Nonempty ι] {f : ι → α} {c : α} (H : ∀ x, f x ≤ c) : iSup f ≤ c
+
+/-- The indexed supremum of a function is bounded below by the value taken at one point -/
+theorem le_ciSup {f : ι → α} (H : BddAbove (range f)) (c : ι) : f c ≤ iSup f
+\end{lstlisting}
+
+\subsection{Foundations}
+
+\subsubsection{\texttt{Mathlib/Logic/Pairwise.lean}}
+\begin{lstlisting}[language=lean]
+/-- A relation `r` holds pairwise if `r i j` for all `i ≠ j`. -/
+def Pairwise (r : α → α → Prop) :=
+  ∀ ⦃i j⦄, i ≠ j → r i j
+\end{lstlisting}
+
+\newpage
+\subsection{Extended Reals}
+
+\subsubsection{\texttt{Mathlib/Data/EReal/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- The type of extended real numbers `[-∞, ∞]`, constructed as `WithBot (WithTop ℝ)`. -/
+def EReal := WithBot (WithTop ℝ)
+
+@[simp, norm_cast]
+theorem coe_mul (x y : ℝ) : (↑(x * y) : EReal) = x * y
+
+@[simp, norm_cast]
+protected theorem coe_nonneg {x : ℝ} : (0 : EReal) ≤ x ↔ 0 ≤ x
+
+@[simp]
+theorem coe_ne_bot (x : ℝ) : (x : EReal) ≠ ⊥
+
+@[simp]
+theorem coe_ne_top (x : ℝ) : (x : EReal) ≠ ⊤
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Data/EReal/Operations.lean}}
+\begin{lstlisting}[language=lean]
+@[simp, norm_cast] theorem coe_neg (x : ℝ) : (↑(-x) : EReal) = -↑x
+
+lemma mul_nonpos_iff {a b : EReal} : a * b ≤ 0 ↔ 0 ≤ a ∧ b ≤ 0 ∨ a ≤ 0 ∧ 0 ≤ b
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Data/EReal/Inv.lean}}
+\begin{lstlisting}[language=lean]
+lemma inv_nonneg_of_nonneg {a : EReal} (h : 0 ≤ a) : 0 ≤ a⁻¹
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Topology/Instances/EReal/Lemmas.lean}}
+\begin{lstlisting}[language=lean]
+protected theorem Tendsto.mul {f : Filter α} {ma : α → EReal} {mb : α → EReal} {a b : EReal}
+    (hma : Tendsto ma f (𝓝 a)) (hmb : Tendsto mb f (𝓝 b)) (h₁ : a ≠ 0 ∨ b ≠ ⊥)
+    (h₂ : a ≠ 0 ∨ b ≠ ⊤) (h₃ : a ≠ ⊥ ∨ b ≠ 0) (h₄ : a ≠ ⊤ ∨ b ≠ 0) :
+    Tendsto (fun x ↦ ma x * mb x) f (𝓝 (a * b))
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Data/ENNReal/Basic.lean}}
+\begin{lstlisting}[language=lean]
+/-- The extended nonnegative real numbers. This is usually denoted [0, ∞],
+  and is relevant as the codomain of a measure. -/
+def ENNReal := WithTop ℝ≥0
+
+/-- `toReal x` returns `x` if it is real, `0` otherwise. -/
+protected def toReal (a : ℝ≥0∞) : Real := a.toNNReal
+
+/-- `ofReal x` returns `x` if it is nonnegative, `0` otherwise. -/
+protected def ofReal (r : Real) : ℝ≥0∞ := r.toNNReal
+
+@[simp]
+theorem ofReal_toReal_eq_iff : ENNReal.ofReal a.toReal = a ↔ a ≠ ⊤
+\end{lstlisting}
+
+\newpage
+\subsubsection{\texttt{Mathlib/Data/ENNReal/Real.lean}}
+\begin{lstlisting}[language=lean]
+@[gcongr, bound]
+theorem ofReal_le_ofReal {p q : ℝ} (h : p ≤ q) : ENNReal.ofReal p ≤ ENNReal.ofReal q
+
+@[gcongr]
+theorem toReal_mono (hb : b ≠ ∞) (h : a ≤ b) : a.toReal ≤ b.toReal
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Topology/Instances/ENNReal/Lemmas.lean}}
+\begin{lstlisting}[language=lean]
+theorem tendsto_toReal {a : ℝ≥0∞} (ha : a ≠ ∞) : Tendsto ENNReal.toReal (𝓝 a) (𝓝 a.toReal)
+
+protected theorem Tendsto.sub {f : Filter α} {ma : α → ℝ≥0∞} {mb : α → ℝ≥0∞} {a b : ℝ≥0∞}
+    (hma : Tendsto ma f (𝓝 a)) (hmb : Tendsto mb f (𝓝 b)) (h : a ≠ ∞ ∨ b ≠ ∞) :
+    Tendsto (fun a => ma a - mb a) f (𝓝 (a - b))
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/SpecialFunctions/Log/ENNRealLog.lean}}
+\begin{lstlisting}[language=lean]
+/-- The logarithm function defined on the extended nonnegative reals `ℝ≥0∞`
+to the extended reals `EReal`. Coincides with the usual logarithm function
+and with `Real.log` on positive reals, and takes values `log 0 = ⊥` and `log ⊤ = ⊤`.
+Conventions about multiplication in `ℝ≥0∞` and addition in `EReal` make the identity
+`log (x * y) = log x + log y` unconditional. -/
+noncomputable def log (x : ℝ≥0∞) : EReal :=
+  if x = 0 then ⊥
+    else if x = ⊤ then ⊤
+    else Real.log x.toReal
+
+lemma log_ofReal_of_pos {x : ℝ} (hx : 0 < x) : log (ENNReal.ofReal x) = Real.log x
+
+@[gcongr] lemma log_le_log {x y : ℝ≥0∞} (h : x ≤ y) : log x ≤ log y
+
+@[simp] lemma log_le_zero_iff {x : ℝ≥0∞} : log x ≤ 0 ↔ x ≤ 1
+
+@[simp] lemma log_zero : log 0 = ⊥
+@[simp] lemma log_one : log 1 = 0
+\end{lstlisting}
+
+\subsubsection{\texttt{Mathlib/Analysis/SpecialFunctions/Log/ENNRealLogExp.lean}}
+\begin{lstlisting}[language=lean]
+@[continuity, fun_prop]
+lemma continuous_log : Continuous log
+\end{lstlisting}
+
+\subsection{Metric Spaces and Topology}
+
+\subsubsection{\texttt{Mathlib/Topology/MetricSpace/Pseudo/Defs.lean}}
+\begin{lstlisting}[language=lean]
+theorem tendsto_nhds {f : Filter β} {u : β → α} {a : α} :
+    Tendsto u f (𝓝 a) ↔ ∀ ε > 0, ∀ᶠ x in f, dist (u x) a < ε
+
+theorem Real.dist_eq (x y : ℝ) : dist x y = |x - y|
+\end{lstlisting}

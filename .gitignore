@@ -34,3 +34,6 @@ scripts/.rm_set_option_progress.jsonl
 *.bbl
 *.blg
 *.blg
+*.nav
+*.vrb
+*.snm
