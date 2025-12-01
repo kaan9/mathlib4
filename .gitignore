@@ -8,3 +8,29 @@
 **/__pycache__/
 # Progress file from scripts/rm_set_option.py
 scripts/.rm_set_option_progress.jsonl
+
+.claude
+
+# Latex ignores:
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+*.rubbercache
+*.bbl
+*.blg
+*.blg

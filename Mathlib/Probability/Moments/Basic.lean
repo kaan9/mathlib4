@@ -403,6 +403,12 @@ theorem mgf_congr_of_identDistrib
     (hident : IdentDistrib X X' μ μ') (t : ℝ) :
     mgf X μ t = mgf X' μ' t := hident.comp (measurable_const_mul t).exp |>.integral_eq
 
+theorem cgf_congr_of_identDistrib
+    (X : Ω → ℝ) {Ω' : Type*} {m' : MeasurableSpace Ω'} {μ' : Measure Ω'} (X' : Ω' → ℝ)
+    (hident : IdentDistrib X X' μ μ') (t : ℝ) :
+    cgf X μ t = cgf X' μ' t := by
+  rw [cgf, cgf, mgf_congr_of_identDistrib X X' hident t]
+
 theorem mgf_sum_of_identDistrib₀
     {X : ι → Ω → ℝ}
     {s : Finset ι} {j : ι}
@@ -422,6 +428,20 @@ theorem mgf_sum_of_identDistrib
     (hident : ∀ i ∈ s, ∀ j ∈ s, IdentDistrib (X i) (X j) μ μ)
     (hj : j ∈ s) (t : ℝ) : mgf (∑ i ∈ s, X i) μ t = mgf (X j) μ t ^ #s :=
   mgf_sum_of_identDistrib₀ (by fun_prop) h_indep hident hj t
+
+theorem cgf_sum_of_identDistrib
+    {X : ι → Ω → ℝ}
+    {s : Finset ι} {j : ι}
+    (h_meas : ∀ i, Measurable (X i))
+    (h_indep : iIndepFun X μ)
+    (hident : ∀ i ∈ s, ∀ j ∈ s, IdentDistrib (X i) (X j) μ μ)
+    (hj : j ∈ s) (t : ℝ)
+    (h_int : ∀ i ∈ s, Integrable (fun ω => exp (t * X i ω)) μ) :
+    cgf (∑ i ∈ s, X i) μ t = #s * cgf (X j) μ t := by
+  rw [h_indep.cgf_sum h_meas h_int]
+  rw [Finset.sum_eq_card_nsmul fun i hi =>
+    cgf_congr_of_identDistrib (X i) (X j) (hident i hi j hj) t]
+  simp [nsmul_eq_mul]
 
 section Chernoff
 
