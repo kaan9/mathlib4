@@ -23,9 +23,11 @@ and handles the case `a < 𝔼[X 0]` using the strong law of large numbers.
 -/
 
 open ProbabilityTheory MeasureTheory Filter Topology
-open scoped BigOperators ENNReal
+open scoped ENNReal
 
 @[expose] public section
+
+namespace ProbabilityTheory
 
 variable {Ω : Type*} [MeasureSpace Ω]
 variable (X : ℕ → Ω → ℝ)
@@ -39,49 +41,14 @@ variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
 variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
 variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
-variable (h_clt_axiom :
-    iIndepFun X ℙ →
-    (∀ n, IdentDistrib (X n) (X 0) ℙ ℙ) →
-    (∀ n, Measurable (X n)) →
-    Integrable (X 0) ℙ →
-    (∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) →
-    (∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t) →
-    ∀ (t a : ℝ),
-    ∀ δ > 0,
-    ∀ ε > 0,
-    deriv (cgf (X 0) ℙ) t = a →
-      ∀ᶠ n in atTop,
-      (1 / 2 - ε : ℝ) ≤ ((ℚₙₜ X ℙ n t)
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal)
 
-/-- If a sequence of `ENNReal` values tends to 1, then their logs tend to 0. -/
-private lemma ennreal_log_tendsto_zero_of_tendsto_one {f : ℕ → ℝ≥0∞}
-    (h : Tendsto f atTop (𝓝 1)) :
-    Tendsto (fun n => (f n).log) atTop (𝓝 0) := by
-  have h' := (ENNReal.continuous_log.tendsto (1 : ℝ≥0∞)).comp h
-  convert h'
-  simp [ENNReal.log_one]
-
-/-- The sequence `1/n → 0` in `EReal`. -/
-private lemma ereal_inv_nat_tendsto_zero :
-    Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
-  have : (fun n : ℕ => 1 / ((n : ℝ) : EReal)) = fun (n : ℕ) => (1 : EReal) / n := by
-    funext n; rfl
-  rw [this]
-  exact (EReal.tendsto_const_div_atTop_nhds_zero_nat (by decide) (by decide))
-
-/-- Product of two sequences tending to 0 tends to 0 in `EReal`. -/
-private lemma ereal_mul_tendsto_zero_of_tendsto_zero_of_bounded
-    {f g : ℕ → EReal} (hf : Tendsto f atTop (𝓝 0)) (hg : Tendsto g atTop (𝓝 0)) :
-    Tendsto (fun n => f n * g n) atTop (𝓝 0) := by
-  simpa using EReal.Tendsto.mul hf hg (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
-    (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
+/-! ### Lemmas requiring `IsProbabilityMeasure` -/
 
 variable [IsProbabilityMeasure (ℙ : Measure Ω)]
 
 include h_indep h_meas h_ident h_int in
 /-- If `a < 𝔼[X 0]`, `ℙ(Sₙ/n ≥ a) → 1` by the strong law of large numbers. -/
-private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
+private lemma tendsto_prob_empiricalMean_ge_of_lt_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
   Tendsto (fun n : ℕ => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
   have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) ℙ) :=
     fun i j hij => h_indep.indepFun hij
@@ -128,11 +95,7 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
         ext; simp
       rw [this]
       refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
-      refine measurableSet_le measurable_const ?_
-      convert (Finset.measurable_sum (Finset.range n)
-        (fun i _ => h_meas i)).div_const (n : ℝ) using 1
-      ext ω
-      simp only [empiricalMean, partialSum, Finset.sum_apply]
+      exact measurableSet_le measurable_const (measurable_empiricalMean X h_meas n)
     rw [h_union]
     have h_compl : ℙ {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} = 0 := by
       rw [← ae_iff]
@@ -157,7 +120,7 @@ private lemma less_exp_imp_limit_prob_less_mean_one (a : ℝ) (h : a < 𝔼[X 0]
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
     (fun n => h_measure_ge n n le_rfl) h_measure_le
 
-include h_indep h_meas h_ident h_mgf h_int h_bdd h_non_deg h_exposed h_clt_axiom in
+include h_indep h_meas h_ident h_mgf h_int h_bdd h_non_deg h_exposed in
 /-- **Cramér's Theorem**: For iid. random variables with finite MGF, the empirical mean
 satisfies a Large Deviation Principle with rate function being the Legendre transform of the CGF. -/
 theorem cramers_theorem :
@@ -193,27 +156,26 @@ theorem cramers_theorem :
   · intro a
     by_cases h : 𝔼[X 0] ≤ a
     · rw [upperTailRateFunction, if_pos h]
-      exact cramer_lower_bound X h_indep h_ident h_meas h_int h_mgf h_bdd h_non_deg h_exposed
-        h_clt_axiom a h
+      exact cramer_lower_bound X h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed a h
     · rw [upperTailRateFunction, if_neg h]
       norm_cast
       rw [neg_zero]
       have h_a_lt_mean : a < 𝔼[X 0] := not_le.mp h
       have h_prob_to_one :
           Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
-        @less_exp_imp_limit_prob_less_mean_one Ω _ X h_indep h_ident h_meas h_int _ a
+        tendsto_prob_empiricalMean_ge_of_lt_mean_one X h_indep h_ident h_meas h_int a
           h_a_lt_mean
       have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
           1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
           (𝓝 (0 : EReal)) := by
-        have h_log_to_zero : Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop (𝓝 0) :=
-          ennreal_log_tendsto_zero_of_tendsto_one h_prob_to_one
-        have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) :=
-          ereal_inv_nat_tendsto_zero
-        have h_log_ereal :
-            Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
-              (𝓝 (0 : EReal)) := h_log_to_zero
-        exact ereal_mul_tendsto_zero_of_tendsto_zero_of_bounded h_inv_to_zero h_log_ereal
+        have h_log_to_zero : Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+            (𝓝 (0 : EReal)) := by
+          simpa [ENNReal.log_one] using (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
+        have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
+          simpa using ereal_inv_nat_mul_const_tendsto_zero (1 : ℝ)
+        simpa using EReal.Tendsto.mul h_inv_to_zero h_log_to_zero
+          (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
+          (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
       have h_lim_eq : liminf (fun (n : ℕ) =>
           1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
           = (0 : EReal) := Filter.Tendsto.liminf_eq h_seq_to_zero
@@ -222,3 +184,5 @@ theorem cramers_theorem :
         convert h_lim_eq using 2
       rw [this]
       norm_cast
+
+end ProbabilityTheory
