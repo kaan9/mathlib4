@@ -23,7 +23,7 @@ public import Mathlib.Analysis.Calculus.Deriv.Basic
 # Cramér's Theorem — Basic Definitions and Infrastructure
 
 This file contains the core definitions and shared lemmas for Cramér's theorem:
-- The definitions `partialSum`, `empiricalMean`, `rateFunction`, `upperTailRateFunction`.
+- The definitions `partialSum`, `empiricalMean`, `I` (rate function), `upperTailRateFunction`.
 - Basic measurability and integrability results.
 - MGF/CGF sum formulas via independence.
 
@@ -32,9 +32,11 @@ the main theorem is assembled in `Theorem.lean`.
 -/
 
 open ProbabilityTheory MeasureTheory Filter Topology
-open scoped BigOperators ENNReal
+open scoped ENNReal
 
 @[expose] public section
+
+namespace ProbabilityTheory
 
 variable {Ω : Type*} [MeasureSpace Ω]
 variable (X : ℕ → Ω → ℝ)
@@ -83,51 +85,19 @@ variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
 -- has expectation `n · a`.
 variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
 
--- The empirical means under the sequence of tilted measures `ℚₙₜ` satisfy a CLT.
--- Specifically, we assume that √n (Sₙ/n - a) converges in distribution to Normal(0, σ²) under `ℚₙₜ`
--- and state the immediate consequence that any interval to the right of the mean `[a, a + δ]`
--- will contain a proportion of the probability mass that approaches 1/2 as `n → ∞`.
--- Note that this differs from the regular CLT in that each "row" `n` is associated with its own
--- measure `ℚₙₜ`. The statement is still valid however, as the distribution of `Sₙ` is that same
--- for all `ℚₖₜ` when `k ≥ n`, so we can pick a measure `ℚ = ℚₙₜ` for an arbitrarily large `n = N`
--- and view `S_k` for `k ∈ {1, …, N}` as a sum of iid random variables under a single measure `ℚ`.
--- At the time of writing, mathlib does not have a proof of the Central Limit Theorem,
--- so we take this as an assumption, and explicitly enumerate all other assumptions it relies on.
--- TODO: once the CLT is available in mathlib, remove this assumption.
-variable (h_clt_axiom :
-    iIndepFun X ℙ →
-    (∀ n, IdentDistrib (X n) (X 0) ℙ ℙ) →
-    (∀ n, Measurable (X n)) →
-    Integrable (X 0) ℙ →
-    (∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ) →
-    (∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t) →
-    ∀ (t a : ℝ),
-    ∀ δ > 0,
-    ∀ ε > 0,
-    deriv (cgf (X 0) ℙ) t = a →
-      ∀ᶠ n in atTop,
-      (1 / 2 - ε : ℝ) ≤ ((ℚₙₜ X ℙ n t)
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal)
-
-
 /-! ### Basic measurability and integrability helpers -/
 
 include h_ident h_mgf in
-/- The random variables Xᵢ have finite moment generating functions. -/
+/-- The random variables Xᵢ have finite moment generating functions. -/
 lemma integrable_exp_of_identDistrib (i : ℕ) (t : ℝ) :
-    Integrable (fun ω => Real.exp (t * X i ω)) ℙ := by
-  have hcomp : Measurable (fun x : ℝ => Real.exp (t * x)) :=
-    (measurable_const.mul measurable_id).exp
-  have : IdentDistrib (fun ω => Real.exp (t * X i ω)) (fun ω => Real.exp (t * X 0 ω)) ℙ ℙ :=
-    (h_ident i).comp hcomp
-  exact this.integrable_iff.mpr (h_mgf t)
+    Integrable (fun ω => Real.exp (t * X i ω)) ℙ :=
+  ((h_ident i).comp (measurable_const.mul measurable_id).exp).integrable_iff.mpr (h_mgf t)
 
 include h_meas in
 /-- The partial sum `Sₙ` is measurable. -/
 lemma measurable_partialSum (n : ℕ) : Measurable (partialSum X n) := by
-  unfold partialSum
-  convert Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i) using 2
-  exact Finset.sum_apply _ _ _
+  simpa [partialSum, ← Finset.sum_apply] using
+    Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)
 
 include h_meas in
 /-- The empirical mean `Sₙ/n` is measurable. -/
@@ -135,14 +105,12 @@ lemma measurable_empiricalMean (n : ℕ) : Measurable (empiricalMean X n) :=
   (measurable_partialSum X h_meas n).div_const (n : ℝ)
 
 include h_mgf in
-/-- All `t ∈ ℝ` lie in the interior of the domain of `t` for which `exp(tX₀)` is integrable. -/
+/-- All `t ∈ ℝ` lie in the interior of the domain for which `exp(tX₀)` is integrable. -/
 lemma mem_interior_integrableExpSet (t : ℝ) : t ∈ interior (integrableExpSet (X 0) ℙ) := by
-  have h_univ : integrableExpSet (X 0) ℙ = Set.univ := by
-    ext s; simp [integrableExpSet, h_mgf]
-  rw [h_univ, interior_univ]
-  exact Set.mem_univ t
+  simp [Set.eq_univ_of_forall h_mgf (s := integrableExpSet (X 0) ℙ)]
 
--- The following lemmas require the measure to be a probability measure.
+/-! ### Lemmas requiring `IsProbabilityMeasure` -/
+
 variable [IsProbabilityMeasure (ℙ : Measure Ω)]
 
 /-- For a random variable Y with finite MGF, the CGF satisfies `Λ_Y(t) ≥ t · 𝔼[Y]`.
@@ -161,83 +129,41 @@ lemma cgf_ge_mul_expect (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
   -- Extract t: t 𝔼[Y] ≤ 𝔼[exp(tY)]
   rw [integral_const_mul] at jensen
   -- Take log of both sides
-  have h_pos : 0 < mgf Y ℙ t := integral_exp_pos (h_mgf t)
-  calc t * 𝔼[Y]
-      = Real.log (Real.exp (t * 𝔼[Y])) := by rw [Real.log_exp _]
-    _ ≤ cgf Y ℙ t :=
-        Real.log_le_log (Real.exp_pos _) jensen
+  exact (Real.log_exp _).symm.trans_le (Real.log_le_log (Real.exp_pos _) jensen)
 
 /-- When `t < 0` and `a ≥ 𝔼[Y]`, we have `t · a - Λ_Y(t) ≤ 0`. -/
 lemma rate_function_neg_param_le_zero (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
     (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ)
     (t a : ℝ) (ht : t < 0) (ha : 𝔼[Y] ≤ a) :
     t * a - cgf Y ℙ t ≤ 0 := by
-  have h_cgf := cgf_ge_mul_expect Y h_int h_mgf t
-  -- Λ(t) ≥ t · 𝔼[Y] ≥ t · a  (since t < 0, inequality flips)
-  have : t * 𝔼[Y] ≥ t * a := by
-    exact mul_le_mul_of_nonpos_left ha (le_of_lt ht)
-  calc t * a - cgf Y ℙ t
-      ≤ t * a - t * 𝔼[Y] := by linarith [h_cgf]
-    _ = t * (a - 𝔼[Y]) := by ring
-    _ ≤ 0 := by
-        apply mul_nonpos_of_nonpos_of_nonneg (le_of_lt ht)
-        linarith
+    -- Λ(t) ≥ t · 𝔼[Y] ≥ t · a  (since t < 0, inequality flips)
+  nlinarith [cgf_ge_mul_expect Y h_int h_mgf t, mul_le_mul_of_nonpos_left ha ht.le]
 
 include h_indep h_ident h_meas h_mgf in
 /-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
 lemma integrable_exp_sum (t : ℝ) (n : ℕ) :
     Integrable (fun ω => Real.exp (t * partialSum X n ω)) ℙ := by
-  have : (fun ω => Real.exp (t * partialSum X n ω)) =
-          fun ω => Real.exp (∑ i ∈ Finset.range n, t * X i ω) := by
-    ext ω
-    unfold partialSum
-    simp only [Finset.sum_apply]
-    rw [Finset.mul_sum]
-  rw [this]
-  conv =>
-    lhs
-    intro ω
-    rw [Real.exp_sum]
-  -- Goal: Integrable (fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω)) ℙ
-  -- Proceed by induction on n
+  have h_rw : (fun ω => Real.exp (t * partialSum X n ω)) =
+      fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω) := by
+    ext ω; simp [partialSum, Finset.sum_apply, Finset.mul_sum, Real.exp_sum]
+  rw [h_rw]; clear h_rw
   induction n with
-  | zero =>
-    -- Base case: Empty product is 1, which is integrable
-    simp only [Finset.range_zero, Finset.prod_empty]
-    exact integrable_const 1
+  | zero => simp
   | succ n ih =>
-    -- Show product `e^(t * Xᵢ)` over range `n + 1`
-    --   = (product `e^(t * Xᵢ)` over range `n`) * `e^(t * Xₙ)`
-    have h_eq : (fun ω => ∏ i ∈ Finset.range (n + 1), Real.exp (t * X i ω)) =
-        (fun ω => (∏ i ∈ Finset.range n, Real.exp (t * X i ω)) * Real.exp (t * X n ω)) := by
-      funext ω
-      rw [Finset.prod_range_succ]
-    rw [h_eq]
-    -- We know that `e^(t * Xₙ)` is integrable from integrable_exp_of_identDistrib
-    have h_integrable_n : Integrable (fun ω => Real.exp (t * X n ω)) ℙ :=
-      integrable_exp_of_identDistrib X h_ident h_mgf n t
-    -- `e^{t * Xᵢ}` are independent
+      -- Show product `e^(t * Xᵢ)` over range `n + 1`
+      --   = (product `e^(t * Xᵢ)` over range `n`) * `e^(t * Xₙ)`
+    simp only [Finset.prod_range_succ]
     have h_indep_exp : iIndepFun (fun i ω => Real.exp (t * X i ω)) ℙ := by
-      have := h_indep.comp (fun _ x => Real.exp (t * x))
+      simpa [Function.comp_def] using h_indep.comp (fun _ x => Real.exp (t * x))
         (fun _ => (measurable_const.mul measurable_id).exp)
-      simp only [Function.comp_def] at this
-      exact this
     -- `∏ᵢⁿ⁻¹ e^{t * Xᵢ}` is independent of `e^{t * Xₙ}`
     have h_indep_prod : IndepFun (fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω))
         (fun ω => Real.exp (t * X n ω)) ℙ := by
       convert h_indep_exp.indepFun_finset_prod_of_notMem
-        (fun i => (h_meas i).const_mul t |>.exp)
-        (by simp : n ∉ Finset.range n) using 2
+        (fun i => (h_meas i).const_mul t |>.exp) (by simp : n ∉ Finset.range n) using 2
       simp [Finset.prod_apply]
-    -- Need the equality `e^{t * Sₙ} = e^{∑ᵢⁿ (t * Xᵢ)}` to apply the induction hypothesis
-    have h_eq_n : (fun ω => Real.exp (t * partialSum X n ω)) =
-        fun ω => Real.exp (∑ i ∈ Finset.range n, t * X i ω) := by
-      ext ω
-      unfold partialSum
-      simp only [Finset.sum_apply]
-      rw [Finset.mul_sum]
-    -- Use IndepFun.integrable_mul
-    exact ProbabilityTheory.IndepFun.integrable_mul h_indep_prod (ih h_eq_n) h_integrable_n
+    exact h_indep_prod.integrable_mul ih
+      (integrable_exp_of_identDistrib X h_ident h_mgf n t)
 
 include h_indep h_ident h_meas h_mgf in
 /-- The tilted measure by `t · Sₙ` is a probability measure. -/
@@ -249,12 +175,9 @@ include h_indep h_ident h_meas h_mgf in
 /-- All `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
 lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
     t ∈ interior (integrableExpSet (partialSum X n) ℙ) := by
-  have h_univ : integrableExpSet (partialSum X n) ℙ = Set.univ := by
-    ext s
-    simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true]
-    exact integrable_exp_sum X h_indep h_ident h_meas h_mgf s n
-  rw [h_univ, interior_univ]
-  exact Set.mem_univ t
+  simp [Set.eq_univ_of_forall
+    (fun s => integrable_exp_sum X h_indep h_ident h_meas h_mgf s n)
+    (s := integrableExpSet (partialSum X n) ℙ)]
 
 include h_bdd h_mgf h_int in
 /-- For `a ≥ 𝔼[X]`, the supremum in the rate function is achieved by non-negative `t`.
@@ -262,73 +185,39 @@ That is, `I(a) = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
 lemma rateFunction_eq_sup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     I X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t := by
   rw [I]
-  apply le_antisymm
-  · -- Direction 1: sup over ℝ≥0 ≤ sup over ℝ
-    have h_bdd_restrict : BddAbove (Set.range fun s : {x : ℝ | 0 ≤ x} =>
-        (s : ℝ) * a - cgf (X 0) ℙ s) := by
-      obtain ⟨b, hb⟩ := h_bdd a
-      use b
-      rintro y ⟨s, rfl⟩
-      exact hb ⟨s.val, rfl⟩
-    apply ciSup_le
-    intro t
-    by_cases ht : 0 ≤ t
-    · -- Case t ≥ 0: It's in the restricted set so the supremum exists by h_bdd
-      exact le_ciSup h_bdd_restrict ⟨t, ht⟩
-    · -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable
-      -- with a t ≥ 0
-      rw [not_le] at ht
-      -- When t < 0, show t*a - cgf t ≤ 0 = (value at t=0) by rate_function_neg_param_le_zero
-      have h_le_zero : t * a - cgf (X 0) ℙ t ≤ 0 :=
-        rate_function_neg_param_le_zero (X 0) h_int h_mgf t a ht h_mean
-      calc t * a - cgf (X 0) ℙ t
-          ≤ 0 := h_le_zero
-        _ = (0 : ℝ) * a - cgf (X 0) ℙ 0 := by simp [cgf_zero]
-        _ ≤ ⨆ s : {x : ℝ | 0 ≤ x}, (s : ℝ) * a - cgf (X 0) ℙ s :=
-            le_ciSup h_bdd_restrict ⟨0, by simp⟩
-  · -- Direction 2: sup over ℝ≥0 ≥ sup over ℝ
-    have h_nonempty : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
-    apply ciSup_le
-    intro t
-    exact le_ciSup (h_bdd a) (t : ℝ)
+  have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
+  have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} =>
+      (t : ℝ) * a - cgf (X 0) ℙ t) :=
+    let ⟨b, hb⟩ := h_bdd a
+    ⟨b, fun _ ⟨t, ht⟩ => ht ▸ hb ⟨t.val, rfl⟩⟩
+  refine le_antisymm (ciSup_le fun t => ?_) (ciSup_le fun t => le_ciSup (h_bdd a) (t : ℝ))
+  by_cases ht : 0 ≤ t
+  -- Case t ≥ 0: It's in the restricted set so the supremum exists by h_bdd
+  · exact le_ciSup h_bdd_restrict ⟨t, ht⟩
+  -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with a t ≥ 0
+  · calc t * a - cgf (X 0) ℙ t
+        ≤ 0 := rate_function_neg_param_le_zero (X 0) h_int h_mgf t a (not_le.mp ht) h_mean
+      _ = (0 : ℝ) * a - cgf (X 0) ℙ 0 := by simp [cgf_zero]
+      _ ≤ _ := le_ciSup h_bdd_restrict ⟨0, by simp⟩
 
 include h_indep h_ident h_meas h_mgf in
 /-- `M_Sₙ(t) = exp(n · Λ_X₀(t))` -/
 lemma mgf_sum_eq_exp_n_prod_cgf (n : ℕ) (t : ℝ) :
     mgf (partialSum X n) ℙ t = Real.exp (n * cgf (X 0) ℙ t) := by
-  have h_eq_sum : partialSum X n = ∑ i ∈ Finset.range n, X i := rfl
-  rw [h_eq_sum]
-  by_cases hn : n = 0
-  · simp [hn, cgf]
-  have h0_mem : 0 ∈ Finset.range n := by simp [Finset.mem_range]; omega
-  have hident_all : ∀ i ∈ Finset.range n, ∀ j ∈ Finset.range n,
-      IdentDistrib (X i) (X j) ℙ ℙ := by
-    intros i _ j _
-    exact (h_ident i).trans (h_ident j).symm
-  calc mgf (∑ i ∈ Finset.range n, X i) ℙ t
-      = mgf (X 0) ℙ t ^ n := by
-        rw [mgf_sum_of_identDistrib h_meas h_indep hident_all h0_mem t, Finset.card_range]
-    _ = Real.exp (n * cgf (X 0) ℙ t) := by
-        rw [cgf, mgf]
-        conv_lhs => rw [← Real.exp_log (integral_exp_pos (h_mgf t))]
-        rw [← Real.exp_nsmul, nsmul_eq_mul]
+  rcases n with _ | n
+  · simp [partialSum, cgf]
+  change mgf (∑ i ∈ Finset.range (n + 1), X i) ℙ t = _
+  rw [mgf_sum_of_identDistrib h_meas h_indep
+      (fun i _ j _ => (h_ident i).trans (h_ident j).symm)
+      (Finset.mem_range.mpr n.succ_pos) t,
+    Finset.card_range, cgf, mgf]
+  conv_lhs => rw [← Real.exp_log (integral_exp_pos (h_mgf t))]
+  rw [← Real.exp_nsmul, nsmul_eq_mul]
 
 include h_indep h_ident h_meas h_mgf in
 /-- `Λ_Sₙ(t) = n · Λ_X₀(t)` -/
 lemma cgf_sum_eq_n_prod_cgf (n : ℕ) (t : ℝ) :
     cgf (partialSum X n) ℙ t = (n : ℝ) * cgf (X 0) ℙ t := by
-  rcases n with _ | n
-  · have h_eq_sum : partialSum X 0 = ∑ i ∈ Finset.range 0, X i := rfl
-    simp [h_eq_sum, cgf]
-  have h0_mem : 0 ∈ Finset.range (n + 1) := by simp [Finset.mem_range]
-  have hident_all : ∀ i ∈ Finset.range (n + 1), ∀ j ∈ Finset.range (n + 1),
-      IdentDistrib (X i) (X j) ℙ ℙ := by
-    intros i _ j _
-    exact (h_ident i).trans (h_ident j).symm
-  have hint : ∀ i ∈ Finset.range (n + 1), Integrable (fun ω => Real.exp (t * X i ω)) ℙ := by
-    intros i _
-    exact integrable_exp_of_identDistrib X h_ident h_mgf i t
-  have h_eq_sum : partialSum X (n+1) = ∑ i ∈ Finset.range (n+1), X i := rfl
-  rw [h_eq_sum]
-  convert cgf_sum_of_identDistrib h_meas h_indep hident_all h0_mem t hint using 1
-  simp [Finset.card_range]
+  rw [cgf, mgf_sum_eq_exp_n_prod_cgf X h_indep h_ident h_meas h_mgf, Real.log_exp]
+
+end ProbabilityTheory
