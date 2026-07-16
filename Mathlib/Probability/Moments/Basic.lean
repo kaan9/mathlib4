@@ -221,6 +221,11 @@ lemma mgf_id_map (hX : AEMeasurable X μ) : mgf id (μ.map X) = mgf X μ := by
   rw [mgf_map hX, Function.id_comp]
   exact (measurable_const_mul _).exp.aestronglyMeasurable
 
+/-- The cumulant generating function only depends on the law of the random variable. -/
+lemma cgf_id_map (hX : AEMeasurable X μ) : cgf id (μ.map X) = cgf X μ := by
+  ext t
+  rw [cgf, cgf, mgf_id_map hX]
+
 lemma mgf_congr {Y : Ω → ℝ} (h : X =ᵐ[μ] Y) : mgf X μ t = mgf Y μ t :=
   integral_congr_ae <| by filter_upwards [h] with ω hω using by rw [hω]
 
@@ -429,6 +434,20 @@ theorem mgf_sum_of_identDistrib
     (hj : j ∈ s) (t : ℝ) : mgf (∑ i ∈ s, X i) μ t = mgf (X j) μ t ^ #s :=
   mgf_sum_of_identDistrib₀ (by fun_prop) h_indep hident hj t
 
+theorem cgf_sum_of_identDistrib₀
+    {X : ι → Ω → ℝ}
+    {s : Finset ι} {j : ι}
+    (h_meas : ∀ i, AEMeasurable (X i) μ)
+    (h_indep : iIndepFun X μ)
+    (hident : ∀ i ∈ s, ∀ j ∈ s, IdentDistrib (X i) (X j) μ μ)
+    (hj : j ∈ s) (t : ℝ)
+    (h_int : ∀ i ∈ s, Integrable (fun ω => exp (t * X i ω)) μ) :
+    cgf (∑ i ∈ s, X i) μ t = #s * cgf (X j) μ t := by
+  rw [h_indep.cgf_sum₀ h_meas h_int,
+    Finset.sum_eq_card_nsmul fun i hi =>
+      cgf_congr_of_identDistrib (X i) (X j) (hident i hi j hj) t,
+    nsmul_eq_mul]
+
 theorem cgf_sum_of_identDistrib
     {X : ι → Ω → ℝ}
     {s : Finset ι} {j : ι}
@@ -437,11 +456,8 @@ theorem cgf_sum_of_identDistrib
     (hident : ∀ i ∈ s, ∀ j ∈ s, IdentDistrib (X i) (X j) μ μ)
     (hj : j ∈ s) (t : ℝ)
     (h_int : ∀ i ∈ s, Integrable (fun ω => exp (t * X i ω)) μ) :
-    cgf (∑ i ∈ s, X i) μ t = #s * cgf (X j) μ t := by
-  rw [h_indep.cgf_sum h_meas h_int]
-  rw [Finset.sum_eq_card_nsmul fun i hi =>
-    cgf_congr_of_identDistrib (X i) (X j) (hident i hi j hj) t]
-  simp [nsmul_eq_mul]
+    cgf (∑ i ∈ s, X i) μ t = #s * cgf (X j) μ t :=
+  cgf_sum_of_identDistrib₀ (by fun_prop) h_indep hident hj t h_int
 
 section Chernoff
 
