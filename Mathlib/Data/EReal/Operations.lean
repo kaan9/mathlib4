@@ -526,6 +526,23 @@ lemma ge_of_forall_gt_iff_ge {x y : EReal} : (∀ z : ℝ, z < y → z ≤ x) �
   rw [WithTop.forall]
   aesop
 
+/-- If `x - ε ≤ y` for all positive reals `ε`, then `x ≤ y`. -/
+protected lemma le_of_forall_sub_le {x y : EReal} (h : ∀ ε : ℝ, 0 < ε → x - ε ≤ y) : x ≤ y := by
+  induction x with
+  | bot => exact bot_le
+  | coe a =>
+    induction y with
+    | bot =>
+      have h1 := h 1 zero_lt_one
+      rw [← coe_sub, le_bot_iff] at h1
+      exact absurd h1 (coe_ne_bot _)
+    | coe b =>
+      exact_mod_cast _root_.le_of_forall_sub_le fun ε hε ↦ by exact_mod_cast h ε hε
+    | top => exact le_top
+  | top =>
+    have h1 := h 1 zero_lt_one
+    rwa [top_sub_coe] at h1
+
 private lemma exists_lt_add_left {a b c : EReal} (hc : c < a + b) : ∃ a' < a, c < a' + b := by
   obtain ⟨a', hc', ha'⟩ := exists_between (sub_lt_of_lt_add hc)
   refine ⟨a', ha', (sub_lt_iff (.inl ?_) (.inr hc.ne_top)).1 hc'⟩

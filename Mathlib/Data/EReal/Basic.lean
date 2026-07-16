@@ -565,6 +565,52 @@ lemma preimage_coe_Ioo_bot_top : Real.toEReal ⁻¹' Ioo ⊥ ⊤ = univ := by
   rw [← Ioi_inter_Iio]
   simp
 
+/-! ### Infima, suprema and coercion from reals -/
+
+/-- The coercion `ℝ → EReal` sends the infimum of a nonempty bounded-below set of reals to the
+infimum of its image. -/
+@[norm_cast]
+theorem coe_sInf {s : Set ℝ} (hs : s.Nonempty) (h's : BddBelow s) :
+    (↑(sInf s) : EReal) = sInf (Real.toEReal '' s) := by
+  have h : BddBelow ((fun x : ℝ ↦ (x : WithTop ℝ)) '' s) :=
+    Monotone.map_bddBelow (fun _ _ h ↦ WithTop.coe_le_coe.mpr h) h's
+  rw [show Real.toEReal '' s
+        = (fun y : WithTop ℝ ↦ (y : WithBot (WithTop ℝ))) ''
+          ((fun x : ℝ ↦ (x : WithTop ℝ)) '' s) from
+      (image_image (fun y : WithTop ℝ ↦ (y : WithBot (WithTop ℝ)))
+        (fun x : ℝ ↦ (x : WithTop ℝ)) s).symm]
+  exact ((WithBot.coe_sInf' h).symm.trans
+    (by rw [← WithTop.coe_sInf' hs h's]; rfl)).symm
+
+/-- The coercion `ℝ → EReal` sends the supremum of a nonempty bounded-above set of reals to the
+supremum of its image. -/
+@[norm_cast]
+theorem coe_sSup {s : Set ℝ} (hs : s.Nonempty) (h's : BddAbove s) :
+    (↑(sSup s) : EReal) = sSup (Real.toEReal '' s) := by
+  have h : BddAbove ((fun x : ℝ ↦ (x : WithTop ℝ)) '' s) :=
+    Monotone.map_bddAbove (fun _ _ h ↦ WithTop.coe_le_coe.mpr h) h's
+  rw [show Real.toEReal '' s
+        = (fun y : WithTop ℝ ↦ (y : WithBot (WithTop ℝ))) ''
+          ((fun x : ℝ ↦ (x : WithTop ℝ)) '' s) from
+      (image_image (fun y : WithTop ℝ ↦ (y : WithBot (WithTop ℝ)))
+        (fun x : ℝ ↦ (x : WithTop ℝ)) s).symm]
+  exact ((WithBot.coe_sSup' (hs.image _) h).symm.trans
+    (by rw [← WithTop.coe_sSup' h's]; rfl)).symm
+
+/-- The coercion `ℝ → EReal` commutes with the infimum of a nonempty bounded-below family of
+reals. -/
+@[norm_cast]
+theorem coe_iInf {ι : Sort*} [Nonempty ι] {f : ι → ℝ} (hf : BddBelow (range f)) :
+    (↑(⨅ i, f i) : EReal) = ⨅ i, (f i : EReal) := by
+  rw [iInf, iInf, coe_sInf (range_nonempty f) hf, ← range_comp, Function.comp_def]
+
+/-- The coercion `ℝ → EReal` commutes with the supremum of a nonempty bounded-above family of
+reals. -/
+@[norm_cast]
+theorem coe_iSup {ι : Sort*} [Nonempty ι] {f : ι → ℝ} (hf : BddAbove (range f)) :
+    (↑(⨆ i, f i) : EReal) = ⨆ i, (f i : EReal) := by
+  rw [iSup, iSup, coe_sSup (range_nonempty f) hf, ← range_comp, Function.comp_def]
+
 /-! ### ennreal coercion -/
 
 @[simp]

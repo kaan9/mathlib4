@@ -430,6 +430,78 @@ lemma gaussianReal_const_sub (hX : HasLaw X (gaussianReal μ v) P) (y : ℝ) :
 
 end Transformations
 
+section Symmetry
+
+/-! ### Mass of the half-lines delimited by the mean
+
+A real Gaussian measure is symmetric about its mean, so it gives mass `1 / 2` to each of the
+half-lines `(-∞, μ]` and `[μ, ∞)`. -/
+
+open Filter Topology
+
+variable {μ : ℝ} {v : ℝ≥0}
+
+/-- A real Gaussian measure gives mass `1 / 2` to the half-line `(-∞, μ]`, where `μ` is
+its mean. -/
+lemma gaussianReal_Iic_mean (hv : v ≠ 0) : gaussianReal μ v (Set.Iic μ) = 1 / 2 := by
+  haveI : NullSingletonClass (gaussianReal μ v) := nullSingletonClass_gaussianReal hv
+  -- by symmetry about the mean, the masses of `[μ, ∞)` and `(-∞, μ]` agree
+  have hsym : (gaussianReal μ v).map (2 * μ - ·) = gaussianReal μ v := by
+    rw [gaussianReal_map_const_sub, show 2 * μ - μ = μ by ring]
+  have hpre : (2 * μ - ·) ⁻¹' Set.Ici μ = Set.Iic μ := by
+    ext x
+    simp only [Set.mem_preimage, Set.mem_Ici, Set.mem_Iic]
+    constructor <;> intro <;> linarith
+  have hIci : gaussianReal μ v (Set.Ici μ) = gaussianReal μ v (Set.Iic μ) := by
+    conv_lhs => rw [← hsym,
+      Measure.map_apply (by fun_prop) measurableSet_Ici, hpre]
+  have hcompl : gaussianReal μ v (Set.Iic μ) + gaussianReal μ v (Set.Iic μ) = 1 := by
+    have h := measure_add_measure_compl (μ := gaussianReal μ v) (s := Set.Iic μ)
+      measurableSet_Iic
+    rwa [Set.compl_Iic, measure_congr Ioi_ae_eq_Ici, hIci, measure_univ] at h
+  rw [ENNReal.eq_div_iff (by norm_num) (by norm_num), two_mul]
+  exact hcompl
+
+/-- A real Gaussian measure gives mass `1 / 2` to the half-line `[μ, ∞)`, where `μ` is
+its mean. -/
+lemma gaussianReal_Ici_mean (hv : v ≠ 0) : gaussianReal μ v (Set.Ici μ) = 1 / 2 := by
+  haveI : NullSingletonClass (gaussianReal μ v) := nullSingletonClass_gaussianReal hv
+  rw [← measure_congr Ioi_ae_eq_Ici, ← Set.compl_Iic,
+    measure_compl measurableSet_Iic (measure_ne_top _ _), measure_univ,
+    gaussianReal_Iic_mean hv]
+  norm_num
+
+/-- The mass a real Gaussian measure gives to `[μ, M]`, where `μ` is its mean, tends to `1 / 2`
+as `M → ∞`. -/
+lemma tendsto_gaussianReal_Icc_mean_atTop (hv : v ≠ 0) :
+    Tendsto (fun M : ℝ ↦ gaussianReal μ v (Set.Icc μ M)) atTop (𝓝 (1 / 2)) := by
+  haveI : NullSingletonClass (gaussianReal μ v) := nullSingletonClass_gaussianReal hv
+  have hIio : gaussianReal μ v (Set.Iio μ) = 1 / 2 :=
+    (measure_congr Iio_ae_eq_Iic).trans (gaussianReal_Iic_mean hv)
+  -- for `M ≥ μ`, the mass of `[μ, M]` is the mass of `(-∞, M]` minus `1 / 2`
+  have hIcc_eq : ∀ᶠ M : ℝ in atTop,
+      gaussianReal μ v (Set.Iic M) - 1 / 2 = gaussianReal μ v (Set.Icc μ M) :=
+    (eventually_ge_atTop μ).mono fun M hM ↦ by
+      rw [← hIio]
+      refine (ENNReal.eq_sub_of_add_eq (measure_ne_top _ _) ?_).symm
+      rw [add_comm, ← measure_union ((Set.Iio_disjoint_Ici le_rfl).mono_right
+        Set.Icc_subset_Ici_self) measurableSet_Icc, Set.Iio_union_Icc_eq_Iic hM]
+  have hIic : Tendsto (fun M : ℝ ↦ gaussianReal μ v (Set.Iic M)) atTop (𝓝 1) := by
+    simpa using tendsto_measure_Iic_atTop (gaussianReal μ v)
+  have key := ENNReal.Tendsto.sub hIic (tendsto_const_nhds (x := (1 / 2 : ℝ≥0∞)))
+    (Or.inl ENNReal.one_ne_top)
+  rw [show (1 : ℝ≥0∞) - 1 / 2 = 1 / 2 by norm_num] at key
+  exact key.congr' hIcc_eq
+
+/-- The mass a real Gaussian measure gives to `[μ, M]`, where `μ` is its mean, tends to `1 / 2`
+as `M → ∞`. Version for `ENNReal.toReal` of the measure. -/
+lemma tendsto_toReal_gaussianReal_Icc_mean_atTop (hv : v ≠ 0) :
+    Tendsto (fun M : ℝ ↦ (gaussianReal μ v (Set.Icc μ M)).toReal) atTop (𝓝 (1 / 2)) := by
+  rw [show (1 : ℝ) / 2 = (1 / 2 : ℝ≥0∞).toReal by norm_num]
+  exact (ENNReal.tendsto_toReal (by norm_num)).comp (tendsto_gaussianReal_Icc_mean_atTop hv)
+
+end Symmetry
+
 section CharacteristicFunction
 
 open Real Complex
