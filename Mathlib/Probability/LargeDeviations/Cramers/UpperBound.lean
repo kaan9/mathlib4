@@ -12,7 +12,7 @@ public import Mathlib.Probability.LargeDeviations.Cramers.Basic
 
 This file proves the upper (Chernoff) bound for Cramér's theorem:
 
-- `cramer_upper_bound`: For any `a ≥ 𝔼[X 0]`,
+- `Cramer.limsup_le_neg_rateFunction`: For any `a ≥ 𝔼[X 0]`,
   `limsup (1/n) * log ℙ(Sₙ/n ≥ a) ≤ -rateFunction X a`.
 
 The proof applies Markov's inequality to `exp(t * Sₙ)` for each `t ≥ 0`,
@@ -73,27 +73,27 @@ private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
 include h_indep h_meas h_ident h_mgf in
 /-- **Chernoff bound** for the empirical mean.
 `ℙ(Sₙ/n ≥ a) ≤ exp(-n · (t · a - Λ_X₀(t)))` for `t ≥ 0`. -/
-lemma prob_mean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
+lemma measure_empiricalMean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
   (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
     ≤ Real.exp ( - (n : ℝ) * (t * a - cgf (X 0) ℙ t)) := by
   have h_n_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn_pos
   rw [show { ω | empiricalMean X n ω ≥ a } = { ω | partialSum X n ω ≥ (n : ℝ) * a }
       from by ext ω; simp [empiricalMean, ge_iff_le, le_div_iff₀ h_n_pos, mul_comm]]
   refine (measure_ge_le_exp_cgf _ ht
-    (integrable_exp_sum X h_indep h_ident h_meas h_mgf t n)).trans ?_
-  rw [cgf_sum_eq_n_prod_cgf X h_indep h_ident h_meas h_mgf n t]
+    (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n)).trans ?_
+  rw [cgf_partialSum X h_indep h_ident h_meas h_mgf n t]
   apply le_of_eq; congr 1; ring
 
 include h_indep h_meas h_ident h_mgf h_bdd h_int in
 /-- **Cramér's Theorem (Upper Bound)**: For any a ≥ 𝔼[X 0], the scaled log probability that
 the empirical mean exceeds a is bounded above by the negative rate function:
-`limsup_{n→∞} log(ℙ(Sₙ/n ≥ a)) / n ≤ -I(a)`
+`limsup_{n→∞} log(ℙ(Sₙ/n ≥ a)) / n ≤ -rateFunction X a`
 Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
-theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     limsup (fun n : ℕ =>
       ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}))
-        atTop ≤ (- I X a : EReal) := by
-  unfold I
+        atTop ≤ (- rateFunction X a : EReal) := by
+  unfold rateFunction
   set L := limsup (fun n : ℕ =>
       ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
   set f : {x : ℝ | 0 ≤ x} → ℝ := fun t => t.val * a - cgf (X 0) ℙ t
@@ -109,9 +109,9 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
             let ⟨b, hb⟩ := h_bdd a
             ⟨b, fun _ ⟨t, ht⟩ => ht ▸ hb ⟨t.val, rfl⟩⟩
           simpa [iSup] using ereal_sInf_neg_eq_neg_sSup f ⟨_, ⟨0, h0⟩, rfl⟩ h_bdd'
-      _ = (- I X a : EReal) := by
+      _ = (- rateFunction X a : EReal) := by
           norm_cast
-          exact congrArg Neg.neg (rateFunction_eq_sup_nonneg X h_int h_mgf h_bdd a h_mean).symm
+          exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg X h_int h_mgf h_bdd a h_mean).symm
   intro t ht
   refine limsup_le_of_le (isCoboundedUnder_le_of_le atTop (fun _ => bot_le))
     (eventually_atTop.mpr ⟨1, fun n hn => ?_⟩)
@@ -121,7 +121,7 @@ theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
       ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))) :=
     (ENNReal.ofReal_toReal_eq_iff.mpr (measure_ne_top _ _)).symm.le.trans
       (ENNReal.ofReal_le_ofReal
-        (prob_mean_ge_le_exp X h_indep h_ident h_meas h_mgf t a ht n hn_pos))
+        (measure_empiricalMean_ge_le_exp X h_indep h_ident h_meas h_mgf t a ht n hn_pos))
   have h_log_exp : ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))))
       = (((-(n : ℝ) * (t * a - cgf (X 0) ℙ t)) : ℝ) : EReal) := by
     rw [ENNReal.log_ofReal_of_pos (Real.exp_pos _), Real.log_exp]

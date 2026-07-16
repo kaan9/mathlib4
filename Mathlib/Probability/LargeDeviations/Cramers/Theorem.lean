@@ -16,7 +16,7 @@ public import Mathlib.Probability.StrongLaw
 This file proves the main result:
 
 - `cramers_theorem`: The empirical mean of i.i.d. random variables with finite MGF satisfies
-  the Large Deviation Principle with rate function `upperTailRateFunction X`.
+  the Large Deviation Principle with rate function `Cramer.upperTailRateFunction X`.
 
 The proof combines the upper and lower bounds from `UpperBound.lean` and `LowerBound.lean`,
 and handles the case `a < 𝔼[X 0]` using the strong law of large numbers.
@@ -48,7 +48,7 @@ variable [IsProbabilityMeasure (ℙ : Measure Ω)]
 
 include h_indep h_meas h_ident h_int in
 /-- If `a < 𝔼[X 0]`, `ℙ(Sₙ/n ≥ a) → 1` by the strong law of large numbers. -/
-private lemma tendsto_prob_empiricalMean_ge_of_lt_mean_one (a : ℝ) (h : a < 𝔼[X 0]) :
+private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (h : a < 𝔼[X 0]) :
   Tendsto (fun n : ℕ => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
   have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) ℙ) :=
     fun i j hij => h_indep.indepFun hij
@@ -126,14 +126,14 @@ include h_indep h_meas h_ident h_mgf h_int h_bdd h_non_deg h_exposed in
 /-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
 satisfies a Large Deviation Principle with rate function being the Legendre transform of the CGF. -/
 theorem cramers_theorem :
-    LargeDeviationPrinciple (empiricalMean X) (upperTailRateFunction X) := by
+    LargeDeviationPrinciple (empiricalMean X) (Cramer.upperTailRateFunction X) := by
   constructor
   · intro a
     by_cases h : 𝔼[X 0] ≤ a
-    · rw [upperTailRateFunction, if_pos h]
-      exact cramer_upper_bound X h_indep h_ident h_meas h_int h_mgf h_bdd a h
+    · rw [Cramer.upperTailRateFunction, if_pos h]
+      exact Cramer.limsup_le_neg_rateFunction X h_indep h_ident h_meas h_int h_mgf h_bdd a h
     · norm_cast
-      rw [upperTailRateFunction, if_neg h]
+      rw [Cramer.upperTailRateFunction, if_neg h]
       have h_prob_bound_2 : ∀ n : ℕ, n ≠ 0 →
           1 / ↑n * (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
         intro n h_n_nonneg
@@ -157,15 +157,16 @@ theorem cramers_theorem :
         exact h_prob_bound_2 n (Nat.one_le_iff_ne_zero.mp hn)
   · intro a
     by_cases h : 𝔼[X 0] ≤ a
-    · rw [upperTailRateFunction, if_pos h]
-      exact cramer_lower_bound X h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed a h
-    · rw [upperTailRateFunction, if_neg h]
+    · rw [Cramer.upperTailRateFunction, if_pos h]
+      exact Cramer.neg_rateFunction_le_liminf X h_indep h_ident h_meas h_mgf h_bdd h_non_deg
+        h_exposed a h
+    · rw [Cramer.upperTailRateFunction, if_neg h]
       norm_cast
       rw [neg_zero]
       have h_a_lt_mean : a < 𝔼[X 0] := not_le.mp h
       have h_prob_to_one :
           Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
-        tendsto_prob_empiricalMean_ge_of_lt_mean_one X h_indep h_ident h_meas h_int a
+        Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral X h_indep h_ident h_meas h_int a
           h_a_lt_mean
       have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
           1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop

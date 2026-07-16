@@ -23,7 +23,8 @@ public import Mathlib.Analysis.Calculus.Deriv.Basic
 # Cramér's Theorem — Basic Definitions and Infrastructure
 
 This file contains the core definitions and shared lemmas for Cramér's theorem:
-- The definitions `partialSum`, `empiricalMean`, `I` (rate function), `upperTailRateFunction`.
+- The definitions `partialSum`, `empiricalMean`, `Cramer.rateFunction`,
+  `Cramer.upperTailRateFunction`.
 - Basic measurability and integrability results.
 - MGF/CGF sum formulas via independence.
 
@@ -48,17 +49,18 @@ def partialSum (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
 noncomputable def empiricalMean (n : ℕ) : Ω → ℝ := fun ω => partialSum X n ω / n
 
 /-- The Legendre transform of the CGF. This is the rate function for Cramér's theorem. -/
-noncomputable def I (x : ℝ) : ℝ := ⨆ t : ℝ, t * x - cgf (X 0) ℙ t
+noncomputable def Cramer.rateFunction (x : ℝ) : ℝ := ⨆ t : ℝ, t * x - cgf (X 0) ℙ t
 
 /-- The "Effective" Rate Function for the upper tail probability `ℙ(empiricalMean X n ≥ a)`.
 Cramér's theorem only holds when `a ≥ 𝔼[X 0]`, so to state a general Large Deviation Principle
-for all `a`, we define the rate function to be `I(a)` for `a ≥ 𝔼[X 0]`, and `0` otherwise. -/
-noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
-  if 𝔼[X 0] ≤ a then I X a else 0
+for all `a`, we define the rate function to be `rateFunction X a` for `a ≥ 𝔼[X 0]`, and `0`
+otherwise. -/
+noncomputable def Cramer.upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
+  if 𝔼[X 0] ≤ a then rateFunction X a else 0
 
 /-- The exponentially tilted measure, tilted by `t · Sₙ`. -/
-noncomputable def ℚₙₜ (X : ℕ → Ω → ℝ) (μ : Measure Ω) (n : ℕ) (t : ℝ) :
-    Measure Ω :=
+noncomputable def Cramer.tiltedMeasure (X : ℕ → Ω → ℝ) (μ : Measure Ω) (n : ℕ)
+    (t : ℝ) : Measure Ω :=
   Measure.tilted μ (fun ω => t * partialSum X n ω)
 
 /- Assumptions for Cramér's theorem -/
@@ -81,7 +83,7 @@ variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) �
 
 include h_ident h_mgf in
 /-- The random variables Xᵢ have finite moment generating functions. -/
-lemma integrable_exp_of_identDistrib (i : ℕ) (t : ℝ) :
+lemma integrable_exp_mul_of_identDistrib (i : ℕ) (t : ℝ) :
     Integrable (fun ω => Real.exp (t * X i ω)) ℙ :=
   ((h_ident i).comp (measurable_const.mul measurable_id).exp).integrable_iff.mpr (h_mgf t)
 
@@ -98,7 +100,8 @@ lemma measurable_empiricalMean (n : ℕ) : Measurable (empiricalMean X n) :=
 
 include h_mgf in
 /-- All `t ∈ ℝ` lie in the interior of the domain for which `exp(tX₀)` is integrable. -/
-lemma mem_interior_integrableExpSet (t : ℝ) : t ∈ interior (integrableExpSet (X 0) ℙ) := by
+lemma Cramer.mem_interior_integrableExpSet (t : ℝ) :
+    t ∈ interior (integrableExpSet (X 0) ℙ) := by
   simp [Set.eq_univ_of_forall h_mgf (s := integrableExpSet (X 0) ℙ)]
 
 /-! ### Lemmas requiring `IsProbabilityMeasure` -/
@@ -124,7 +127,7 @@ lemma cgf_ge_mul_expect (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
   exact (Real.log_exp _).symm.trans_le (Real.log_le_log (Real.exp_pos _) jensen)
 
 /-- When `t < 0` and `a ≥ 𝔼[Y]`, we have `t · a - Λ_Y(t) ≤ 0`. -/
-lemma rate_function_neg_param_le_zero (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
+lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
     (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ)
     (t a : ℝ) (ht : t < 0) (ha : 𝔼[Y] ≤ a) :
     t * a - cgf Y ℙ t ≤ 0 := by
@@ -133,7 +136,7 @@ lemma rate_function_neg_param_le_zero (Y : Ω → ℝ) (h_int : Integrable Y ℙ
 
 include h_indep h_ident h_meas h_mgf in
 /-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
-lemma integrable_exp_sum (t : ℝ) (n : ℕ) :
+lemma integrable_exp_mul_partialSum (t : ℝ) (n : ℕ) :
     Integrable (fun ω => Real.exp (t * partialSum X n ω)) ℙ := by
   have h_rw : (fun ω => Real.exp (t * partialSum X n ω)) =
       fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω) := by
@@ -155,28 +158,28 @@ lemma integrable_exp_sum (t : ℝ) (n : ℕ) :
         (fun i => (h_meas i).const_mul t |>.exp) (by simp : n ∉ Finset.range n) using 2
       simp [Finset.prod_apply]
     exact h_indep_prod.integrable_mul ih
-      (integrable_exp_of_identDistrib X h_ident h_mgf n t)
+      (integrable_exp_mul_of_identDistrib X h_ident h_mgf n t)
 
 include h_indep h_ident h_meas h_mgf in
 /-- The tilted measure by `t · Sₙ` is a probability measure. -/
-lemma isProbabilityMeasure_tilted_partialSum (t : ℝ) (n : ℕ) :
-    IsProbabilityMeasure (ℚₙₜ X ℙ n t) :=
-  isProbabilityMeasure_tilted (integrable_exp_sum X h_indep h_ident h_meas h_mgf t n)
+lemma Cramer.isProbabilityMeasure_tiltedMeasure (t : ℝ) (n : ℕ) :
+    IsProbabilityMeasure (tiltedMeasure X ℙ n t) :=
+  isProbabilityMeasure_tilted (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n)
 
 include h_indep h_ident h_meas h_mgf in
 /-- All `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
 lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
     t ∈ interior (integrableExpSet (partialSum X n) ℙ) := by
   simp [Set.eq_univ_of_forall
-    (fun s => integrable_exp_sum X h_indep h_ident h_meas h_mgf s n)
+    (fun s => integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf s n)
     (s := integrableExpSet (partialSum X n) ℙ)]
 
 include h_bdd h_mgf h_int in
 /-- For `a ≥ 𝔼[X]`, the supremum in the rate function is achieved by non-negative `t`.
-That is, `I(a) = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
-lemma rateFunction_eq_sup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
-    I X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t := by
-  rw [I]
+That is, `rateFunction X a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
+lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+    rateFunction X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t := by
+  rw [rateFunction]
   have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
   have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} =>
       (t : ℝ) * a - cgf (X 0) ℙ t) :=
@@ -188,13 +191,13 @@ lemma rateFunction_eq_sup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   · exact le_ciSup h_bdd_restrict ⟨t, ht⟩
   -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with a t ≥ 0
   · calc t * a - cgf (X 0) ℙ t
-        ≤ 0 := rate_function_neg_param_le_zero (X 0) h_int h_mgf t a (not_le.mp ht) h_mean
+        ≤ 0 := mul_sub_cgf_nonpos_of_neg (X 0) h_int h_mgf t a (not_le.mp ht) h_mean
       _ = (0 : ℝ) * a - cgf (X 0) ℙ 0 := by simp [cgf_zero]
       _ ≤ _ := le_ciSup h_bdd_restrict ⟨0, by simp⟩
 
 include h_indep h_ident h_meas h_mgf in
 /-- `M_Sₙ(t) = exp(n · Λ_X₀(t))` -/
-lemma mgf_sum_eq_exp_n_prod_cgf (n : ℕ) (t : ℝ) :
+lemma mgf_partialSum (n : ℕ) (t : ℝ) :
     mgf (partialSum X n) ℙ t = Real.exp (n * cgf (X 0) ℙ t) := by
   rcases n with _ | n
   · simp [partialSum, cgf]
@@ -208,8 +211,8 @@ lemma mgf_sum_eq_exp_n_prod_cgf (n : ℕ) (t : ℝ) :
 
 include h_indep h_ident h_meas h_mgf in
 /-- `Λ_Sₙ(t) = n · Λ_X₀(t)` -/
-lemma cgf_sum_eq_n_prod_cgf (n : ℕ) (t : ℝ) :
+lemma cgf_partialSum (n : ℕ) (t : ℝ) :
     cgf (partialSum X n) ℙ t = (n : ℝ) * cgf (X 0) ℙ t := by
-  rw [cgf, mgf_sum_eq_exp_n_prod_cgf X h_indep h_ident h_meas h_mgf, Real.log_exp]
+  rw [cgf, mgf_partialSum X h_indep h_ident h_meas h_mgf, Real.log_exp]
 
 end ProbabilityTheory
