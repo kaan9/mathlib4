@@ -67,7 +67,8 @@ private lemma tendsto_prob_empiricalMean_ge_of_lt_mean_one (a : ℝ) (h : a < �
   set ε := (𝔼[X 0] - a) / 2 with hε_def
   have hε_pos : 0 < ε := by linarith
   have hε_bound : a + ε < 𝔼[X 0] := by linarith
-  have h_conv_set : ∀ᵐ ω ∂ℙ, ∀ᶠ n in atTop, |empiricalMean X n ω - 𝔼[X 0]| < ε := by
+  have h_conv_set :
+      ∀ᵐ ω ∂ℙ, ∀ᶠ n in atTop, |empiricalMean X n ω - 𝔼[X 0]| < ε := by
     filter_upwards [h_strong_law] with ω hω
     have h_tend := (Metric.tendsto_nhds.mp hω) ε hε_pos
     filter_upwards [h_tend] with n hn
@@ -103,7 +104,8 @@ private lemma tendsto_prob_empiricalMean_ge_of_lt_mean_one (a : ℝ) (h : a < �
     have h_compl_eq : {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω}ᶜ =
         {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
       ext; simp
-    rw [← prob_add_prob_compl (μ := ℙ) (h_union ▸ h_union_meas_set), h_compl_eq, h_compl, add_zero]
+    rw [← prob_add_prob_compl (μ := ℙ) (h_union ▸ h_union_meas_set), h_compl_eq, h_compl,
+      add_zero]
   have h_tend_S : Tendsto (fun k => ℙ (S k)) atTop (𝓝 1) := by
     have := tendsto_measure_iUnion_atTop (μ := ℙ) h_mono
     rw [h_union_meas] at this
@@ -170,7 +172,8 @@ theorem cramers_theorem :
           (𝓝 (0 : EReal)) := by
         have h_log_to_zero : Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
             (𝓝 (0 : EReal)) := by
-          simpa [ENNReal.log_one] using (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
+          simpa [ENNReal.log_one, Function.comp_def] using
+            (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
         have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
           simpa using ereal_inv_nat_mul_const_tendsto_zero (1 : ℝ)
         simpa using EReal.Tendsto.mul h_inv_to_zero h_log_to_zero
@@ -180,8 +183,7 @@ theorem cramers_theorem :
           1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
           = (0 : EReal) := Filter.Tendsto.liminf_eq h_seq_to_zero
       have : liminf (fun n : ℕ =>
-          1 / (n : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = 0 := by
-        convert h_lim_eq using 2
+          1 / (n : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = 0 := h_lim_eq
       rw [this]
       norm_cast
 

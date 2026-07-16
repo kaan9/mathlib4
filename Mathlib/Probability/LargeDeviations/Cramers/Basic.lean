@@ -57,7 +57,8 @@ noncomputable def upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ
   if 𝔼[X 0] ≤ a then I X a else 0
 
 /-- The exponentially tilted measure, tilted by `t · Sₙ`. -/
-noncomputable def ℚₙₜ (X : ℕ → Ω → ℝ) (μ : Measure Ω) (n : ℕ) (t : ℝ) : Measure Ω :=
+noncomputable def ℚₙₜ (X : ℕ → Ω → ℝ) (μ : Measure Ω) (n : ℕ) (t : ℝ) :
+    Measure Ω :=
   Measure.tilted μ (fun ω => t * partialSum X n ω)
 
 /- Assumptions for Cramér's theorem -/
@@ -75,15 +76,6 @@ variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 -- Assume that this is a "good" rate function, i.e. bounded above.
 -- Note: This is implied by h_mgf but difficult to prove directly and beyond scope here.
 variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
--- Assume the distribution is non-degenerate (has positive variance everywhere)
--- Note that `Λ''(0) = Var[X]`, so this implies `Var[X] > 0` which implies `X` is non-const a.e.
--- Cumulant generating functions, when they exist and are non-degenerate, are strictly convex.
-variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
--- For the lower bound, we assume points are "exposed" (in range of cgf derivative).
--- This is equivalent to stating that we can find a t such that the probability measure
--- tilted by `t · X` has expectation `a`, and thus the measure tilted by `t · Sₙ`
--- has expectation `n · a`.
-variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
 
 /-! ### Basic measurability and integrability helpers -/
 
@@ -159,7 +151,7 @@ lemma integrable_exp_sum (t : ℝ) (n : ℕ) :
     -- `∏ᵢⁿ⁻¹ e^{t * Xᵢ}` is independent of `e^{t * Xₙ}`
     have h_indep_prod : IndepFun (fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω))
         (fun ω => Real.exp (t * X n ω)) ℙ := by
-      convert h_indep_exp.indepFun_finset_prod_of_notMem
+      convert h_indep_exp.indepFun_finsetProd_of_notMem
         (fun i => (h_meas i).const_mul t |>.exp) (by simp : n ∉ Finset.range n) using 2
       simp [Finset.prod_apply]
     exact h_indep_prod.integrable_mul ih

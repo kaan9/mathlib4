@@ -57,7 +57,7 @@ structure LargeDeviationPrinciple (Y : ℕ → Ω → ℝ) (I : ℝ → ℝ) : P
   /-- Lower bound: liminf_n (1/n) log ℙ(Yₙ ≥ a) ≥ -I(a) -/
   lowerBound : ∀ a : ℝ,
     (- I a : EReal) ≤
-      liminf (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a}))
-        atTop
+      liminf (fun n : ℕ =>
+        ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | Y n ω ≥ a})) atTop
 
 end ProbabilityTheory

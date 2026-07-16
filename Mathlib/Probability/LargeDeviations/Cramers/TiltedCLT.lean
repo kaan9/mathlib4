@@ -19,23 +19,24 @@ used in the proof of the lower bound of Cramér's theorem.
 
 Under the assumptions of Cramér's theorem, for `t` with `Λ'(t) = a` the family of tilted measures
 `ℚₙₜ := ℙ.tilted (t · Sₙ)` satisfies a CLT statement:
-The normalized partial sum `Zₙ := (Sₙ - n Λ'(t))/√(n Λ''(t))` converges in distribution to `𝒩(0,1)`
-under `ℚₙₜ` as `n → ∞`.
+The normalized partial sum `Zₙ := (Sₙ - n Λ'(t))/√(n Λ''(t))` converges in distribution
+to `𝒩(0,1)` under `ℚₙₜ` as `n → ∞`.
 An immediate corollary is a concentration statement used in `LowerBound.lean`.
 
 ## Main Definitions
 
 * `μₜ X t`: the pushforward measure of `ℙ` by `X₀`, tilted by `t · x`,
-* `νₜ X t`: the pushforward measure of `μₜ X t` by a linear function to standardize it to zero mean
-  and unit variance.
+* `νₜ X t`: the pushforward measure of `μₜ X t` by a linear function to standardize it to zero
+  mean and unit variance.
 * `Z X t n`: the standardized partial sum `(Sₙ - n Λ'(t)) / √(n Λ''(t))`.
 
 ## Main Results
 
-* `tendsto_charFun_Z_ℚₙₜ`: under `ℚₙₜ`, the characteristic function of `Zₙ` converges pointwise to
-  that of `𝒩(0,1)`.
-* `eventually_ℚₙₜ_empiricalMean_mem_Icc_ge`: the concentration statement for the lower bound proof:
-  For every `δ, ε > 0` and `t` with `Λ'(t) = a`, eventually `1/2 - ε ≤ ℚₙₜ(Sₙ/n ∈ [a, a+δ])`.
+* `tendsto_charFun_Z_ℚₙₜ`: under `ℚₙₜ`, the characteristic function of `Zₙ`
+  converges pointwise to that of `𝒩(0,1)`.
+* `eventually_ℚₙₜ_empiricalMean_mem_Icc_ge`: the concentration statement for the lower bound
+  proof: For every `δ, ε > 0` and `t` with `Λ'(t) = a`, eventually
+  `1/2 - ε ≤ ℚₙₜ(Sₙ/n ∈ [a, a+δ])`.
 
 -/
 
@@ -138,7 +139,8 @@ lemma empiricalMean_mem_Icc_iff_Z_mem_Icc (t a δ : ℝ) (n : ℕ) (hn : 0 < n)
   have key : Real.sqrt (n / v) * Real.sqrt (n * v) = n := by
     rw [← Real.sqrt_mul (by positivity), show (n / v * (n * v) : ℝ) = n ^ 2 by field_simp,
       Real.sqrt_sq hn'.le]
-  refine ⟨fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩, fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩⟩ <;> nlinarith [key]
+  refine ⟨fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩,
+    fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩⟩ <;> nlinarith [key]
 
 include h_meas h_mgf h_non_deg in
 /-- The second moment of `νₜ` is `1`. -/
@@ -212,8 +214,8 @@ lemma memLp_id_stdTiltedLaw (t : ℝ) :
 
 /-! ### Factorization of `X₀, …, Xₙ₋₁` under `ℚₙₜ`
 
-Under the tilted measure `ℚₙₜ = ℙ.tilted(t · Sₙ)`, the coordinates `X₀, …, Xₙ₋₁` are
-still independent and each has law `μₜ`.
+Under the tilted measure `ℚₙₜ = ℙ.tilted(t · Sₙ)`, the coordinates
+`X₀, …, Xₙ₋₁` are still independent and each has law `μₜ`.
 These follow from factoring the tilting density `exp(t Sₙ) = ∏ᵢ exp(t Xᵢ)`. -/
 
 private lemma measurable_ennreal_ofReal_exp_t_mul (t : ℝ) :
@@ -305,7 +307,7 @@ lemma map_X_ℚₙₜ (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) :
   have hindep : IndepFun (fun ω => g (X i ω) * e i ω)
       (fun ω => ∏ j ∈ (Finset.range n).erase i, e j ω) ℙ := by
     have h : IndepFun (∏ j ∈ (Finset.range n).erase i, (ψ j ∘ X j)) (ψ i ∘ X i) ℙ :=
-      (h_indep.comp ψ hψ_meas).indepFun_finset_prod_of_notMem
+      (h_indep.comp ψ hψ_meas).indepFun_finsetProd_of_notMem
         (fun j => (hψ_meas j).comp (h_meas j)) (Finset.notMem_erase i _)
     convert h.symm using 1
     · ext ω; simp [ψ, e]
@@ -356,7 +358,8 @@ lemma iIndepFun_range_ℚₙₜ (t : ℝ) (n : ℕ) :
   have hM₀_top : ENNReal.ofReal M₀ ≠ ∞ := ENNReal.ofReal_lt_top.ne
   have hMₙ_nn : ENNReal.ofReal Mₙ ≠ 0 := (ENNReal.ofReal_pos.mpr hMₙ_pos).ne'
   have hMₙ_inv_ne_top : (ENNReal.ofReal Mₙ)⁻¹ ≠ ∞ := ENNReal.inv_ne_top.mpr hMₙ_nn
-  set e : ℕ → Ω → ℝ≥0∞ := fun j ω => ENNReal.ofReal (Real.exp (t * X j ω)) with he_def
+  set e : ℕ → Ω → ℝ≥0∞ := fun j ω => ENNReal.ofReal (Real.exp (t * X j ω))
+    with he_def
   have he_meas := measurable_ennreal_ofReal_exp_t_mul_X X h_meas t
   have he_indep := iIndepFun_ennreal_ofReal_exp_t_mul_X X h_indep t
   have he_lint := lintegral_ennreal_ofReal_exp_t_mul_X X h_ident h_mgf t
@@ -397,7 +400,8 @@ lemma iIndepFun_range_ℚₙₜ (t : ℝ) (n : ℕ) :
     · rw [Set.indicator_univ]; simp
   have hprod_indicator : ∀ ω,
       ∏ j ∈ Finset.range n, φ j (X j ω) =
-      (⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i).indicator (fun _ => (1 : ℝ≥0∞)) ω *
+      (⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i).indicator
+        (fun _ => (1 : ℝ≥0∞)) ω *
         ∏ j ∈ Finset.range n, e j ω := by
     intro ω
     by_cases hω : ω ∈ ⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i
@@ -505,7 +509,7 @@ lemma iIndepFun_range_ℚₙₜ (t : ℝ) (n : ℕ) :
         · exact (measurable_const.indicator (hsets _ hi)).mul
             (measurable_ennreal_ofReal_exp_t_mul t)
         · exact measurable_ennreal_ofReal_exp_t_mul t
-      convert ((h_indep.comp ψ hψ_meas).indepFun_finset_prod_of_notMem
+      convert ((h_indep.comp ψ hψ_meas).indepFun_finsetProd_of_notMem
         (fun j => (hψ_meas j).comp (h_meas j))
         (Finset.notMem_erase (i : ℕ) (Finset.range n))).symm using 1
       · ext ω
@@ -584,7 +588,8 @@ lemma iIndepFun_range_ℚₙₜ (t : ℝ) (n : ℕ) :
       simp [hn, hs0]
     · conv_lhs => rw [show n = 1 + (n - 1) from (Nat.add_sub_cancel' hn).symm]
       rw [Nat.add_mul, one_mul]
-  rw [h_expand, pow_add, show (ENNReal.ofReal M₀)⁻¹ ^ s * (ENNReal.ofReal M₀)⁻¹ ^ ((n - 1) * s) *
+  rw [h_expand, pow_add,
+    show (ENNReal.ofReal M₀)⁻¹ ^ s * (ENNReal.ofReal M₀)⁻¹ ^ ((n - 1) * s) *
       P * ENNReal.ofReal M₀ ^ ((n - 1) * s) = (ENNReal.ofReal M₀)⁻¹ ^ s * P *
       ((ENNReal.ofReal M₀)⁻¹ ^ ((n - 1) * s) * ENNReal.ofReal M₀ ^ ((n - 1) * s)) by ring,
     hcancel_pow, mul_one]
@@ -601,7 +606,8 @@ lemma identDistrib_X_X0_ℚₙₜ (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) (h0
 /-! ### Characteristic function of `Z` under `ℚₙₜ` -/
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
-/-- Under `ℚₙₜ`, the characteristic function of `Zₙ` at `s` is `[charFun νₜ ((√n)⁻¹ · s)]ⁿ`. -/
+/-- Under `ℚₙₜ`, the characteristic function of `Zₙ` at `s` is
+`[charFun νₜ ((√n)⁻¹ · s)]ⁿ`. -/
 lemma charFun_map_Z_ℚₙₜ (t : ℝ) (n : ℕ) (s : ℝ) :
     charFun ((ℚₙₜ X ℙ n t).map (Z X t n)) s =
       (charFun (νₜ X t) ((Real.sqrt n)⁻¹ * s)) ^ n := by
@@ -626,7 +632,7 @@ lemma charFun_map_Z_ℚₙₜ (t : ℝ) (n : ℕ) (s : ℝ) :
     (iIndepFun_range_ℚₙₜ X h_indep h_ident h_meas h_mgf t n).comp
       (fun _ : Finset.range n => fun x : ℝ => (x - m) / Real.sqrt v) (fun _ => by fun_prop)
   -- Apply the characteristic function factorization on `1..n`.
-  rw [hY_indep.charFun_map_fun_finset_sum_eq_prod (fun k _ => (hY_meas k).aemeasurable)]
+  rw [hY_indep.charFun_map_fun_finsetSum_eq_prod (fun k _ => (hY_meas k).aemeasurable)]
   -- Every factor is `charFun (νₜ X t) ((√n)⁻¹ * s)`.
   have hY_map : ∀ i ∈ Finset.range n,
       (ℚₙₜ X ℙ n t).map (Y i) = νₜ X t := fun i hi => by
@@ -638,7 +644,8 @@ lemma charFun_map_Z_ℚₙₜ (t : ℝ) (n : ℕ) (s : ℝ) :
     Finset.prod_const, Finset.card_range]
 
 include h_meas h_mgf h_non_deg in
-/-- `(charFun νₜ ((√n)⁻¹ · s))ⁿ → e^(-s²/2)` as `n → ∞`, the characteristic function of `𝒩(0, 1)` -/
+/-- `(charFun νₜ ((√n)⁻¹ · s))ⁿ → e^(-s²/2)` as `n → ∞`,
+the characteristic function of `𝒩(0, 1)` -/
 lemma tendsto_charFun_stdTiltedLaw_pow (t : ℝ) (s : ℝ) :
     Tendsto (fun n : ℕ => (charFun (νₜ X t) ((Real.sqrt n)⁻¹ * s)) ^ n)
       atTop (𝓝 (Complex.exp (-s ^ 2 / 2))) := by
@@ -666,9 +673,10 @@ theorem tendsto_charFun_Z_ℚₙₜ (t : ℝ) (s : ℝ) :
 
 /-! ### Consequence: concentration of the empirical mean
 
-As a consequence of the CLT, we show that given `Λ'(t) = a`, `{Sₙ/n ∈ [a, a+δ]} → 1/2}`, which is
-used in the proof of the lower bound of Cramér's theorem, by demonstrating that this is equivalent
-to `{Zₙ ∈ [0, δ · √(n/Λ''(t))]}` and using the convergence of `Zₙ` to `𝒩(0, 1)`. -/
+As a consequence of the CLT, we show that given `Λ'(t) = a`, `{Sₙ/n ∈ [a, a+δ]} → 1/2}`,
+which is used in the proof of the lower bound of Cramér's theorem, by demonstrating that this
+is equivalent to `{Zₙ ∈ [0, δ · √(n/Λ''(t))]}` and using the convergence of `Zₙ`
+to `𝒩(0, 1)`. -/
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- For `t` with `Λ'(t) = a` and any `M > 0`, eventually the tilted probability that
@@ -681,7 +689,7 @@ lemma liminf_ℚₙₜ_Z_Icc_ge (t : ℝ) (M : ℝ) (hM : 0 ≤ M) (ε : ℝ) (h
   haveI : ∀ n, IsProbabilityMeasure ((ℚₙₜ X ℙ n t).map (Z X t n)) := fun n =>
     Measure.isProbabilityMeasure_map
       (((measurable_partialSum X h_meas n).sub_const _).div_const _).aemeasurable
-  haveI : NoAtoms (gaussianReal 0 1) := noAtoms_gaussianReal one_ne_zero
+  haveI : NullSingletonClass (gaussianReal 0 1) := nullSingletonClass_gaussianReal one_ne_zero
   set μ_n : ℕ → ProbabilityMeasure ℝ := fun n =>
     ⟨(ℚₙₜ X ℙ n t).map (Z X t n), inferInstance⟩
   set μ : ProbabilityMeasure ℝ := ⟨gaussianReal 0 1, inferInstance⟩
@@ -697,14 +705,14 @@ lemma liminf_ℚₙₜ_Z_Icc_ge (t : ℝ) (M : ℝ) (hM : 0 ≤ M) (ε : ℝ) (h
     exact Set.Finite.measure_zero (by simp) _
   have h_lt : ((μ : Measure ℝ) (Set.Icc (0 : ℝ) M)).toReal - ε <
       ((μ : Measure ℝ) (Set.Icc (0 : ℝ) M)).toReal := by linarith
-  simpa using ((ENNReal.tendsto_toReal (measure_ne_top _ _)).comp
+  simpa [μ_n, μ] using ((ENNReal.tendsto_toReal (measure_ne_top _ _)).comp
     (ProbabilityMeasure.tendsto_measure_of_null_frontier_of_tendsto'
       h_weak h_fr)).eventually_const_le h_lt
 
 /-- The standard Gaussian has mass `1/2` on `(-∞, 0]`. -/
 private lemma gaussianReal_Iic_zero_eq_half :
     (gaussianReal 0 1) (Set.Iic (0 : ℝ)) = 1 / 2 := by
-  haveI : NoAtoms (gaussianReal 0 1) := noAtoms_gaussianReal one_ne_zero
+  haveI : NullSingletonClass (gaussianReal 0 1) := nullSingletonClass_gaussianReal one_ne_zero
   set N := gaussianReal 0 1
   -- By symmetry, `N((-∞, 0]) = N([0, ∞))`.
   have hIoi_eq_Iic : N (Set.Ioi (0 : ℝ)) = N (Set.Iic 0) := by
@@ -723,7 +731,7 @@ private lemma gaussianReal_Iic_zero_eq_half :
 lemma tendsto_gaussianReal_Icc_toReal_half :
     Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
       atTop (𝓝 (1 / 2)) := by
-  haveI : NoAtoms (gaussianReal 0 1) := noAtoms_gaussianReal one_ne_zero
+  haveI : NullSingletonClass (gaussianReal 0 1) := nullSingletonClass_gaussianReal one_ne_zero
   set N := gaussianReal 0 1
   have hIic0 : N (Set.Iic (0 : ℝ)) = 1 / 2 := gaussianReal_Iic_zero_eq_half
   have hIio_eq_Iic : N (Set.Iio (0 : ℝ)) = N (Set.Iic 0) := measure_congr Iio_ae_eq_Iic
@@ -752,7 +760,8 @@ lemma tendsto_gaussianReal_Icc_toReal_half :
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- **Corollary of Tilted CLT:** Given `Λ'(t) = a`, for all `δ > 0` and `ε > 0`,
  `1/2 - ε ≤ ℚₙₜ(Sₙ/n ∈ [a, a+δ])` holds for all sufficiently large `n`. -/
-lemma eventually_ℚₙₜ_empiricalMean_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ) (ε : ℝ) (hε : 0 < ε)
+lemma eventually_ℚₙₜ_empiricalMean_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ) (ε : ℝ)
+    (hε : 0 < ε)
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
     ∀ᶠ n in atTop,
       (1 / 2 - ε : ℝ) ≤ ((ℚₙₜ X ℙ n t)
@@ -796,7 +805,8 @@ lemma eventually_ℚₙₜ_empiricalMean_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ
         (((ℚₙₜ X ℙ n t).map (Z X t n)) (Set.Icc (0 : ℝ) M_n)).toReal :=
     ENNReal.toReal_mono (measure_ne_top _ _)
       (measure_mono (Set.Icc_subset_Icc le_rfl hMn_ge))
-  -- Combine: `1/2 - ε ≤ N([0, M₀]) - ε/2 ≤ ℚₙₜ.map(Zₙ)([0, Mₙ]) = ℚₙₜ(Sₙ / n ∈ [a, a+δ])`.
+  -- Combine: `1/2 - ε ≤ N([0, M₀]) - ε/2 ≤ ℚₙₜ.map(Zₙ)([0, Mₙ])
+  --   = ℚₙₜ(Sₙ / n ∈ [a, a+δ])`.
   rw [← h_set_eq, ← Measure.map_apply (hZ_meas n) measurableSet_Icc]
   linarith [h_lim, h_toReal_mono]
 

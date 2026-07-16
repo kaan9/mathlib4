@@ -12,7 +12,8 @@ public import Mathlib.Probability.LargeDeviations.Cramers.Basic
 
 This file proves the upper (Chernoff) bound for Cramér's theorem:
 
-- `cramer_upper_bound`: For any `a ≥ 𝔼[X 0]`, `limsup (1/n) * log ℙ(Sₙ/n ≥ a) ≤ -rateFunction X a`.
+- `cramer_upper_bound`: For any `a ≥ 𝔼[X 0]`,
+  `limsup (1/n) * log ℙ(Sₙ/n ≥ a) ≤ -rateFunction X a`.
 
 The proof applies Markov's inequality to `exp(t * Sₙ)` for each `t ≥ 0`,
 takes the infimum over `t`, and uses the scaling identity `cgf(Sₙ) = n * cgf(X₀)`.
@@ -76,16 +77,16 @@ lemma prob_mean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) 
   (ℙ {ω | empiricalMean X n ω ≥ a}).toReal
     ≤ Real.exp ( - (n : ℝ) * (t * a - cgf (X 0) ℙ t)) := by
   have h_n_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn_pos
-  rw [show { ω | empiricalMean X n ω ≥ a } = { ω | partialSum X n ω ≥ (n : ℝ) * a } from by
-    ext ω; simp [empiricalMean, ge_iff_le, le_div_iff₀ h_n_pos, mul_comm]]
+  rw [show { ω | empiricalMean X n ω ≥ a } = { ω | partialSum X n ω ≥ (n : ℝ) * a }
+      from by ext ω; simp [empiricalMean, ge_iff_le, le_div_iff₀ h_n_pos, mul_comm]]
   refine (measure_ge_le_exp_cgf _ ht
     (integrable_exp_sum X h_indep h_ident h_meas h_mgf t n)).trans ?_
   rw [cgf_sum_eq_n_prod_cgf X h_indep h_ident h_meas h_mgf n t]
   apply le_of_eq; congr 1; ring
 
 include h_indep h_meas h_ident h_mgf h_bdd h_int in
-/-- **Cramér's Theorem (Upper Bound)**: For any a ≥ 𝔼[X 0], the scaled log probability that the
-empirical mean exceeds a is bounded above by the negative rate function:
+/-- **Cramér's Theorem (Upper Bound)**: For any a ≥ 𝔼[X 0], the scaled log probability that
+the empirical mean exceeds a is bounded above by the negative rate function:
 `limsup_{n→∞} log(ℙ(Sₙ/n ≥ a)) / n ≤ -I(a)`
 Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
 theorem cramer_upper_bound (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
