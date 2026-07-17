@@ -12,8 +12,8 @@ public import Mathlib.Probability.LargeDeviations.Cramers.Basic
 
 This file proves the upper (Chernoff) bound for Cramér's theorem:
 
-- `Cramer.limsup_le_neg_rateFunction`: For any `a` with `𝔼[X 0] ≤ a`,
-  `limsup (1/n) * log ℙ(a ≤ Sₙ/n) ≤ -rateFunction X a`.
+- `Cramer.limsup_le_neg_rateFunction`: For any `a` with `μ[X 0] ≤ a`,
+  `limsup (1/n) * log μ(a ≤ Sₙ/n) ≤ -rateFunction X μ a`.
 
 The proof applies Markov's inequality to `exp(t * Sₙ)` for each `0 ≤ t`,
 takes the infimum over `t`, and uses the scaling identity `cgf(Sₙ) = n * cgf(X₀)`.
@@ -29,20 +29,20 @@ open scoped ENNReal
 
 namespace ProbabilityTheory
 
-variable {Ω : Type*} [MeasureSpace Ω] [IsProbabilityMeasure (ℙ : Measure Ω)]
+variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
 variable (X : ℕ → Ω → ℝ)
-variable (h_indep : iIndepFun X ℙ)
-variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
+variable (h_indep : iIndepFun X μ)
+variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
 variable (h_meas : ∀ n, Measurable (X n))
-variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
-variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
+variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
+variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) μ t)))
 
 include h_indep h_meas h_ident h_mgf in
 /-- **Chernoff bound** for the empirical mean.
-`ℙ(a ≤ Sₙ/n) ≤ exp(-n · (t · a - Λ_X₀(t)))` for `0 ≤ t`. -/
+`μ(a ≤ Sₙ/n) ≤ exp(-n · (t · a - Λ_X₀(t)))` for `0 ≤ t`. -/
 lemma measure_empiricalMean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
-  (ℙ {ω | a ≤ empiricalMean X n ω}).toReal
-    ≤ Real.exp ( - (n : ℝ) * (t * a - cgf (X 0) ℙ t)) := by
+  (μ {ω | a ≤ empiricalMean X n ω}).toReal
+    ≤ Real.exp ( - (n : ℝ) * (t * a - cgf (X 0) μ t)) := by
   have h_n_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn_pos
   rw [show { ω | a ≤ empiricalMean X n ω } = { ω | (n : ℝ) * a ≤ partialSum X n ω }
       from by ext ω; simp [empiricalMean, le_div_iff₀ h_n_pos, mul_comm]]
@@ -52,21 +52,21 @@ lemma measure_empiricalMean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_p
   apply le_of_eq; congr 1; ring
 
 include h_indep h_meas h_ident h_mgf h_bdd in
-/-- **Cramér's Theorem (Upper Bound)**: For any a with 𝔼[X 0] ≤ a, the scaled log probability
+/-- **Cramér's Theorem (Upper Bound)**: For any a with μ[X 0] ≤ a, the scaled log probability
 that the empirical mean exceeds a is bounded above by the negative rate function:
-`limsup_{n→∞} log(ℙ(a ≤ Sₙ/n)) / n ≤ -rateFunction X a`
+`limsup_{n→∞} log(μ(a ≤ Sₙ/n)) / n ≤ -rateFunction X μ a`
 Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
-theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
+theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
     limsup (fun n : ℕ =>
-      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
-        atTop ≤ (- rateFunction X a : EReal) := by
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}))
+        atTop ≤ (- rateFunction X μ a : EReal) := by
   unfold rateFunction
   set L := limsup (fun n : ℕ =>
-      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω})) atTop
-  set f : {x : ℝ | 0 ≤ x} → ℝ := fun t => t.val * a - cgf (X 0) ℙ t
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop
+  set f : {x : ℝ | 0 ≤ x} → ℝ := fun t => t.val * a - cgf (X 0) μ t
   have h0 : (0 : ℝ) ∈ {x : ℝ | 0 ≤ x} := by simp
   haveI : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, h0⟩⟩
-  suffices h : ∀ t : ℝ, 0 ≤ t → L ≤ (-(t * a - cgf (X 0) ℙ t) : EReal) by
+  suffices h : ∀ t : ℝ, 0 ≤ t → L ≤ (-(t * a - cgf (X 0) μ t) : EReal) by
     calc L
         ≤ sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => (-(f t) : EReal)) :=
           le_csInf (Set.range_nonempty _) <| by
@@ -87,7 +87,7 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
                 = Real.toEReal '' (Set.range fun t : {x : ℝ | 0 ≤ x} => -f t) by
               rw [← Set.range_comp]; simp [Function.comp_def, EReal.coe_neg],
             ← EReal.coe_sInf h_ne h_bdd_neg, h_real, EReal.coe_neg]
-      _ = (- rateFunction X a : EReal) := by
+      _ = (- rateFunction X μ a : EReal) := by
           norm_cast
           exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg X h_mgf h_bdd a h_mean).symm
   intro t ht
@@ -95,21 +95,21 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     (eventually_atTop.mpr ⟨1, fun n hn => ?_⟩)
   have hn_pos : 0 < n := hn
   have hn_ne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn_pos.ne'
-  have h_ennreal : ℙ {ω | a ≤ empiricalMean X n ω} ≤
-      ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))) :=
+  have h_ennreal : μ {ω | a ≤ empiricalMean X n ω} ≤
+      ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))) :=
     (ENNReal.ofReal_toReal_eq_iff.mpr (measure_ne_top _ _)).symm.le.trans
       (ENNReal.ofReal_le_ofReal
         (measure_empiricalMean_ge_le_exp X h_indep h_ident h_meas h_mgf t a ht n hn_pos))
-  have h_log_exp : ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))))
-      = (((-(n : ℝ) * (t * a - cgf (X 0) ℙ t)) : ℝ) : EReal) := by
+  have h_log_exp : ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))))
+      = (((-(n : ℝ) * (t * a - cgf (X 0) μ t)) : ℝ) : EReal) := by
     rw [ENNReal.log_ofReal_of_pos (Real.exp_pos _), Real.log_exp]
-  have h_arith : (1 : ℝ) / (n : ℝ) * (-(n : ℝ) * (t * a - cgf (X 0) ℙ t))
-      = -(t * a - cgf (X 0) ℙ t) := by field_simp
-  calc ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω})
+  have h_arith : (1 : ℝ) / (n : ℝ) * (-(n : ℝ) * (t * a - cgf (X 0) μ t))
+      = -(t * a - cgf (X 0) μ t) := by field_simp
+  calc ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})
       ≤ ((1 : ℝ) / (n : ℝ) : EReal) *
-          (((-(n : ℝ) * (t * a - cgf (X 0) ℙ t)) : ℝ) : EReal) := by
+          (((-(n : ℝ) * (t * a - cgf (X 0) μ t)) : ℝ) : EReal) := by
         rw [← h_log_exp]; gcongr
-    _ = (-(t * a - cgf (X 0) ℙ t) : EReal) := by
+    _ = (-(t * a - cgf (X 0) μ t) : EReal) := by
         simp only [← EReal.coe_mul]; exact congrArg (fun x : ℝ => (x : EReal)) h_arith
 
 end ProbabilityTheory
