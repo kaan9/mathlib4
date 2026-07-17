@@ -93,10 +93,6 @@ private lemma Cramer.t_mem_interior_integrableExpSet_id (t : ℝ) :
   rw [h_univ, interior_univ]
   exact Set.mem_univ t
 
-include h_meas in
-private lemma cgf_id_map_eq : cgf id ((ℙ : Measure Ω).map (X 0)) = cgf (X 0) ℙ := by
-  ext s; simp [cgf, mgf_id_map (h_meas 0).aemeasurable]
-
 private lemma t_mul_eq_mul_id (t : ℝ) : (fun x : ℝ => t * x) = (t * id ·) := rfl
 
 include h_meas h_mgf in
@@ -104,7 +100,7 @@ include h_meas h_mgf in
 lemma Cramer.integral_id_tiltedLaw (t : ℝ) :
     ∫ x, x ∂(tiltedLaw X t) = deriv (cgf (X 0) ℙ) t := by
   simp only [tiltedLaw]
-  rw [t_mul_eq_mul_id, ← cgf_id_map_eq X h_meas]
+  rw [t_mul_eq_mul_id, ← cgf_id_map (h_meas 0).aemeasurable]
   exact integral_tilted_mul_self (t_mem_interior_integrableExpSet_id X h_meas h_mgf t)
 
 include h_meas h_mgf in
@@ -112,7 +108,7 @@ include h_meas h_mgf in
 lemma Cramer.variance_id_tiltedLaw (t : ℝ) :
     Var[id; tiltedLaw X t] = iteratedDeriv 2 (cgf (X 0) ℙ) t := by
   simp only [tiltedLaw]
-  rw [t_mul_eq_mul_id, ← cgf_id_map_eq X h_meas]
+  rw [t_mul_eq_mul_id, ← cgf_id_map (h_meas 0).aemeasurable]
   exact variance_tilted_mul (t_mem_interior_integrableExpSet_id X h_meas h_mgf t)
 
 include h_meas h_mgf in
@@ -703,54 +699,6 @@ lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM
     (ProbabilityMeasure.tendsto_measure_of_null_frontier_of_tendsto'
       h_weak h_fr)).eventually_const_le h_lt
 
-/-- The standard Gaussian has mass `1/2` on `(-∞, 0]`. -/
-private lemma gaussianReal_Iic_zero_eq_half :
-    (gaussianReal 0 1) (Set.Iic (0 : ℝ)) = 1 / 2 := by
-  haveI : NullSingletonClass (gaussianReal 0 1) := nullSingletonClass_gaussianReal one_ne_zero
-  set N := gaussianReal 0 1
-  -- By symmetry, `N((-∞, 0]) = N([0, ∞))`.
-  have hIoi_eq_Iic : N (Set.Ioi (0 : ℝ)) = N (Set.Iic 0) := by
-    have hsym : N.map (fun x : ℝ => -x) = N := by
-      simpa using gaussianReal_map_neg (μ := (0 : ℝ)) (v := (1 : ℝ≥0))
-    refine (measure_congr Ioi_ae_eq_Ici).trans ?_
-    conv_lhs => rw [← hsym, Measure.map_apply (by fun_prop) measurableSet_Ici]
-    congr 1; ext x; simp
-  -- `N((-∞, 0]) = 1/2` as `N((-∞, 0]) + N([0, ∞)) = N(ℝ) = 1`.
-  have hcompl : N (Set.Iic (0 : ℝ)) + N (Set.Iic 0) = 1 := by
-    have := measure_add_measure_compl (μ := N) (s := Set.Iic (0 : ℝ)) measurableSet_Iic
-    rwa [Set.compl_Iic, measure_univ, hIoi_eq_Iic] at this
-  rw [ENNReal.eq_div_iff (by norm_num) (by norm_num), two_mul]; exact hcompl
-
-/-- The standard Gaussian's mass on `[0, M]` tends to `1/2` as `M → ∞`. -/
-lemma tendsto_gaussianReal_Icc_toReal_half :
-    Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
-      atTop (𝓝 (1 / 2)) := by
-  haveI : NullSingletonClass (gaussianReal 0 1) := nullSingletonClass_gaussianReal one_ne_zero
-  set N := gaussianReal 0 1
-  have hIic0 : N (Set.Iic (0 : ℝ)) = 1 / 2 := gaussianReal_Iic_zero_eq_half
-  have hIio_eq_Iic : N (Set.Iio (0 : ℝ)) = N (Set.Iic 0) := measure_congr Iio_ae_eq_Iic
-  -- For `M ≥ 0`, `N([0, M]) = N((-∞, M]) - 1/2`.
-  have hIcc_eq : ∀ᶠ M : ℝ in atTop,
-      N (Set.Iic M) - (1 / 2 : ℝ≥0∞) = N (Set.Icc (0 : ℝ) M) :=
-    (Filter.eventually_ge_atTop 0).mono fun M hM => by
-      have hunion : N (Set.Iio 0) + N (Set.Icc 0 M) = N (Set.Iic M) := by
-        rw [← Set.Iio_union_Icc_eq_Iic hM]
-        exact (measure_union ((Set.Iio_disjoint_Ici le_rfl).mono_right
-          Set.Icc_subset_Ici_self) measurableSet_Icc).symm
-      rw [← hIic0, ← hIio_eq_Iic]
-      exact (ENNReal.eq_sub_of_add_eq (measure_ne_top N _)
-        ((add_comm (N (Set.Iio 0)) _) ▸ hunion)).symm
-  -- `N([0, M]) → 1/2` in ENNReal
-  have hIcc_tendsto : Tendsto (fun M : ℝ => N (Set.Icc (0 : ℝ) M)) atTop (𝓝 (1 / 2)) := by
-    have hIic_tendsto : Tendsto (fun M : ℝ => N (Set.Iic M)) atTop (𝓝 1) := by
-      simpa using tendsto_measure_Iic_atTop N
-    have key := (ENNReal.Tendsto.sub hIic_tendsto
-      (tendsto_const_nhds (x := (1 / 2 : ℝ≥0∞))) (Or.inl ENNReal.one_ne_top))
-    rw [show (1 : ℝ≥0∞) - 1 / 2 = 1 / 2 from by norm_num] at key
-    exact key.congr' hIcc_eq
-  rw [show (1 : ℝ) / 2 = ((1 : ℝ≥0∞) / 2).toReal from by norm_num]
-  exact (ENNReal.tendsto_toReal (by norm_num)).comp hIcc_tendsto
-
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- **Corollary of Tilted CLT:** Given `Λ'(t) = a`, for all `δ > 0` and `ε > 0`,
  `1/2 - ε ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])` holds for all sufficiently large `n`. -/
@@ -768,8 +716,13 @@ lemma Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge (t a δ : ℝ) (h
     unfold stdPartialSum
     exact ((measurable_partialSum X h_meas n).sub_const _).div_const _
   -- Pick `M₀ ≥ 0` with `1/2 - ε/2 < N([0, M₀])`.
+  have h_gauss_half : Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
+      atTop (𝓝 (1 / 2)) := by
+    rw [show (1 : ℝ) / 2 = ((1 : ℝ≥0∞) / 2).toReal from by norm_num]
+    exact (ENNReal.tendsto_toReal (by norm_num)).comp
+      (tendsto_gaussianReal_Icc_mean_atTop one_ne_zero)
   obtain ⟨M₀, hM₀_lb, hM₀_nonneg⟩ :=
-    ((tendsto_gaussianReal_Icc_toReal_half.eventually_const_lt
+    ((h_gauss_half.eventually_const_lt
         (show (1/2 - ε/2 : ℝ) < 1/2 by linarith)).and (Filter.eventually_ge_atTop 0)).exists
   -- Apply `eventually_measure_stdPartialSum_mem_Icc_ge` with `M₀` and `ε/2`.
   have h_liminf := eventually_measure_stdPartialSum_mem_Icc_ge X h_indep h_ident h_meas h_mgf

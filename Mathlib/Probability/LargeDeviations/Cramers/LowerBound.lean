@@ -56,14 +56,6 @@ private lemma exp_neg_mul_S_ge_on_set (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 �
 private lemma ereal_one_div_nat_nonneg (n : ℕ) : (0 : EReal) ≤ ((1 : ℝ) / n : EReal) :=
   EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg n))
 
-/-- `(1 / ↑n) · ↑c → 0` where we lift to `EReal` from `ℝ`. -/
-lemma ereal_inv_nat_mul_const_tendsto_zero (c : ℝ) :
-    Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * (c : EReal)) atTop (𝓝 0) := by
-  have h_real : Tendsto (fun n : ℕ => (1 / n * c : ℝ)) atTop (𝓝 0) := by
-    simpa using ((tendsto_const_nhds (x := (1 : ℝ))).div_atTop
-      tendsto_natCast_atTop_atTop).mul (tendsto_const_nhds (x := c))
-  exact_mod_cast continuous_coe_real_ereal.continuousAt.tendsto.comp h_real
-
 /-- For `y ∈ (0, ∞)` and `n ≥ 1`, `n⁻¹ log(exp(x) · y) = n⁻¹x + n⁻¹ · log(y)`,
     where we lift values to EReal and ENNReal where needed for later results. -/
 private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
@@ -98,24 +90,6 @@ private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
     (h : Tendsto f atTop (𝓝 0)) : Tendsto (fun n => c + f n) atTop (𝓝 c) := by
   simpa [Function.comp_def] using (EReal.continuousAt_add (by simp) (by simp)).tendsto.comp
     (tendsto_const_nhds.prodMk_nhds h)
-
-/-- Given `x, y ∈ [-∞, ∞]`, if `∀ε ∈ ℝ⁺, x - ε ≤ y`, then `x ≤ y`. -/
-private lemma EReal.le_of_forall_pos_sub_le {x y : EReal}
-    (h : ∀ ε : ℝ, 0 < ε → x - (ε : EReal) ≤ y) : x ≤ y := by
-  induction x using EReal.rec with
-  | bot => exact bot_le
-  | top =>
-    have := h 1 zero_lt_one
-    rwa [EReal.top_sub_coe] at this
-  | coe x_val =>
-    induction y using EReal.rec with
-    | bot =>
-      have := h 1 zero_lt_one
-      simp only [EReal.coe_one] at this
-      exact absurd (le_bot_iff.mp this) (EReal.coe_ne_bot _)
-    | top => exact le_top
-    | coe y_val =>
-      exact_mod_cast _root_.le_of_forall_sub_le fun ε hε => by exact_mod_cast h ε hε
 
 /-! ### Lemmas requiring IsProbabilityMeasure -/
 
@@ -214,7 +188,9 @@ private lemma Cramer.error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
   have h_lower_tendsto : Tendsto (fun m : ℕ =>
       ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)) atTop (𝓝 0) := by
     rw [ENNReal.log_ofReal_of_pos hc_pos]
-    exact ereal_inv_nat_mul_const_tendsto_zero (Real.log c)
+    refine (EReal.tendsto_const_div_atTop_nhds_zero_nat (C := (Real.log c : EReal))
+      (EReal.coe_ne_bot _) (EReal.coe_ne_top _)).congr fun n => ?_
+    rw [EReal.div_eq_inv_mul, div_eq_mul_inv, EReal.coe_one, one_mul]
   have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
   have h_eventually : ∀ᶠ (m : ℕ) in atTop,
       ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)
@@ -388,7 +364,9 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
       Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal c))
         atTop (𝓝 0) := by
     rw [ENNReal.log_ofReal_of_pos hc_pos]
-    exact ereal_inv_nat_mul_const_tendsto_zero (Real.log c)
+    refine (EReal.tendsto_const_div_atTop_nhds_zero_nat (C := (Real.log c : EReal))
+      (EReal.coe_ne_bot _) (EReal.coe_ne_top _)).congr fun n => ?_
+    rw [EReal.div_eq_inv_mul, div_eq_mul_inv, EReal.coe_one, one_mul]
   have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
   -- Establish bounds to apply squeeze theorem
   -- `n⁻¹ log (c) ≤ n⁻¹ log ℙ(Sₙ/n ≥ a) ≤ 0`
@@ -446,7 +424,7 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
       (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal) ≤ LHS_val := fun δ hδ =>
     (lower_bound_via_tilted X h_indep h_ident h_meas h_mgf h_non_deg a t δ hδ ht_pos ht_deriv).le
   -- Conclude the lower bound by taking `δ → 0`.
-  refine EReal.le_of_forall_pos_sub_le fun ε hε => ?_
+  refine EReal.le_of_forall_sub_le fun ε hε => ?_
   have h := h_bound_for_all_delta (ε / t) (div_pos hε ht_pos)
   rwa [show ((t : EReal) * (ε / t : ℝ) : EReal) = ((ε : ℝ) : EReal) from by
     rw [← EReal.coe_mul]; norm_cast; field_simp] at h

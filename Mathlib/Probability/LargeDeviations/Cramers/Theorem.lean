@@ -195,7 +195,8 @@ theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
         simpa [ENNReal.log_one, Function.comp_def] using
           (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
       have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
-        simpa using ereal_inv_nat_mul_const_tendsto_zero (1 : ℝ)
+        simpa using EReal.tendsto_const_div_atTop_nhds_zero_nat
+          (C := ((1 : ℝ) : EReal)) (EReal.coe_ne_bot _) (EReal.coe_ne_top _)
       simpa using EReal.Tendsto.mul h_inv_to_zero h_log_to_zero
         (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
         (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))

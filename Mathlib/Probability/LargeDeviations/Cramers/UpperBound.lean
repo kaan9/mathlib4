@@ -38,38 +38,6 @@ variable (h_int : Integrable (X 0) ℙ)
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
 
-/-! ### Helper lemmas for the upper bound proof -/
-
-/-- For a nonempty bounded-below set in ℝ, the infimum of its elements coerced to EReal
-equals the coercion of its infimum. -/
-private lemma ereal_sInf_coe_eq_coe_sInf {s : Set ℝ} (hne : s.Nonempty) (hbdd : BddBelow s) :
-    sInf ((fun (x : ℝ) => (x : EReal)) '' s) = ↑(sInf s) := by
-  have h_bdd : BddBelow ((fun (x : ℝ) => (x : WithTop ℝ)) '' s) :=
-    Monotone.map_bddBelow (fun _ _ h => WithTop.coe_le_coe.mpr h) hbdd
-  rw [show (fun (x : ℝ) => (x : EReal)) '' s
-        = (fun (y : WithTop ℝ) => (y : WithBot (WithTop ℝ))) ''
-          ((fun (x : ℝ) => (x : WithTop ℝ)) '' s) from
-      (Set.image_image _ (fun x : ℝ => (x : WithTop ℝ)) s).symm]
-  exact (WithBot.coe_sInf' h_bdd).symm.trans (by rw [← WithTop.coe_sInf' hne hbdd]; rfl)
-
-/-- For a bounded nonempty set in ℝ, the infimum of negations equals the negation of the supremum,
-    stated in terms of coercions to EReal: `inf {↑-x | x ∈ S} = -sup {↑x | x ∈ S}` -/
-private lemma ereal_sInf_neg_eq_neg_sSup {ι : Type*} (f : ι → ℝ)
-    (hne : (Set.range f).Nonempty) (hbdd : BddAbove (Set.range f)) :
-    sInf (Set.range fun i => (-(f i) : EReal)) = -((sSup (Set.range f) : ℝ) : EReal) := by
-  obtain ⟨_, i₀, _⟩ := hne
-  obtain ⟨B, hB⟩ := hbdd
-  have h_ne_neg : (Set.range fun i => -f i).Nonempty := ⟨-f i₀, i₀, rfl⟩
-  have h_bdd_neg : BddBelow (Set.range fun i => -f i) :=
-    ⟨-B, fun _ ⟨i, hi⟩ => hi ▸ neg_le_neg (hB ⟨i, rfl⟩)⟩
-  rw [show Set.range (fun i => (-(f i) : EReal)) =
-        ((↑) : ℝ → EReal) '' Set.range (fun i => -f i) by
-      rw [← Set.range_comp]; simp [Function.comp_def],
-    ereal_sInf_coe_eq_coe_sInf h_ne_neg h_bdd_neg,
-    show sInf (Set.range fun i => -f i) = -sSup (Set.range f) by
-      rw [← Real.sInf_neg, ← Set.image_neg_eq_neg, ← Set.range_comp]; rfl,
-    EReal.coe_neg]
-
 include h_indep h_meas h_ident h_mgf in
 /-- **Chernoff bound** for the empirical mean.
 `ℙ(Sₙ/n ≥ a) ≤ exp(-n · (t · a - Λ_X₀(t)))` for `t ≥ 0`. -/
@@ -108,7 +76,18 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
           have h_bdd' : BddAbove (Set.range f) :=
             let ⟨b, hb⟩ := h_bdd a
             ⟨b, fun _ ⟨t, ht⟩ => ht ▸ hb ⟨t.val, rfl⟩⟩
-          simpa [iSup] using ereal_sInf_neg_eq_neg_sSup f ⟨_, ⟨0, h0⟩, rfl⟩ h_bdd'
+          have h_ne : (Set.range fun t : {x : ℝ | 0 ≤ x} => -f t).Nonempty :=
+            ⟨-f ⟨0, h0⟩, ⟨0, h0⟩, rfl⟩
+          have h_bdd_neg : BddBelow (Set.range fun t : {x : ℝ | 0 ≤ x} => -f t) := by
+            obtain ⟨B, hB⟩ := h_bdd'
+            exact ⟨-B, fun _ ⟨t, ht⟩ => ht ▸ neg_le_neg (hB ⟨t, rfl⟩)⟩
+          have h_real : sInf (Set.range fun t : {x : ℝ | 0 ≤ x} => -f t) = -(⨆ t, f t) := by
+            rw [show (⨆ t : {x : ℝ | 0 ≤ x}, f t) = sSup (Set.range f) from rfl,
+              ← Real.sInf_neg, ← Set.image_neg_eq_neg, ← Set.range_comp]; rfl
+          rw [show (Set.range fun t : {x : ℝ | 0 ≤ x} => (-(f t) : EReal))
+                = Real.toEReal '' (Set.range fun t : {x : ℝ | 0 ≤ x} => -f t) by
+              rw [← Set.range_comp]; simp [Function.comp_def, EReal.coe_neg],
+            ← EReal.coe_sInf h_ne h_bdd_neg, h_real, EReal.coe_neg]
       _ = (- rateFunction X a : EReal) := by
           norm_cast
           exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg X h_int h_mgf h_bdd a h_mean).symm
