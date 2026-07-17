@@ -51,9 +51,9 @@ noncomputable def empiricalMean (n : ℕ) : Ω → ℝ := fun ω => partialSum X
 /-- The Legendre transform of the CGF. This is the rate function for Cramér's theorem. -/
 noncomputable def Cramer.rateFunction (x : ℝ) : ℝ := ⨆ t : ℝ, t * x - cgf (X 0) ℙ t
 
-/-- The "Effective" Rate Function for the upper tail probability `ℙ(empiricalMean X n ≥ a)`.
-Cramér's theorem only holds when `a ≥ 𝔼[X 0]`, so to state a general Large Deviation Principle
-for all `a`, we define the rate function to be `rateFunction X a` for `a ≥ 𝔼[X 0]`, and `0`
+/-- The "Effective" Rate Function for the upper tail probability `ℙ(a ≤ empiricalMean X n)`.
+Cramér's theorem only holds when `𝔼[X 0] ≤ a`, so to state a general Large Deviation Principle
+for all `a`, we define the rate function to be `rateFunction X a` for `𝔼[X 0] ≤ a`, and `0`
 otherwise. -/
 noncomputable def Cramer.upperTailRateFunction (X : ℕ → Ω → ℝ) (a : ℝ) : ℝ :=
   if 𝔼[X 0] ≤ a then rateFunction X a else 0
@@ -110,12 +110,12 @@ lemma Cramer.integrable_of_forall_integrable_exp : Integrable (X 0) ℙ :=
 
 variable [IsProbabilityMeasure (ℙ : Measure Ω)]
 
-/-- For a random variable Y with finite MGF, the CGF satisfies `Λ_Y(t) ≥ t · 𝔼[Y]`.
+/-- For a random variable Y with finite MGF, the CGF satisfies `t · 𝔼[Y] ≤ Λ_Y(t)`.
 This follows from Jensen's inequality applied to the convex function `eᵗˣ` for fixed `t`. -/
-lemma cgf_ge_mul_expect (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
+lemma mul_integral_le_cgf (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
     (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ) (t : ℝ) :
-    cgf Y ℙ t ≥ t * 𝔼[Y] := by
-  -- Λ(t) = log 𝔼[exp(tY)] ≥ log exp(t 𝔼[Y]) = t 𝔼[Y]
+    t * 𝔼[Y] ≤ cgf Y ℙ t := by
+  -- t 𝔼[Y] = log exp(t 𝔼[Y]) ≤ log 𝔼[exp(tY)] = Λ(t)
   rw [cgf, mgf]
   -- Apply Jensen's inequality: exp(𝔼[tY]) ≤ 𝔼[exp(tY)]
   have jensen := ConvexOn.map_integral_le
@@ -128,13 +128,13 @@ lemma cgf_ge_mul_expect (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
   -- Take log of both sides
   exact (Real.log_exp _).symm.trans_le (Real.log_le_log (Real.exp_pos _) jensen)
 
-/-- When `t < 0` and `a ≥ 𝔼[Y]`, we have `t · a - Λ_Y(t) ≤ 0`. -/
+/-- When `t < 0` and `𝔼[Y] ≤ a`, we have `t · a - Λ_Y(t) ≤ 0`. -/
 lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (h_int : Integrable Y ℙ)
     (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) ℙ)
     (t a : ℝ) (ht : t < 0) (ha : 𝔼[Y] ≤ a) :
     t * a - cgf Y ℙ t ≤ 0 := by
-    -- Λ(t) ≥ t · 𝔼[Y] ≥ t · a  (since t < 0, inequality flips)
-  nlinarith [cgf_ge_mul_expect Y h_int h_mgf t, mul_le_mul_of_nonpos_left ha ht.le]
+    -- t · a ≤ t · 𝔼[Y] ≤ Λ(t)  (since t < 0, the first inequality flips)
+  nlinarith [mul_integral_le_cgf Y h_int h_mgf t, mul_le_mul_of_nonpos_left ha ht.le]
 
 include h_indep h_ident h_meas h_mgf in
 /-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
@@ -177,7 +177,7 @@ lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
     (s := integrableExpSet (partialSum X n) ℙ)]
 
 include h_bdd h_mgf in
-/-- For `a ≥ 𝔼[X]`, the supremum in the rate function is achieved by non-negative `t`.
+/-- For `𝔼[X] ≤ a`, the supremum in the rate function is achieved by non-negative `t`.
 That is, `rateFunction X a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
 lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     rateFunction X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t := by
@@ -190,9 +190,9 @@ lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     ⟨b, fun _ ⟨t, ht⟩ => ht ▸ hb ⟨t.val, rfl⟩⟩
   refine le_antisymm (ciSup_le fun t => ?_) (ciSup_le fun t => le_ciSup (h_bdd a) (t : ℝ))
   by_cases ht : 0 ≤ t
-  -- Case t ≥ 0: It's in the restricted set so the supremum exists by h_bdd
+  -- Case 0 ≤ t: It's in the restricted set so the supremum exists by h_bdd
   · exact le_ciSup h_bdd_restrict ⟨t, ht⟩
-  -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with a t ≥ 0
+  -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with 0 ≤ t
   · calc t * a - cgf (X 0) ℙ t
         ≤ 0 := mul_sub_cgf_nonpos_of_neg (X 0) h_int h_mgf t a (not_le.mp ht) h_mean
       _ = (0 : ℝ) * a - cgf (X 0) ℙ 0 := by simp [cgf_zero]

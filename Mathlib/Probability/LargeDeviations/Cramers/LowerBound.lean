@@ -13,8 +13,8 @@ public import Mathlib.Probability.LargeDeviations.Cramers.TiltedCLT
 
 This file proves the lower (exponential tilting) bound for Cramér's theorem:
 
-- `Cramer.neg_rateFunction_le_liminf`: For any `a ≥ 𝔼[X 0]`,
-  `liminf n⁻¹ * log ℙ(Sₙ/n ≥ a) ≥ -rateFunction X a`.
+- `Cramer.neg_rateFunction_le_liminf`: For any `a` with `𝔼[X 0] ≤ a`,
+  `-rateFunction X a ≤ liminf n⁻¹ * log ℙ(a ≤ Sₙ/n)`.
 
 The proof uses the change-of-measure approach with the family of tilted measures
 `tiltedMeasure = ℙ.tilted(t * Sₙ)` where `t` is chosen so that `cgf'(t) = a`.
@@ -40,10 +40,10 @@ variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
 variable (h_exposed : ∀ a : ℝ, 𝔼[X 0] ≤ a → ∃ t, deriv (cgf (X 0) ℙ) t = a)
 
 omit [MeasureSpace Ω] in
-/-- `0 < t` and `Sₙ/n ∈ [a, a + δ]` implies `exp(-t · Sₙ) ≥ exp(-t · n · (a + δ))` -/
-private lemma exp_neg_mul_S_ge_on_set (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
+/-- `0 ≤ t` and `Sₙ/n ∈ [a, a + δ]` implies `exp(-t · n · (a + δ)) ≤ exp(-t · Sₙ)` -/
+private lemma exp_le_exp_neg_mul_partialSum (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
     (ω : Ω) (hω : empiricalMean X n ω ∈ Set.Icc a (a + δ)) :
-    Real.exp (-t * partialSum X n ω) ≥ Real.exp (-t * n * (a + δ)) := by
+    Real.exp (-t * n * (a + δ)) ≤ Real.exp (-t * partialSum X n ω) := by
   apply Real.exp_le_exp.mpr
   rw [empiricalMean] at hω
   rcases eq_or_ne n 0 with hn | hn
@@ -55,9 +55,9 @@ private lemma exp_neg_mul_S_ge_on_set (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 �
 private lemma ereal_one_div_nat_nonneg (n : ℕ) : (0 : EReal) ≤ ((1 : ℝ) / n : EReal) :=
   EReal.coe_nonneg.mpr (div_nonneg zero_le_one (Nat.cast_nonneg n))
 
-/-- For `y ∈ (0, ∞)` and `n ≥ 1`, `n⁻¹ log(exp(x) · y) = n⁻¹x + n⁻¹ · log(y)`,
+/-- For `y ∈ (0, ∞)` and `1 ≤ n`, `n⁻¹ log(exp(x) · y) = n⁻¹x + n⁻¹ · log(y)`,
     where we lift values to EReal and ENNReal where needed for later results. -/
-private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
+private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : 1 ≤ n)
     (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
     ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal (Real.exp x * y.toReal)) =
     ((1 : ℝ) / n : EReal) * (x : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y := by
@@ -68,11 +68,11 @@ private lemma log_product_split (n : ℕ) (x : ℝ) (y : ENNReal) (hn : n ≥ 1)
   exact EReal.left_distrib_of_nonneg_of_ne_top (EReal.coe_nonneg.mpr (by positivity))
     (EReal.coe_ne_top _) _ _
 
-/-- For `y ∈ (0, ∞)` and `n ≥ 1`,
+/-- For `y ∈ (0, ∞)` and `1 ≤ n`,
   `n⁻¹ log(exp(-n (t · (a + δ) - l)) · y) = -(ta - l) - tδ + n⁻¹ log(y)`
   which we will later use with `l := Λ(t)` -/
 private lemma log_exp_product_eq_neg_coef_plus_log (n : ℕ) (t a δ : ℝ) (l : ℝ)
-    (y : ENNReal) (hn : n ≥ 1) (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
+    (y : ENNReal) (hn : 1 ≤ n) (hy_ne_zero : y ≠ 0) (hy_ne_top : y ≠ ⊤) :
     ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal
       (Real.exp (-n * (t * (a + δ) - l)) * y.toReal)) =
     (-(t * a - l) - t * δ : EReal) + ((1 : ℝ) / n : EReal) * ENNReal.log y := by
@@ -96,7 +96,7 @@ variable [IsProbabilityMeasure (ℙ : Measure Ω)]
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- `tiltedMeasure(Sₙ/n ∈ [a, a+δ])` is eventually always positive as `n → ∞`.
-That is, `∃ c > 0` s.t. `tiltedMeasure(Sₙ/n ∈ [a, a+δ]) > c` for all sufficiently large `n`.
+That is, `∃ c > 0` s.t. `c ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])` for all sufficiently large `n`.
 This is a consequence of the Central Limit Theorem assumption. -/
 private lemma Cramer.tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ : 0 < δ)
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
@@ -125,30 +125,34 @@ private lemma measure_eq_integral_exp_neg_tilted (f : Ω → ℝ) (E : Set Ω)
   field_simp
 
 include h_indep h_ident h_meas h_mgf in
-/-- `ℙ(Sₙ/n ∈ [a, a + δ]) ≥
-exp(-n(ta - Λ(t))) · tiltedMeasure(Sₙ/n ∈ [a, a + δ])` -/
+/-- `exp(-n(ta - Λ(t))) · tiltedMeasure(Sₙ/n ∈ [a, a + δ]) ≤
+ℙ(Sₙ/n ∈ [a, a + δ])` -/
 lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
     (h_int : Integrable (fun ω => Real.exp (t * partialSum X n ω)) ℙ) :
     let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
-    (ℙ E).toReal ≥
-      Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
-      ((tiltedMeasure X ℙ n t) E).toReal := by
+    Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
+      ((tiltedMeasure X ℙ n t) E).toReal ≤ (ℙ E).toReal := by
   intro E
   have hE : MeasurableSet E :=
     measurableSet_Icc.preimage (measurable_empiricalMean X h_meas n)
   rw [measure_eq_integral_exp_neg_tilted (fun ω => t * partialSum X n ω) E h_int hE]
-  change mgf (partialSum X n) ℙ t * _ ≥ _
+  change _ ≤ mgf (partialSum X n) ℙ t * _
   rw [mgf_partialSum X h_indep h_ident h_meas h_mgf n t]
   haveI : IsProbabilityMeasure (tiltedMeasure X ℙ n t) :=
     isProbabilityMeasure_tiltedMeasure X h_indep h_ident h_meas h_mgf t n
   have h_bound :
-      ∫ ω in E, Real.exp (-t * partialSum X n ω)
-        ∂(tiltedMeasure X ℙ n t) ≥
       Real.exp (-t * n * (a + δ)) *
-        ((tiltedMeasure X ℙ n t) E).toReal := by
-    calc ∫ ω in E, Real.exp (-t * partialSum X n ω)
-        ∂(tiltedMeasure X ℙ n t)
-        ≥ ∫ ω in E, Real.exp (-t * n * (a + δ))
+        ((tiltedMeasure X ℙ n t) E).toReal ≤
+      ∫ ω in E, Real.exp (-t * partialSum X n ω)
+        ∂(tiltedMeasure X ℙ n t) := by
+    calc Real.exp (-t * n * (a + δ)) *
+            ((tiltedMeasure X ℙ n t) E).toReal
+        = ((tiltedMeasure X ℙ n t).real E) •
+            Real.exp (-t * n * (a + δ)) := by
+          rw [Measure.real, smul_eq_mul]; ring
+      _ = ∫ ω in E, Real.exp (-t * n * (a + δ))
+          ∂(tiltedMeasure X ℙ n t) := (setIntegral_const _).symm
+      _ ≤ ∫ ω in E, Real.exp (-t * partialSum X n ω)
           ∂(tiltedMeasure X ℙ n t) :=
           setIntegral_mono_on (integrable_const _).integrableOn
             (Integrable.integrableOn <| by
@@ -156,12 +160,7 @@ lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
                   Measure.tilted ℙ (fun ω => t * partialSum X n ω) from rfl,
                 integrable_tilted_iff h_int]
               simp [← Real.exp_add])
-            hE (exp_neg_mul_S_ge_on_set X t n a δ ht.le)
-      _ = ((tiltedMeasure X ℙ n t).real E) •
-            Real.exp (-t * n * (a + δ)) := setIntegral_const _
-      _ = Real.exp (-t * n * (a + δ)) *
-            ((tiltedMeasure X ℙ n t) E).toReal := by
-          rw [Measure.real, smul_eq_mul]; ring
+            hE (exp_le_exp_neg_mul_partialSum X t n a δ ht.le)
   have key : Real.exp (n * cgf (X 0) ℙ t) *
       (Real.exp (-t * n * (a + δ)) *
         ((tiltedMeasure X ℙ n t) E).toReal) =
@@ -170,7 +169,7 @@ lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
     rw [← mul_assoc, ← Real.exp_add]; ring_nf
   rw [← key]
   gcongr
-  simpa [tiltedMeasure, neg_mul] using h_bound.le
+  simpa [tiltedMeasure, neg_mul] using h_bound
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- The error term `n⁻¹ * log(tiltedMeasure(Sₙ/n ∈ [a, a+δ])) → 0` as `n → ∞` -/
@@ -208,53 +207,55 @@ private lemma Cramer.error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
     (h_eventually.mono fun m h => h.1) (h_eventually.mono fun m h => h.2)
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
-/-- For `δ,t > 0` with `Λ'(t) = a`, we have
-`liminfₙ n⁻¹ log ℙ(Sₙ/n ≥ a) ≥ -(ta - Λ(t)) - tδ ` -/
+/-- For `0 < δ` and `0 < t` with `Λ'(t) = a`, we have
+`-(ta - Λ(t)) - tδ ≤ liminfₙ n⁻¹ log ℙ(a ≤ Sₙ/n)` -/
 private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 0 < t)
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
-    liminf (fun n : ℕ =>
-      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
-    ≥ (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal) := by
-  -- `n⁻¹ log ℙ(Sₙ/n ≥ a) ≥ (ta - Λ(t)) - tδ
-  --   + n⁻¹ log tiltedMeasure(Sₙ/n ∈ [a, a + δ])`
-  have h_pointwise : ∀ n : ℕ, n ≥ 1 →
-      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})
-      ≥ (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+    (-(t * a - cgf (X 0) ℙ t) : EReal) - (t * δ : EReal)
+    ≤ liminf (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω})) atTop := by
+  -- `(ta - Λ(t)) - tδ + n⁻¹ log tiltedMeasure(Sₙ/n ∈ [a, a + δ])
+  --   ≤ n⁻¹ log ℙ(a ≤ Sₙ/n)`
+  have h_pointwise : ∀ n : ℕ, 1 ≤ n →
+      (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
         + ((1 : ℝ) / n : EReal) * ENNReal.log ((tiltedMeasure X ℙ n t)
-            {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}) := by
+            {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})
+      ≤ ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}) := by
     intro n hn
     haveI : IsProbabilityMeasure (tiltedMeasure X ℙ n t) :=
       isProbabilityMeasure_tiltedMeasure X h_indep h_ident h_meas h_mgf t n
     have h_subset : {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} ⊆
-        {ω | empiricalMean X n ω ≥ a} := fun _ hω => hω.1
+        {ω | a ≤ empiricalMean X n ω} := fun _ hω => hω.1
     let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
-    let F := {ω | empiricalMean X n ω ≥ a}
-    have h_prob_mono : (ℙ F).toReal ≥ (ℙ E).toReal :=
+    let F := {ω | a ≤ empiricalMean X n ω}
+    have h_prob_mono : (ℙ E).toReal ≤ (ℙ F).toReal :=
       ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono h_subset)
-    have h_log_ineq : ENNReal.log (ℙ F) ≥
+    have h_log_ineq :
         ENNReal.log (ENNReal.ofReal (Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
-          ((tiltedMeasure X ℙ n t) E).toReal)) := by
+          ((tiltedMeasure X ℙ n t) E).toReal)) ≤ ENNReal.log (ℙ F) := by
       apply ENNReal.log_le_log
       rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
       linarith [h_prob_mono, change_of_measure_lower_bound X h_indep h_ident h_meas h_mgf
         a δ t n ht (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n)]
-    calc ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ F)
-        ≥ ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal
+    calc (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
+          + ((1 : ℝ) / n : EReal) *
+            ENNReal.log ((tiltedMeasure X ℙ n t) E)
+        = ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal
             (Real.exp (-n * (t * (a + δ) - cgf (X 0) ℙ t)) *
-              ((tiltedMeasure X ℙ n t) E).toReal)) :=
+              ((tiltedMeasure X ℙ n t) E).toReal)) := by
+          symm
+          by_cases h_tilted_zero : (tiltedMeasure X ℙ n t) E = 0
+          · rw [h_tilted_zero]
+            simp only [ENNReal.toReal_zero, mul_zero, ENNReal.ofReal_zero, ENNReal.log_zero]
+            have h1n_pos : (0 : EReal) < ((1 : ℝ) / n : EReal) :=
+              EReal.coe_pos.mpr (by positivity)
+            rw [EReal.mul_bot_of_pos h1n_pos]
+            simp only [EReal.add_bot]
+          · exact log_exp_product_eq_neg_coef_plus_log n t a δ (cgf (X 0) ℙ t) _ hn
+              h_tilted_zero (measure_ne_top _ _)
+      _ ≤ ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ F) :=
           mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq)
             (ereal_one_div_nat_nonneg n)
-      _ = (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal)
-          + ((1 : ℝ) / n : EReal) *
-            ENNReal.log ((tiltedMeasure X ℙ n t) E) := by
-        by_cases h_tilted_zero : (tiltedMeasure X ℙ n t) E = 0
-        · rw [h_tilted_zero]
-          simp only [ENNReal.toReal_zero, mul_zero, ENNReal.ofReal_zero, ENNReal.log_zero]
-          have h1n_pos : (0 : EReal) < ((1 : ℝ) / n : EReal) := EReal.coe_pos.mpr (by positivity)
-          rw [EReal.mul_bot_of_pos h1n_pos]
-          simp only [EReal.add_bot]
-        · exact log_exp_product_eq_neg_coef_plus_log n t a δ (cgf (X 0) ℙ t) _ hn
-            h_tilted_zero (measure_ne_top _ _)
   -- The error term `n⁻¹ log tiltedMeasure(Sₙ/n ∈ [a, a + δ])` vanishes as `n → ∞`.
   have h_error_vanish := @error_term_vanishes _ _ X h_indep h_ident h_meas h_mgf h_non_deg
     _ a t δ hδ ht_deriv
@@ -267,14 +268,14 @@ private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 
     tendsto_const_add_vanishing _ _ h_error_vanish
   -- Combine the pointwise inequality and vanishing error term to conclude
   have h_eventually : ∀ᶠ (n : ℕ) in atTop,
-      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})
-      ≥ rhs_seq n :=
+      rhs_seq n ≤
+      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}) :=
     Filter.eventually_atTop.mpr ⟨1, h_pointwise⟩
   rw [← h_rhs_limit.liminf_eq]
   exact liminf_le_liminf h_eventually
 
 include h_mgf h_non_deg in
-/-- If `a ≥ 𝔼[X₁]` and `Λ'(t) = a`, then `0 ≤ t` -/
+/-- If `𝔼[X₁] ≤ a` and `Λ'(t) = a`, then `0 ≤ t` -/
 private lemma Cramer.deriv_cgf_nonneg_of_integral_le (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) (t : ℝ)
     (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
     0 ≤ t := by
@@ -302,26 +303,26 @@ private lemma Cramer.rateFunction_eq_of_deriv_eq (a t : ℝ)
   have h_analytic : AnalyticOn ℝ (cgf (X 0) ℙ) Set.univ := analyticOn_cgf_univ X h_mgf
   -- We proceed by proving inequality in both directions
   refine le_antisymm (ciSup_le fun s => ?_) (le_ciSup (h_bdd a) t)
-  -- Sub-goal `sa - Λ(s) ≤ ta - Λ(t)`, i.e. `Λ(s) ≥ Λ(t) + a(s - t)`: the CGF is above its
-  -- tangent line at `t`, as it is strictly convex (from `h_non_deg`: `Λ''(x) > 0`).
+  -- Sub-goal `sa - Λ(s) ≤ ta - Λ(t)`, i.e. `Λ(t) + a(s - t) ≤ Λ(s)`: the CGF is above its
+  -- tangent line at `t`, as it is strictly convex (from `h_non_deg`: `0 < Λ''(x)`).
   have h_convex : StrictConvexOn ℝ Set.univ (cgf (X 0) ℙ) :=
     strictConvexOn_of_deriv2_pos' convex_univ h_analytic.continuousOn
       fun x _ => by simpa [← iteratedDeriv_eq_iterate] using h_non_deg x
   have h_diff : DifferentiableAt ℝ (cgf (X 0) ℙ) t :=
     h_analytic.differentiableOn.differentiableAt (isOpen_univ.mem_nhds (Set.mem_univ t))
-  suffices h_tangent : cgf (X 0) ℙ s ≥ cgf (X 0) ℙ t + a * (s - t) by linarith
+  suffices h_tangent : cgf (X 0) ℙ t + a * (s - t) ≤ cgf (X 0) ℙ s by linarith
   rcases lt_trichotomy s t with hst | rfl | hts
   · have h_slope := h_convex.convexOn.slope_le_of_hasDerivAt
       (Set.mem_univ s) (Set.mem_univ t) hst h_diff.hasDerivAt
     rw [ht_deriv, slope_def_field] at h_slope
-    rw [ge_iff_le, ← sub_nonneg]
+    rw [← sub_nonneg]
     have : 0 < t - s := sub_pos.mpr hst
     nlinarith [(div_le_iff₀ this).mp h_slope]
   · simp
   · have h_slope := h_convex.convexOn.deriv_le_slope
       (Set.mem_univ t) (Set.mem_univ s) hts h_diff
     rw [ht_deriv, slope_def_field] at h_slope
-    rw [ge_iff_le, ← sub_nonneg]
+    rw [← sub_nonneg]
     have : 0 < s - t := sub_pos.mpr hts
     nlinarith [(le_div_iff₀ this).mp h_slope]
 
@@ -331,16 +332,16 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
     (0 : EReal) ≤
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) *
-          ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
-  -- `Var[X] > 0`
+          ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω})) atTop := by
+  -- `0 < Var[X]`
   have h_var_pos : 0 < variance (X 0) ℙ := by
     have h_int_zero : (0 : ℝ) ∈ interior (integrableExpSet (X 0) ℙ) :=
       mem_interior_integrableExpSet X h_mgf 0
     have h := variance_tilted_mul (X := X 0) (μ := ℙ) h_int_zero
     simp only [zero_mul, show (fun _ : Ω => (0 : ℝ)) = 0 from rfl, tilted_zero] at h
     exact h ▸ h_non_deg 0
-  -- `∃ c > 0` such that for all sufficiently large `n`, `ℙ(Sₙ/n ≥ a) ≥ c`
-  -- i.e. the asymptotic lower bound `ℙ(Sₙ/n ≥ a)` is greater than 0, which we derive from CLT
+  -- `∃ c > 0` such that for all sufficiently large `n`, `c ≤ ℙ(a ≤ Sₙ/n)`
+  -- i.e. the asymptotic lower bound `ℙ(a ≤ Sₙ/n)` is greater than 0, which we derive from CLT
   -- on the tilted measures, noting that at `t = 0`, the tilted measures `tiltedMeasure`
   -- coincide with `ℙ`.
   have h_prob_lower_bound : ∃ c > 0, ∀ᶠ n in atTop,
@@ -368,7 +369,7 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
     rw [EReal.div_eq_inv_mul, div_eq_mul_inv, EReal.coe_one, one_mul]
   have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
   -- Establish bounds to apply squeeze theorem
-  -- `n⁻¹ log (c) ≤ n⁻¹ log ℙ(Sₙ/n ≥ a) ≤ 0`
+  -- `n⁻¹ log (c) ≤ n⁻¹ log ℙ(a ≤ Sₙ/n) ≤ 0`
   have h_squeeze : ∀ᶠ (m : ℕ) in atTop,
       ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ENNReal.ofReal c)
       ≤ ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X m ω})
@@ -380,27 +381,23 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
     · exact ENNReal.log_le_log <|
         (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).mpr hm_lower
     · exact ENNReal.log_le_zero_iff.mpr prob_le_one
-  -- `n⁻¹ log ℙ(Sₙ/n ≥ a) → 0` by squeeze theorem
+  -- `n⁻¹ log ℙ(a ≤ Sₙ/n) → 0` by squeeze theorem
   have h_tendsto :
       Tendsto (fun n : ℕ =>
           ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
         atTop (𝓝 0) :=
     tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
       (h_squeeze.mono fun _ hn => hn.1) (h_squeeze.mono fun _ hn => hn.2)
-  change (0 : EReal) ≤
-    liminf (fun n : ℕ =>
-      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
-      atTop
-  rw [h_tendsto.liminf_eq]
+  exact h_tendsto.liminf_eq.symm.le
 
 include h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed in
-/-- **Cramér's Theorem (Lower Bound)**: Given `a ≥ E[X 0]`,
-`-rateFunction X a ≤ liminfₙ n⁻¹ log ℙ(Sₙ/n ≥ a)` -/
+/-- **Cramér's Theorem (Lower Bound)**: Given `E[X 0] ≤ a`,
+`-rateFunction X a ≤ liminfₙ n⁻¹ log ℙ(a ≤ Sₙ/n)` -/
 theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     (- rateFunction X a : EReal) ≤
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) *
-          ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
+          ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω})) atTop := by
   -- Get the `t` such that `Λ'(t) = a`.
   obtain ⟨t, ht_deriv⟩ := h_exposed a h_mean
   have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_integral_le X h_mgf h_non_deg a h_mean t ht_deriv
@@ -409,7 +406,7 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   rw [h_rate_eq]
   let LHS_val :=
     liminf (fun n : ℕ =>
-      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a}))
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ℙ {ω | a ≤ empiricalMean X n ω}))
       atTop
   -- Casework on whether `t = 0`
   by_cases ht_zero : t = 0
@@ -421,7 +418,7 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
   -- Bound the liminf from below for any fixed positive `δ` using the tilted measure bounds.
   have h_bound_for_all_delta : ∀ (δ : ℝ), 0 < δ →
       (-(t * a - cgf (X 0) ℙ t) - t * δ : EReal) ≤ LHS_val := fun δ hδ =>
-    (lower_bound_via_tilted X h_indep h_ident h_meas h_mgf h_non_deg a t δ hδ ht_pos ht_deriv).le
+    lower_bound_via_tilted X h_indep h_ident h_meas h_mgf h_non_deg a t δ hδ ht_pos ht_deriv
   -- Conclude the lower bound by taking `δ → 0`.
   refine EReal.le_of_forall_sub_le fun ε hε => ?_
   have h := h_bound_for_all_delta (ε / t) (div_pos hε ht_pos)

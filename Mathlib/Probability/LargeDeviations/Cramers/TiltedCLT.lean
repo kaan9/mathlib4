@@ -35,7 +35,7 @@ An immediate corollary is a concentration statement used in `LowerBound.lean`.
 * `Cramer.tendsto_charFun_stdPartialSum`: under `tiltedMeasure`, the characteristic function of
   `Zₙ` converges pointwise to that of `𝒩(0,1)`.
 * `Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge`: the concentration statement for the
-  lower bound proof: For every `δ, ε > 0` and `t` with `Λ'(t) = a`, eventually
+  lower bound proof: For every `0 < δ`, `0 < ε` and `t` with `Λ'(t) = a`, eventually
   `1/2 - ε ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])`.
 
 -/
@@ -120,7 +120,7 @@ lemma Cramer.memLp_id_tiltedLaw (t : ℝ) : MemLp (id : ℝ → ℝ) 2 (tiltedLa
 
 /-! ### Algebraic Identities -/
 
-/-- Algebraic identity: for `t` with `Λ'(t) = a` and `n ≥ 1`, the event
+/-- Algebraic identity: for `t` with `Λ'(t) = a` and `0 < n`, the event
 `{Sₙ/n ∈ [a, a+δ]}` is exactly `{Zₙ ∈ [0, δ · √(n / Λ''(t))]}`. -/
 lemma Cramer.empiricalMean_mem_Icc_iff_stdPartialSum_mem_Icc (t a δ : ℝ) (n : ℕ) (hn : 0 < n)
     (h_non_deg_t : 0 < iteratedDeriv 2 (cgf (X 0) ℙ) t)
@@ -668,7 +668,7 @@ is equivalent to `{Zₙ ∈ [0, δ · √(n/Λ''(t))]}` and using the convergenc
 to `𝒩(0, 1)`. -/
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
-/-- For `t` with `Λ'(t) = a` and any `M > 0`, eventually the tilted probability that
+/-- For `t` with `Λ'(t) = a` and any `0 ≤ M`, eventually the tilted probability that
 `Zₙ ∈ [0, M]` is at least `𝒩(0,1)([0, M]) - ε`. -/
 lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM : 0 ≤ M)
     (ε : ℝ) (hε : 0 < ε) :
@@ -700,7 +700,7 @@ lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM
       h_weak h_fr)).eventually_const_le h_lt
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
-/-- **Corollary of Tilted CLT:** Given `Λ'(t) = a`, for all `δ > 0` and `ε > 0`,
+/-- **Corollary of Tilted CLT:** Given `Λ'(t) = a`, for all `0 < δ` and `0 < ε`,
  `1/2 - ε ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])` holds for all sufficiently large `n`. -/
 lemma Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ)
     (ε : ℝ) (hε : 0 < ε) (ht_deriv : deriv (cgf (X 0) ℙ) t = a) :
@@ -715,7 +715,7 @@ lemma Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge (t a δ : ℝ) (h
   have hZ_meas : ∀ n, Measurable (stdPartialSum X t n) := fun n => by
     unfold stdPartialSum
     exact ((measurable_partialSum X h_meas n).sub_const _).div_const _
-  -- Pick `M₀ ≥ 0` with `1/2 - ε/2 < N([0, M₀])`.
+  -- Pick `0 ≤ M₀` with `1/2 - ε/2 < N([0, M₀])`.
   have h_gauss_half : Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
       atTop (𝓝 (1 / 2)) := by
     rw [show (1 : ℝ) / 2 = ((1 : ℝ≥0∞) / 2).toReal from by norm_num]
@@ -734,7 +734,7 @@ lemma Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge (t a δ : ℝ) (h
         hδ).eventually_ge_atTop M₀
   filter_upwards [h_liminf, h_Mn_ge, Filter.eventually_gt_atTop 0]
     with n h_lim hMn_ge hn_pos
-  -- `M_n = δ * √(n / v) ≥ M₀ ≥ 0`.
+  -- `0 ≤ M₀ ≤ M_n = δ * √(n / v)`.
   set M_n := δ * Real.sqrt ((n : ℝ) / v)
   haveI : IsProbabilityMeasure ((tiltedMeasure X ℙ n t).map (stdPartialSum X t n)) :=
     Measure.isProbabilityMeasure_map (hZ_meas n).aemeasurable
