@@ -34,7 +34,6 @@ variable (X : ℕ → Ω → ℝ)
 variable (h_indep : iIndepFun X ℙ)
 variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
 variable (h_meas : ∀ n, Measurable (X n))
-variable (h_int : Integrable (X 0) ℙ)
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) ℙ t)))
 
@@ -52,7 +51,7 @@ lemma measure_empiricalMean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_p
   rw [cgf_partialSum X h_indep h_ident h_meas h_mgf n t]
   apply le_of_eq; congr 1; ring
 
-include h_indep h_meas h_ident h_mgf h_bdd h_int in
+include h_indep h_meas h_ident h_mgf h_bdd in
 /-- **Cramér's Theorem (Upper Bound)**: For any a ≥ 𝔼[X 0], the scaled log probability that
 the empirical mean exceeds a is bounded above by the negative rate function:
 `limsup_{n→∞} log(ℙ(Sₙ/n ≥ a)) / n ≤ -rateFunction X a`
@@ -90,7 +89,7 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
             ← EReal.coe_sInf h_ne h_bdd_neg, h_real, EReal.coe_neg]
       _ = (- rateFunction X a : EReal) := by
           norm_cast
-          exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg X h_int h_mgf h_bdd a h_mean).symm
+          exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg X h_mgf h_bdd a h_mean).symm
   intro t ht
   refine limsup_le_of_le (isCoboundedUnder_le_of_le atTop (fun _ => bot_le))
     (eventually_atTop.mpr ⟨1, fun n hn => ?_⟩)

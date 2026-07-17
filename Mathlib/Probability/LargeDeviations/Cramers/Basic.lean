@@ -70,9 +70,6 @@ variable (h_indep : iIndepFun X ℙ)
 variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) ℙ ℙ)
 -- The random variables Xᵢ are measurable.
 variable (h_meas : ∀ n, Measurable (X n))
--- The random variable X₀ is integrable.
--- Note: This is implied by h_mgf but we assume it directly for convenience.
-variable (h_int : Integrable (X 0) ℙ)
 -- The random variable X₀ has a finite moment generating function for all `t ∈ ℝ`.
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) ℙ)
 -- Assume that this is a "good" rate function, i.e. bounded above.
@@ -103,6 +100,11 @@ include h_mgf in
 lemma Cramer.mem_interior_integrableExpSet (t : ℝ) :
     t ∈ interior (integrableExpSet (X 0) ℙ) := by
   simp [Set.eq_univ_of_forall h_mgf (s := integrableExpSet (X 0) ℙ)]
+
+include h_mgf in
+/-- Integrability of `X 0` follows from finiteness of the MGF on all of `ℝ`. -/
+lemma Cramer.integrable_of_forall_integrable_exp : Integrable (X 0) ℙ :=
+  integrable_of_mem_interior_integrableExpSet (Cramer.mem_interior_integrableExpSet X h_mgf 0)
 
 /-! ### Lemmas requiring `IsProbabilityMeasure` -/
 
@@ -174,11 +176,12 @@ lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
     (fun s => integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf s n)
     (s := integrableExpSet (partialSum X n) ℙ)]
 
-include h_bdd h_mgf h_int in
+include h_bdd h_mgf in
 /-- For `a ≥ 𝔼[X]`, the supremum in the rate function is achieved by non-negative `t`.
 That is, `rateFunction X a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
 lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : 𝔼[X 0] ≤ a) :
     rateFunction X a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) ℙ t := by
+  have h_int := Cramer.integrable_of_forall_integrable_exp X h_mgf
   rw [rateFunction]
   have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
   have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} =>
