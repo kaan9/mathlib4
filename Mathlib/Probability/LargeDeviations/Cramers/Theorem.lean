@@ -7,19 +7,25 @@ module
 
 public import Mathlib.Probability.LargeDeviations.Cramers.LowerBound
 public import Mathlib.Probability.LargeDeviations.Cramers.UpperBound
-public import Mathlib.Probability.LargeDeviations.Defs
 public import Mathlib.Probability.StrongLaw
 
 /-!
 # Cramér's Theorem
 
-This file proves the main result:
+This file proves the two main bounds of Cramér's theorem for the empirical mean of i.i.d.
+random variables with finite MGF, with rate function `Cramer.upperTailRateFunction X`:
 
-- `cramers_theorem`: The empirical mean of i.i.d. random variables with finite MGF satisfies
-  the Large Deviation Principle with rate function `Cramer.upperTailRateFunction X`.
+- `Cramer.limsup_le_neg_upperTailRateFunction` (upper bound): for every `a`,
+  `limsupₙ (1/n) log ℙ(Sₙ/n ≥ a) ≤ -I(a)`.
+- `Cramer.neg_upperTailRateFunction_le_liminf` (lower bound): for every `a`,
+  `-I(a) ≤ liminfₙ (1/n) log ℙ(Sₙ/n ≥ a)`.
 
-The proof combines the upper and lower bounds from `UpperBound.lean` and `LowerBound.lean`,
-and handles the case `a < 𝔼[X 0]` using the strong law of large numbers.
+Each bound combines the corresponding estimate from `UpperBound.lean` and `LowerBound.lean`
+for `a ≥ 𝔼[X 0]`, and handles the case `a < 𝔼[X 0]` using the strong law of large numbers.
+
+## TODO
+Define general large deviation principles (the limsup over closed sets / liminf over open sets
+with lower semicontinuous rate functions) and restate these two bounds in that language.
 -/
 
 open ProbabilityTheory MeasureTheory Filter Topology
@@ -122,70 +128,83 @@ private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
     (fun n => h_measure_ge n n le_rfl) h_measure_le
 
-include h_indep h_meas h_ident h_mgf h_int h_bdd h_non_deg h_exposed in
-/-- **Cramér's Theorem**: For i.i.d. random variables with finite MGF, the empirical mean
-satisfies a Large Deviation Principle with rate function being the Legendre transform of the CGF. -/
-theorem cramers_theorem :
-    LargeDeviationPrinciple (empiricalMean X) (Cramer.upperTailRateFunction X) := by
-  constructor
-  · intro a
-    by_cases h : 𝔼[X 0] ≤ a
-    · rw [Cramer.upperTailRateFunction, if_pos h]
-      exact Cramer.limsup_le_neg_rateFunction X h_indep h_ident h_meas h_int h_mgf h_bdd a h
-    · norm_cast
-      rw [Cramer.upperTailRateFunction, if_neg h]
-      have h_prob_bound_2 : ∀ n : ℕ, n ≠ 0 →
-          1 / ↑n * (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
-        intro n h_n_nonneg
-        have h_log_nonpos : (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
-          rw [ENNReal.log_le_zero_iff]
-          exact prob_le_one
-        rw [EReal.mul_nonpos_iff]
-        left
-        constructor
-        · rw [div_eq_mul_inv, one_mul]
-          apply EReal.inv_nonneg_of_nonneg
-          have : 0 < (n : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero h_n_nonneg)
-          exact EReal.coe_nonneg.mpr (le_of_lt this)
-        · exact h_log_nonpos
-      simp only [neg_zero]
-      apply Filter.limsup_le_of_le
-      · exact isCoboundedUnder_le_of_le atTop (fun _ => bot_le)
-      · apply Filter.eventually_atTop.mpr
-        use 1
-        intro n hn
-        exact h_prob_bound_2 n (Nat.one_le_iff_ne_zero.mp hn)
-  · intro a
-    by_cases h : 𝔼[X 0] ≤ a
-    · rw [Cramer.upperTailRateFunction, if_pos h]
-      exact Cramer.neg_rateFunction_le_liminf X h_indep h_ident h_meas h_mgf h_bdd h_non_deg
-        h_exposed a h
-    · rw [Cramer.upperTailRateFunction, if_neg h]
-      norm_cast
-      rw [neg_zero]
-      have h_a_lt_mean : a < 𝔼[X 0] := not_le.mp h
-      have h_prob_to_one :
-          Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
-        Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral X h_indep h_ident h_meas h_int a
-          h_a_lt_mean
-      have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
-          1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+include h_indep h_meas h_ident h_int h_mgf h_bdd in
+/-- **Cramér's theorem** (upper bound): for i.i.d. random variables with finite MGF, the scaled
+log-tail probability of the empirical mean is asymptotically bounded above by the negative rate
+function, i.e. for every `a`,
+`limsupₙ (1/n) log ℙ(Sₙ/n ≥ a) ≤ -upperTailRateFunction X a`. -/
+theorem Cramer.limsup_le_neg_upperTailRateFunction : ∀ a : ℝ,
+    limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) *
+      ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop
+      ≤ (- Cramer.upperTailRateFunction X a : EReal) := by
+  intro a
+  by_cases h : 𝔼[X 0] ≤ a
+  · rw [Cramer.upperTailRateFunction, if_pos h]
+    exact Cramer.limsup_le_neg_rateFunction X h_indep h_ident h_meas h_int h_mgf h_bdd a h
+  · norm_cast
+    rw [Cramer.upperTailRateFunction, if_neg h]
+    have h_prob_bound_2 : ∀ n : ℕ, n ≠ 0 →
+        1 / ↑n * (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
+      intro n h_n_nonneg
+      have h_log_nonpos : (ℙ {ω | empiricalMean X n ω ≥ a}).log ≤ 0 := by
+        rw [ENNReal.log_le_zero_iff]
+        exact prob_le_one
+      rw [EReal.mul_nonpos_iff]
+      left
+      constructor
+      · rw [div_eq_mul_inv, one_mul]
+        apply EReal.inv_nonneg_of_nonneg
+        have : 0 < (n : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero h_n_nonneg)
+        exact EReal.coe_nonneg.mpr (le_of_lt this)
+      · exact h_log_nonpos
+    simp only [neg_zero]
+    apply Filter.limsup_le_of_le
+    · exact isCoboundedUnder_le_of_le atTop (fun _ => bot_le)
+    · apply Filter.eventually_atTop.mpr
+      use 1
+      intro n hn
+      exact h_prob_bound_2 n (Nat.one_le_iff_ne_zero.mp hn)
+
+include h_indep h_meas h_ident h_int h_mgf h_bdd h_non_deg h_exposed in
+/-- **Cramér's theorem** (lower bound): for i.i.d. random variables with finite MGF, the scaled
+log-tail probability of the empirical mean is asymptotically bounded below by the negative rate
+function, i.e. for every `a`,
+`-upperTailRateFunction X a ≤ liminfₙ (1/n) log ℙ(Sₙ/n ≥ a)`. -/
+theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
+    (- Cramer.upperTailRateFunction X a : EReal) ≤
+      liminf (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) *
+        ENNReal.log (ℙ {ω | empiricalMean X n ω ≥ a})) atTop := by
+  intro a
+  by_cases h : 𝔼[X 0] ≤ a
+  · rw [Cramer.upperTailRateFunction, if_pos h]
+    exact Cramer.neg_rateFunction_le_liminf X h_indep h_ident h_meas h_mgf h_bdd h_non_deg
+      h_exposed a h
+  · rw [Cramer.upperTailRateFunction, if_neg h]
+    norm_cast
+    rw [neg_zero]
+    have h_a_lt_mean : a < 𝔼[X 0] := not_le.mp h
+    have h_prob_to_one :
+        Tendsto (fun n => (ℙ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
+      Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral X h_indep h_ident h_meas h_int a
+        h_a_lt_mean
+    have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
+        1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+        (𝓝 (0 : EReal)) := by
+      have h_log_to_zero : Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
           (𝓝 (0 : EReal)) := by
-        have h_log_to_zero : Tendsto (fun n => (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
-            (𝓝 (0 : EReal)) := by
-          simpa [ENNReal.log_one, Function.comp_def] using
-            (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
-        have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
-          simpa using ereal_inv_nat_mul_const_tendsto_zero (1 : ℝ)
-        simpa using EReal.Tendsto.mul h_inv_to_zero h_log_to_zero
-          (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
-          (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
-      have h_lim_eq : liminf (fun (n : ℕ) =>
-          1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
-          = (0 : EReal) := Filter.Tendsto.liminf_eq h_seq_to_zero
-      have : liminf (fun n : ℕ =>
-          1 / (n : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = 0 := h_lim_eq
-      rw [this]
-      norm_cast
+        simpa [ENNReal.log_one, Function.comp_def] using
+          (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
+      have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
+        simpa using ereal_inv_nat_mul_const_tendsto_zero (1 : ℝ)
+      simpa using EReal.Tendsto.mul h_inv_to_zero h_log_to_zero
+        (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
+        (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
+    have h_lim_eq : liminf (fun (n : ℕ) =>
+        1 / ((n : ℝ) : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop
+        = (0 : EReal) := Filter.Tendsto.liminf_eq h_seq_to_zero
+    have : liminf (fun n : ℕ =>
+        1 / (n : EReal) * (ℙ {ω | empiricalMean X n ω ≥ a}).log) atTop = 0 := h_lim_eq
+    rw [this]
+    norm_cast
 
 end ProbabilityTheory

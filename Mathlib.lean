@@ -6356,7 +6356,6 @@ public import Mathlib.Probability.LargeDeviations.Cramers.LowerBound
 public import Mathlib.Probability.LargeDeviations.Cramers.Theorem
 public import Mathlib.Probability.LargeDeviations.Cramers.TiltedCLT
 public import Mathlib.Probability.LargeDeviations.Cramers.UpperBound
-public import Mathlib.Probability.LargeDeviations.Defs
 public import Mathlib.Probability.Martingale.Basic
 public import Mathlib.Probability.Martingale.BorelCantelli
 public import Mathlib.Probability.Martingale.Centering
