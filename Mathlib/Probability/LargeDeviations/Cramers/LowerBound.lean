@@ -97,23 +97,34 @@ private lemma tendsto_const_add_vanishing (c : EReal) (f : ℕ → EReal)
   simpa [Function.comp_def] using (EReal.continuousAt_add (by simp) (by simp)).tendsto.comp
     (tendsto_const_nhds.prodMk_nhds h)
 
+/-- If probability measures `ν n` assign eventually at least a fixed `c > 0` to events `E n`,
+then `n⁻¹ log ((ν n) (E n)) → 0` as `n → ∞`. -/
+private lemma tendsto_inv_mul_log_of_eventually_le (ν : ℕ → Measure Ω)
+    [∀ n, IsProbabilityMeasure (ν n)] (E : ℕ → Set Ω) {c : ℝ} (hc : 0 < c)
+    (h : ∀ᶠ n in atTop, c ≤ ((ν n) (E n)).toReal) :
+    Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log ((ν n) (E n)))
+      atTop (𝓝 0) := by
+  have h_lower_tendsto : Tendsto (fun n : ℕ =>
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal c)) atTop (𝓝 0) := by
+    rw [ENNReal.log_ofReal_of_pos hc]
+    refine (EReal.tendsto_const_div_atTop_nhds_zero_nat (C := (Real.log c : EReal))
+      (EReal.coe_ne_bot _) (EReal.coe_ne_top _)).congr fun n => ?_
+    rw [EReal.div_eq_inv_mul, div_eq_mul_inv, EReal.coe_one, one_mul]
+  have h_eventually : ∀ᶠ (n : ℕ) in atTop,
+      ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal c)
+        ≤ ((1 : ℝ) / n : EReal) * ENNReal.log ((ν n) (E n))
+      ∧ ((1 : ℝ) / n : EReal) * ENNReal.log ((ν n) (E n)) ≤ 0 := by
+    filter_upwards [h] with n hn
+    refine ⟨mul_le_mul_of_nonneg_left ?_ (ereal_one_div_nat_nonneg n),
+      mul_nonpos_of_nonneg_of_nonpos (ereal_one_div_nat_nonneg n) ?_⟩
+    · exact ENNReal.log_le_log <| (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).mpr hn
+    · exact ENNReal.log_le_zero_iff.mpr prob_le_one
+  exact tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto tendsto_const_nhds
+    (h_eventually.mono fun n h => h.1) (h_eventually.mono fun n h => h.2)
+
 /-! ### Lemmas requiring IsProbabilityMeasure -/
 
 variable [IsProbabilityMeasure μ]
-
-include h_indep h_ident h_meas h_mgf h_non_deg in
-/-- `tiltedMeasure(Sₙ/n ∈ [a, a+δ])` is eventually always positive as `n → ∞`.
-That is, `∃ c > 0` s.t. `c ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])` for all sufficiently large `n`.
-This is a consequence of the Central Limit Theorem assumption. -/
-private lemma Cramer.tilted_window_lower_bound_from_concentration (a t δ : ℝ) (hδ : 0 < δ)
-    (ht_deriv : deriv (cgf (X 0) μ) t = a) :
-    ∃ c > 0, ∀ᶠ n in atTop,
-      c ≤ ((tiltedMeasure X μ n t)
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-  refine ⟨1/4, by norm_num, ?_⟩
-  filter_upwards [eventually_tiltedMeasure_empiricalMean_mem_Icc_ge X h_indep h_ident h_meas h_mgf
-    h_non_deg t a δ hδ (1/4) (by norm_num) ht_deriv] with n hn
-  linarith
 
 /-- For an event `E ⊆ Ω` and a random variable `f : Ω → ℝ`, we have
 `μ(E) = μ[eᶠ] ∫_E exp(-f) dμ_f`
@@ -136,10 +147,10 @@ include h_indep h_ident h_meas h_mgf in
 μ(Sₙ/n ∈ [a, a + δ])` -/
 lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
     (h_int : Integrable (fun ω => Real.exp (t * partialSum X n ω)) μ) :
-    let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
     Real.exp (-n * (t * (a + δ) - cgf (X 0) μ t)) *
-      ((tiltedMeasure X μ n t) E).toReal ≤ (μ E).toReal := by
-  intro E
+      ((tiltedMeasure X μ n t) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal ≤
+      (μ {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+  set E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
   have hE : MeasurableSet E :=
     measurableSet_Icc.preimage (measurable_empiricalMean X h_meas n)
   rw [measure_eq_integral_exp_neg_tilted (fun ω => t * partialSum X n ω) E h_int hE]
@@ -185,33 +196,15 @@ private lemma Cramer.error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
     Tendsto (fun n : ℕ =>
       ((1 : ℝ) / n : EReal) * ENNReal.log ((tiltedMeasure X μ n t)
         {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})) atTop (𝓝 0) := by
-  obtain ⟨c, hc_pos, h_bounded⟩ :=
-    tilted_window_lower_bound_from_concentration X h_indep h_ident h_meas h_mgf h_non_deg
-      a t δ hδ ht_deriv
   haveI : ∀ m, IsProbabilityMeasure (tiltedMeasure X μ m t) := fun m =>
     isProbabilityMeasure_tiltedMeasure X h_indep h_ident h_meas h_mgf t m
-  have h_lower_tendsto : Tendsto (fun m : ℕ =>
-      ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)) atTop (𝓝 0) := by
-    rw [ENNReal.log_ofReal_of_pos hc_pos]
-    refine (EReal.tendsto_const_div_atTop_nhds_zero_nat (C := (Real.log c : EReal))
-      (EReal.coe_ne_bot _) (EReal.coe_ne_top _)).congr fun n => ?_
-    rw [EReal.div_eq_inv_mul, div_eq_mul_inv, EReal.coe_one, one_mul]
-  have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
-  have h_eventually : ∀ᶠ (m : ℕ) in atTop,
-      ((1 : ℝ) / m : EReal) * ENNReal.log (ENNReal.ofReal c)
-      ≤ ((1 : ℝ) / m : EReal) * ENNReal.log ((tiltedMeasure X μ m t)
-          {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
-      ∧ ((1 : ℝ) / m : EReal) * ENNReal.log ((tiltedMeasure X μ m t)
-          {ω | empiricalMean X m ω ∈ Set.Icc a (a + δ)})
-      ≤ 0 := by
-    filter_upwards [h_bounded] with m hm_bound
-    refine ⟨mul_le_mul_of_nonneg_left ?_ (ereal_one_div_nat_nonneg m),
-      mul_nonpos_of_nonneg_of_nonpos (ereal_one_div_nat_nonneg m) ?_⟩
-    · exact ENNReal.log_le_log <| (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).mpr
-        hm_bound
-    · exact ENNReal.log_le_zero_iff.mpr prob_le_one
-  exact tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
-    (h_eventually.mono fun m h => h.1) (h_eventually.mono fun m h => h.2)
+  have h_bounded : ∀ᶠ n in atTop, (1 / 4 : ℝ) ≤
+      ((tiltedMeasure X μ n t) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+    filter_upwards [eventually_tiltedMeasure_empiricalMean_mem_Icc_ge X h_indep h_ident h_meas
+      h_mgf h_non_deg t a δ hδ (1/4) (by norm_num) ht_deriv] with n hn
+    linarith
+  exact tendsto_inv_mul_log_of_eventually_le (fun n => tiltedMeasure X μ n t)
+    (fun n => {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}) (by norm_num) h_bounded
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- For `0 < δ` and `0 < t` with `Λ'(t) = a`, we have
@@ -340,13 +333,6 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) *
           ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop := by
-  -- `0 < Var[X]`
-  have h_var_pos : 0 < variance (X 0) μ := by
-    have h_int_zero : (0 : ℝ) ∈ interior (integrableExpSet (X 0) μ) :=
-      mem_interior_integrableExpSet X h_mgf 0
-    have h := variance_tilted_mul (X := X 0) (μ := μ) h_int_zero
-    simp only [zero_mul, show (fun _ : Ω => (0 : ℝ)) = 0 from rfl, tilted_zero] at h
-    exact h ▸ h_non_deg 0
   -- `∃ c > 0` such that for all sufficiently large `n`, `c ≤ μ(a ≤ Sₙ/n)`
   -- i.e. the asymptotic lower bound `μ(a ≤ Sₙ/n)` is greater than 0, which we derive from CLT
   -- on the tilted measures, noting that at `t = 0`, the tilted measures `tiltedMeasure`
@@ -367,34 +353,12 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
       _ ≤ (μ {ω | a ≤ empiricalMean X n ω}).toReal :=
         ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono fun _ hω => hω.1)
   obtain ⟨c, hc_pos, h_eventually_lower⟩ := h_prob_lower_bound
-  have h_lower_tendsto :
-      Tendsto (fun n : ℕ => ((1 : ℝ) / n : EReal) * ENNReal.log (ENNReal.ofReal c))
-        atTop (𝓝 0) := by
-    rw [ENNReal.log_ofReal_of_pos hc_pos]
-    refine (EReal.tendsto_const_div_atTop_nhds_zero_nat (C := (Real.log c : EReal))
-      (EReal.coe_ne_bot _) (EReal.coe_ne_top _)).congr fun n => ?_
-    rw [EReal.div_eq_inv_mul, div_eq_mul_inv, EReal.coe_one, one_mul]
-  have h_upper_tendsto : Tendsto (fun (_ : ℕ) => (0 : EReal)) atTop (𝓝 0) := tendsto_const_nhds
-  -- Establish bounds to apply squeeze theorem
-  -- `n⁻¹ log (c) ≤ n⁻¹ log μ(a ≤ Sₙ/n) ≤ 0`
-  have h_squeeze : ∀ᶠ (m : ℕ) in atTop,
-      ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (ENNReal.ofReal c)
-      ≤ ((1 : ℝ) / (m : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X m ω})
-      ∧ ((1 : ℝ) / (m : ℝ) : EReal) *
-        ENNReal.log (μ {ω | a ≤ empiricalMean X m ω}) ≤ 0 := by
-    filter_upwards [h_eventually_lower] with m hm_lower
-    refine ⟨mul_le_mul_of_nonneg_left ?_ (ereal_one_div_nat_nonneg m),
-      mul_nonpos_of_nonneg_of_nonpos (ereal_one_div_nat_nonneg m) ?_⟩
-    · exact ENNReal.log_le_log <|
-        (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).mpr hm_lower
-    · exact ENNReal.log_le_zero_iff.mpr prob_le_one
-  -- `n⁻¹ log μ(a ≤ Sₙ/n) → 0` by squeeze theorem
   have h_tendsto :
       Tendsto (fun n : ℕ =>
           ((1 : ℝ) / n : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}))
         atTop (𝓝 0) :=
-    tendsto_of_tendsto_of_tendsto_of_le_of_le' h_lower_tendsto h_upper_tendsto
-      (h_squeeze.mono fun _ hn => hn.1) (h_squeeze.mono fun _ hn => hn.2)
+    tendsto_inv_mul_log_of_eventually_le (fun _ => μ)
+      (fun n => {ω | a ≤ empiricalMean X n ω}) hc_pos h_eventually_lower
   exact h_tendsto.liminf_eq.symm.le
 
 include h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed in

@@ -81,23 +81,9 @@ private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (
       unfold empiricalMean partialSum
       rw [Finset.sum_apply]
     rwa [h_eq]
-  have h_gap : 0 < μ[X 0] - a := sub_pos.mpr h
-  set ε := (μ[X 0] - a) / 2 with hε_def
-  have hε_pos : 0 < ε := by linarith
-  have hε_bound : a + ε < μ[X 0] := by linarith
-  have h_conv_set :
-      ∀ᵐ ω ∂μ, ∀ᶠ n in atTop, |empiricalMean X n ω - μ[X 0]| < ε := by
-    filter_upwards [h_strong_law] with ω hω
-    have h_tend := (Metric.tendsto_nhds.mp hω) ε hε_pos
-    filter_upwards [h_tend] with n hn
-    rwa [Real.dist_eq] at hn
   have h_eventually_large : ∀ᵐ ω ∂μ, ∀ᶠ n in atTop, a ≤ empiricalMean X n ω := by
-    filter_upwards [h_conv_set] with ω hω
-    filter_upwards [hω] with n hn
-    have : μ[X 0] - ε < empiricalMean X n ω := by
-      rw [abs_sub_lt_iff] at hn
-      linarith
-    linarith
+    filter_upwards [h_strong_law] with ω hω
+    exact hω.eventually (eventually_ge_nhds h)
   let S : ℕ → Set Ω := fun k => {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
   have h_mono : Monotone S := by
     intro k₁ k₂ hk ω hω n hn
@@ -116,9 +102,8 @@ private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (
       refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
       exact measurableSet_le measurable_const (measurable_empiricalMean X h_meas n)
     rw [h_union]
-    have h_compl : μ {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} = 0 := by
-      rw [← ae_iff]
-      exact h_eventually_large
+    have h_compl : μ {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} = 0 :=
+      ae_iff.mp h_eventually_large
     have h_compl_eq : {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω}ᶜ =
         {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
       ext; simp
@@ -128,17 +113,8 @@ private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (
     have := tendsto_measure_iUnion_atTop (μ := μ) h_mono
     rw [h_union_meas] at this
     exact this
-  have h_superset : ∀ k n, k ≤ n → S k ⊆ {ω | a ≤ empiricalMean X n ω} := by
-    intro k n hkn ω hω
-    exact hω n hkn
-  have h_measure_ge : ∀ k n, k ≤ n → μ (S k) ≤ μ {ω | a ≤ empiricalMean X n ω} := by
-    intro k n hkn
-    exact measure_mono (h_superset k n hkn)
-  have h_measure_le : ∀ n, μ {ω | a ≤ empiricalMean X n ω} ≤ 1 := by
-    intro n
-    exact prob_le_one
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
-    (fun n => h_measure_ge n n le_rfl) h_measure_le
+    (fun n => measure_mono fun ω hω => hω n le_rfl) fun _ => prob_le_one
 
 include h_indep h_meas h_ident h_mgf h_bdd in
 /-- **Cramér's theorem** (upper bound): for i.i.d. random variables with finite MGF, the scaled
