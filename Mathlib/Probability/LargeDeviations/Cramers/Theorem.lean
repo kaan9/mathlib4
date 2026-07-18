@@ -12,22 +12,32 @@ import Mathlib.Probability.StrongLaw
 import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
 
 /-!
-# Cramér's Theorem
+# Cramér's theorem
 
-This file proves the two main bounds of Cramér's theorem for the empirical mean of i.i.d.
-random variables with finite MGF, with rate function `Cramer.upperTailRateFunction X μ`:
+Cramér's theorem describes the exponential decay of the tail probabilities `μ(a ≤ Sₙ / n)` of the
+empirical mean of a sequence of i.i.d. real random variables with finite moment-generating
+function. This file assembles the two bounds of the theorem, expressed through the rate function
+`Cramer.upperTailRateFunction X μ`.
 
-- `Cramer.limsup_le_neg_upperTailRateFunction` (upper bound): for every `a`,
-  `limsupₙ (1/n) log μ(a ≤ Sₙ/n) ≤ -I(a)`.
-- `Cramer.neg_upperTailRateFunction_le_liminf` (lower bound): for every `a`,
-  `-I(a) ≤ liminfₙ (1/n) log μ(a ≤ Sₙ/n)`.
+Each bound combines the corresponding estimate from `UpperBound.lean` and `LowerBound.lean` for
+`μ[X 0] ≤ a`, and handles the case `a < μ[X 0]` using the strong law of large numbers, under which
+`μ(a ≤ Sₙ / n) → 1`.
 
-Each bound combines the corresponding estimate from `UpperBound.lean` and `LowerBound.lean`
-for `μ[X 0] ≤ a`, and handles the case `a < μ[X 0]` using the strong law of large numbers.
+## Main results
+
+* `Cramer.limsup_le_neg_upperTailRateFunction` (upper bound): for every `a`,
+  `limsupₙ (1 / n) log μ(a ≤ Sₙ / n) ≤ -upperTailRateFunction X μ a`.
+* `Cramer.neg_upperTailRateFunction_le_liminf` (lower bound): for every `a`,
+  `-upperTailRateFunction X μ a ≤ liminfₙ (1 / n) log μ(a ≤ Sₙ / n)`.
 
 ## TODO
 Define general large deviation principles (the limsup over closed sets / liminf over open sets
 with lower semicontinuous rate functions) and restate these two bounds in that language.
+
+## References
+
+The statement and its proof follow Theorem 2.2.3 of
+[A. Dembo and O. Zeitouni, *Large Deviations Techniques and Applications*][demboZeitouni2010].
 -/
 
 open ProbabilityTheory MeasureTheory Filter Topology

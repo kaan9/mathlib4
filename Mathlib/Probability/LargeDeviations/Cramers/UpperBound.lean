@@ -9,18 +9,21 @@ public import Mathlib.Probability.LargeDeviations.Cramers.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
 
 /-!
-# Cramér's Theorem — Upper Bound
+# Cramér's theorem: upper bound
 
-This file proves the upper (Chernoff) bound for Cramér's theorem:
+This file proves the upper (Chernoff) bound for Cramér's theorem: the scaled log-probability that
+the empirical mean `Sₙ / n` exceeds a level `a ≥ μ[X 0]` is asymptotically at most `-I(a)`, where
+`I` is the rate function `Cramer.rateFunction`.
 
-- `Cramer.limsup_le_neg_rateFunction`: For any `a` with `μ[X 0] ≤ a`,
-  `limsup (1/n) * log μ(a ≤ Sₙ/n) ≤ -rateFunction X μ a`.
+The proof applies Markov's inequality to `exp (t * Sₙ)` for each `0 ≤ t`, takes the infimum over
+`t`, and uses the scaling identity `cgf (partialSum X n) μ = n * cgf (X 0) μ` from `Basic.lean`.
+We use `ProbabilityTheory.measure_ge_le_exp_cgf`, the Chernoff bound for the upper tail of a
+real-valued random variable.
 
-The proof applies Markov's inequality to `exp(t * Sₙ)` for each `0 ≤ t`,
-takes the infimum over `t`, and uses the scaling identity `cgf(Sₙ) = n * cgf(X₀)`.
+## Main results
 
-We use `ProbabilityTheory.measure_ge_le_exp_cgf` that gives the Chernoff bound for the upper
-tail of a real-valued random variable.
+* `Cramer.limsup_le_neg_rateFunction`: for any `a` with `μ[X 0] ≤ a`,
+  `limsupₙ (1 / n) * log μ(a ≤ Sₙ / n) ≤ -rateFunction X μ a`.
 -/
 
 open ProbabilityTheory MeasureTheory Filter Topology
@@ -53,10 +56,10 @@ lemma measure_empiricalMean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_p
   apply le_of_eq; congr 1; ring
 
 include h_indep h_meas h_ident h_mgf h_bdd in
-/-- **Cramér's Theorem (Upper Bound)**: For any a with μ[X 0] ≤ a, the scaled log probability
-that the empirical mean exceeds a is bounded above by the negative rate function:
-`limsup_{n→∞} log(μ(a ≤ Sₙ/n)) / n ≤ -rateFunction X μ a`
-Uses `ENNReal.log` to properly handle the case when probability is 0 (giving -∞). -/
+/-- **Cramér's theorem** (upper bound): for any `a` with `μ[X 0] ≤ a`, the scaled log probability
+that the empirical mean exceeds `a` is bounded above by the negative rate function,
+`limsup_{n→∞} log(μ(a ≤ Sₙ/n)) / n ≤ -rateFunction X μ a`.
+This uses `ENNReal.log` to handle the case when the probability is `0` (giving `-∞`). -/
 theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
     limsup (fun n : ℕ =>
       ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}))

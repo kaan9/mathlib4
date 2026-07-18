@@ -16,16 +16,67 @@ import Mathlib.Probability.Independence.Integration
 import Mathlib.Analysis.Convex.Integral
 
 /-!
-# Cramér's Theorem — Basic Definitions and Infrastructure
+# Cramér's theorem: basic definitions and infrastructure
 
-This file contains the core definitions and shared lemmas for Cramér's theorem:
-- The definitions `partialSum`, `empiricalMean`, `Cramer.rateFunction`,
-  `Cramer.upperTailRateFunction`.
-- Basic measurability and integrability results.
-- MGF/CGF sum formulas via independence.
+Cramér's theorem describes the large-deviation behaviour of the empirical mean
+`Sₙ / n = (X₀ + ⋯ + Xₙ₋₁) / n` of a sequence of i.i.d. real random variables `Xᵢ` with finite
+moment-generating function: the tail probabilities `μ(a ≤ Sₙ / n)` decay exponentially, at a rate
+given by the rate function `Cramer.rateFunction`, the Legendre transform of the
+cumulant-generating function of `X₀`.
 
-The upper and lower bounds are proven in `UpperBound.lean` and `LowerBound.lean`;
-the main theorem is assembled in `Theorem.lean`.
+This file collects the core definitions and the shared infrastructure used to prove the two bounds
+of the theorem. The upper and lower bounds are proved in `UpperBound.lean` and `LowerBound.lean`,
+and the two bounds are assembled in `Theorem.lean`.
+
+## Main definitions
+
+* `partialSum X n`: the partial sum `Sₙ = X₀ + ⋯ + Xₙ₋₁`.
+* `empiricalMean X n`: the empirical mean `Sₙ / n`.
+* `Cramer.rateFunction X μ`: the Legendre transform `x ↦ ⨆ t, t * x - cgf (X 0) μ t` of the
+  cumulant-generating function; this is the rate function of Cramér's theorem.
+* `Cramer.upperTailRateFunction X μ`: the rate function for the upper tail `μ(a ≤ Sₙ / n)`, equal
+  to `rateFunction X μ a` when `μ[X 0] ≤ a` and `0` otherwise.
+* `Cramer.tiltedMeasure X μ n t`: the measure `μ` exponentially tilted by `t · Sₙ`.
+
+## Main results
+
+* `mgf_partialSum` and `cgf_partialSum`: the moment- and cumulant-generating functions of `Sₙ`
+  factor as `mgf (partialSum X n) μ t = exp (n * cgf (X 0) μ t)` and
+  `cgf (partialSum X n) μ t = n * cgf (X 0) μ t`.
+* `Cramer.isProbabilityMeasure_tiltedMeasure`: the tilted measure `tiltedMeasure X μ n t` is a
+  probability measure.
+* `Cramer.rateFunction_eq_iSup_nonneg`: for `μ[X 0] ≤ a` the supremum defining the rate function
+  is attained over `0 ≤ t`.
+
+## Implementation notes
+
+Throughout the development the random variables `Xᵢ` and the base measure `μ` are constrained by a
+fixed set of hypotheses, introduced as `variable`s in each file:
+
+* `h_indep`, `h_ident`, `h_meas`: the `Xᵢ` are independent, identically distributed, and
+  measurable.
+* `h_mgf`: `X₀` has a finite moment-generating function at every `t ∈ ℝ`; equivalently
+  `cgf (X 0) μ` is finite and analytic on all of `ℝ`.
+* `h_bdd`: the rate function is a *good* rate function, i.e. the supremum defining it is bounded
+  above. This is **not** implied by `h_mgf` alone: for a constant random variable `X ≡ c` one has
+  `cgf (X 0) μ t = t * c`, so `t * a - cgf (X 0) μ t = t * (a - c)` is unbounded above whenever
+  `a ≠ c`. It is, however, derivable from `h_exposed` together with convexity of the cgf for every
+  relevant `a` (those with `μ[X 0] ≤ a`); we keep it as a hypothesis to avoid that detour.
+* `h_non_deg` (used from `TiltedCLT.lean` on): the cgf has strictly positive second derivative
+  everywhere, i.e. `X₀` is non-degenerate. This gives strict convexity of the cgf, used both in the
+  central limit theorem over the tilted measures and in the tangent-line argument for the lower
+  bound.
+* `h_exposed` (used from `LowerBound.lean` on): every `a` with `μ[X 0] ≤ a` is *exposed*, i.e.
+  realized as `deriv (cgf (X 0) μ) t = a` for some `t`.
+
+The pair `h_non_deg` and `h_exposed` are genuinely strong assumptions: they exclude edge cases such
+as bounded-support variables, for which `deriv (cgf (X 0) μ)` is bounded and not every `a` is
+exposed.
+
+## References
+
+The statement and its exponential-tilting proof follow Theorem 2.2.3 of
+[A. Dembo and O. Zeitouni, *Large Deviations Techniques and Applications*][demboZeitouni2010].
 -/
 
 open ProbabilityTheory MeasureTheory Filter Topology
@@ -60,7 +111,7 @@ noncomputable def Cramer.tiltedMeasure (X : ℕ → Ω → ℝ) (μ : Measure Ω
     (t : ℝ) : Measure Ω :=
   Measure.tilted μ (fun ω => t * partialSum X n ω)
 
-/- Assumptions for Cramér's theorem -/
+/- Assumptions for Cramér's theorem; see the module docstring for a discussion. -/
 -- The random variables Xᵢ are independent.
 variable (h_indep : iIndepFun X μ)
 -- The random variables Xᵢ are identically distributed.
@@ -69,8 +120,7 @@ variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
 variable (h_meas : ∀ n, Measurable (X n))
 -- The random variable X₀ has a finite moment generating function for all `t ∈ ℝ`.
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
--- Assume that this is a "good" rate function, i.e. bounded above.
--- Note: This is implied by h_mgf but difficult to prove directly and beyond scope here.
+-- The rate function is "good": the supremum defining it is bounded above.
 variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) μ t)))
 
 /-! ### Basic measurability and integrability helpers -/
@@ -166,7 +216,7 @@ lemma Cramer.isProbabilityMeasure_tiltedMeasure (t : ℝ) (n : ℕ) :
   isProbabilityMeasure_tilted (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n)
 
 include h_indep h_ident h_meas h_mgf in
-/-- All `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
+/-- Every `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
 lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
     t ∈ interior (integrableExpSet (partialSum X n) μ) := by
   simp [Set.eq_univ_of_forall

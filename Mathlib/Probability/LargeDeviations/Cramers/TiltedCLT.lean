@@ -13,7 +13,7 @@ import Mathlib.MeasureTheory.Measure.LevyConvergence
 import Mathlib.Probability.Independence.Integration
 
 /-!
-# Cramér's Theorem — CLT over Tilted Measures
+# Cramér's theorem: CLT over tilted measures
 
 This file provides a proof of the Central Limit Theorem over a sequence of tilted measures,
 used in the proof of the lower bound of Cramér's theorem.
@@ -24,14 +24,14 @@ The normalized partial sum `Zₙ := (Sₙ - n Λ'(t))/√(n Λ''(t))` converges 
 to `𝒩(0,1)` under `tiltedMeasure` as `n → ∞`.
 An immediate corollary is a concentration statement used in `LowerBound.lean`.
 
-## Main Definitions
+## Main definitions
 
 * `Cramer.tiltedLaw X μ t`: the pushforward measure of `μ` by `X₀`, tilted by `t · x`,
 * `Cramer.stdTiltedLaw X μ t`: the pushforward of `Cramer.tiltedLaw X μ t` by a linear map that
   standardizes it to zero mean and unit variance.
 * `Cramer.stdPartialSum X μ t n`: the standardized partial sum `(Sₙ - n Λ'(t)) / √(n Λ''(t))`.
 
-## Main Results
+## Main results
 
 * `Cramer.tendsto_charFun_stdPartialSum`: under `tiltedMeasure`, the characteristic function of
   `Zₙ` converges pointwise to that of `𝒩(0,1)`.

@@ -10,15 +10,22 @@ public import Mathlib.Probability.LargeDeviations.Cramers.TiltedCLT
 public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
 
 /-!
-# Cramér's Theorem — Lower Bound
+# Cramér's theorem: lower bound
 
-This file proves the lower (exponential tilting) bound for Cramér's theorem:
+This file proves the lower (exponential-tilting) bound for Cramér's theorem: the scaled
+log-probability that the empirical mean `Sₙ / n` exceeds a level `a ≥ μ[X 0]` is asymptotically at
+least `-I(a)`, where `I` is the rate function `Cramer.rateFunction`.
 
-- `Cramer.neg_rateFunction_le_liminf`: For any `a` with `μ[X 0] ≤ a`,
-  `-rateFunction X μ a ≤ liminf n⁻¹ * log μ(a ≤ Sₙ/n)`.
+The proof uses a change of measure to the family of tilted measures
+`tiltedMeasure X μ n t = μ.tilted (t · Sₙ)`, with `t` chosen so that `deriv (cgf (X 0) μ) t = a`.
+Under this measure the empirical mean concentrates around `a`, via the central limit theorem over
+the tilted measures proved in `TiltedCLT.lean`, and undoing the tilt yields the exponential lower
+bound.
 
-The proof uses the change-of-measure approach with the family of tilted measures
-`tiltedMeasure = μ.tilted(t * Sₙ)` where `t` is chosen so that `cgf'(t) = a`.
+## Main results
+
+* `Cramer.neg_rateFunction_le_liminf`: for any `a` with `μ[X 0] ≤ a`,
+  `-rateFunction X μ a ≤ liminfₙ (1 / n) * log μ(a ≤ Sₙ / n)`.
 -/
 
 open ProbabilityTheory MeasureTheory Filter Topology
@@ -391,8 +398,8 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
   exact h_tendsto.liminf_eq.symm.le
 
 include h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed in
-/-- **Cramér's Theorem (Lower Bound)**: Given `E[X 0] ≤ a`,
-`-rateFunction X μ a ≤ liminfₙ n⁻¹ log μ(a ≤ Sₙ/n)` -/
+/-- **Cramér's theorem** (lower bound): given `μ[X 0] ≤ a`,
+`-rateFunction X μ a ≤ liminfₙ n⁻¹ log μ(a ≤ Sₙ/n)`. -/
 theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
     (- rateFunction X μ a : EReal) ≤
       liminf (fun n : ℕ =>
