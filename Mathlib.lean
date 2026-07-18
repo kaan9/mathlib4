@@ -6351,11 +6351,11 @@ public import Mathlib.Probability.Kernel.RadonNikodym
 public import Mathlib.Probability.Kernel.Representation
 public import Mathlib.Probability.Kernel.SetIntegral
 public import Mathlib.Probability.Kernel.WithDensity
-public import Mathlib.Probability.LargeDeviations.Cramers.Basic
-public import Mathlib.Probability.LargeDeviations.Cramers.LowerBound
-public import Mathlib.Probability.LargeDeviations.Cramers.Theorem
-public import Mathlib.Probability.LargeDeviations.Cramers.TiltedCLT
-public import Mathlib.Probability.LargeDeviations.Cramers.UpperBound
+public import Mathlib.Probability.LargeDeviations.Cramer.Basic
+public import Mathlib.Probability.LargeDeviations.Cramer.LowerBound
+public import Mathlib.Probability.LargeDeviations.Cramer.Theorem
+public import Mathlib.Probability.LargeDeviations.Cramer.TiltedCLT
+public import Mathlib.Probability.LargeDeviations.Cramer.UpperBound
 public import Mathlib.Probability.Martingale.Basic
 public import Mathlib.Probability.Martingale.BorelCantelli
 public import Mathlib.Probability.Martingale.Centering

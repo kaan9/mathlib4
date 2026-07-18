@@ -5,7 +5,7 @@ Authors: Kaan Erdoğmuş
 -/
 module
 
-public import Mathlib.Probability.LargeDeviations.Cramers.Basic
+public import Mathlib.Probability.LargeDeviations.Cramer.Basic
 public import Mathlib.Probability.CentralLimitTheorem
 public import Mathlib.Probability.Independence.CharacteristicFunction
 

@@ -5,8 +5,8 @@ Authors: Kaan Erdoğmuş
 -/
 module
 
-public import Mathlib.Probability.LargeDeviations.Cramers.LowerBound
-public import Mathlib.Probability.LargeDeviations.Cramers.UpperBound
+public import Mathlib.Probability.LargeDeviations.Cramer.LowerBound
+public import Mathlib.Probability.LargeDeviations.Cramer.UpperBound
 
 import Mathlib.Probability.StrongLaw
 import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
