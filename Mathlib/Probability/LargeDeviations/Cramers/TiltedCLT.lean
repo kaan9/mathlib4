@@ -8,8 +8,9 @@ module
 public import Mathlib.Probability.LargeDeviations.Cramers.Basic
 public import Mathlib.Probability.CentralLimitTheorem
 public import Mathlib.Probability.Independence.CharacteristicFunction
-public import Mathlib.MeasureTheory.Measure.LevyConvergence
-public import Mathlib.MeasureTheory.Measure.Portmanteau
+
+import Mathlib.MeasureTheory.Measure.LevyConvergence
+import Mathlib.Probability.Independence.Integration
 
 /-!
 # Cramér's Theorem — CLT over Tilted Measures

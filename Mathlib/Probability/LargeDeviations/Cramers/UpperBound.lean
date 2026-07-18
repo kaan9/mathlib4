@@ -6,6 +6,7 @@ Authors: Kaan Erdoğmuş
 module
 
 public import Mathlib.Probability.LargeDeviations.Cramers.Basic
+public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
 
 /-!
 # Cramér's Theorem — Upper Bound

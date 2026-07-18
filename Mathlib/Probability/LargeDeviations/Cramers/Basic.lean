@@ -11,13 +11,9 @@ public import Mathlib.Probability.Independence.Basic
 public import Mathlib.Probability.Moments.Basic
 public import Mathlib.Probability.Moments.IntegrableExpMul
 public import Mathlib.Probability.Moments.Tilted
-public import Mathlib.Probability.Independence.Integration
-public import Mathlib.Analysis.Convex.Integral
-public import Mathlib.Analysis.Convex.SpecificFunctions.Basic
-public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLog
-public import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
-public import Mathlib.Analysis.SpecificLimits.Basic
-public import Mathlib.Analysis.Calculus.Deriv.Basic
+
+import Mathlib.Probability.Independence.Integration
+import Mathlib.Analysis.Convex.Integral
 
 /-!
 # Cramér's Theorem — Basic Definitions and Infrastructure

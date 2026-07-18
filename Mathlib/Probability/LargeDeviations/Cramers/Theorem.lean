@@ -7,7 +7,9 @@ module
 
 public import Mathlib.Probability.LargeDeviations.Cramers.LowerBound
 public import Mathlib.Probability.LargeDeviations.Cramers.UpperBound
-public import Mathlib.Probability.StrongLaw
+
+import Mathlib.Probability.StrongLaw
+import Mathlib.Analysis.SpecialFunctions.Log.ENNRealLogExp
 
 /-!
 # Cramér's Theorem
