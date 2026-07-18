@@ -290,6 +290,33 @@ lemma absolutelyContinuous_tilted (hf : Integrable (fun x ↦ exp (f x)) μ) : �
       simp only [ne_eq, ENNReal.ofReal_eq_zero, not_le]
       exact fun _ ↦ div_pos (exp_pos _) (integral_exp_pos hf)
 
+section map
+
+variable {β : Type*} {mβ : MeasurableSpace β} {T : α → β} {g : β → ℝ}
+
+/-- Tilting commutes with pushforward along the tilting function: mapping `μ` tilted by `g ∘ T`
+through `T` gives the pushforward measure `μ.map T` tilted by `g`. -/
+lemma map_tilted_comp (hT : AEMeasurable T μ) (hg : AEMeasurable g (μ.map T)) :
+    (μ.tilted (g ∘ T)).map T = (μ.map T).tilted g := by
+  have h_int : ∫ y, exp (g y) ∂(μ.map T) = ∫ x, exp (g (T x)) ∂μ :=
+    integral_map hT (measurable_exp.comp_aemeasurable hg).aestronglyMeasurable
+  refine Measure.ext_of_lintegral _ fun φ hφ ↦ ?_
+  have h_meas : AEMeasurable
+      (fun y ↦ ENNReal.ofReal (exp (g y) / ∫ y', exp (g y') ∂(μ.map T)) * φ y) (μ.map T) :=
+    ((measurable_exp.comp_aemeasurable hg).div_const _).ennreal_ofReal.mul hφ.aemeasurable
+  calc ∫⁻ y, φ y ∂((μ.tilted (g ∘ T)).map T)
+      = ∫⁻ x, φ (T x) ∂(μ.tilted (g ∘ T)) :=
+        lintegral_map' hφ.aemeasurable (hT.mono_ac (tilted_absolutelyContinuous μ _))
+    _ = ∫⁻ x, ENNReal.ofReal (exp (g (T x)) / ∫ y, exp (g (T y)) ∂μ) * φ (T x) ∂μ :=
+        lintegral_tilted _ _
+    _ = ∫⁻ x, ENNReal.ofReal (exp (g (T x)) / ∫ y, exp (g y) ∂(μ.map T)) * φ (T x) ∂μ := by
+        rw [h_int]
+    _ = ∫⁻ y, ENNReal.ofReal (exp (g y) / ∫ y', exp (g y') ∂(μ.map T)) * φ y ∂(μ.map T) :=
+        (lintegral_map' h_meas hT).symm
+    _ = ∫⁻ y, φ y ∂((μ.map T).tilted g) := (lintegral_tilted _ _).symm
+
+end map
+
 lemma integrable_tilted_iff {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
     {f : α → ℝ} (hf : Integrable (fun x ↦ exp (f x)) μ) (g : α → E) :
     Integrable g (μ.tilted f) ↔ Integrable (fun x ↦ exp (f x) • g x) μ := by

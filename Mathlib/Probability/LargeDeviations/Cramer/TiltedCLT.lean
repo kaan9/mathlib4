@@ -9,8 +9,8 @@ public import Mathlib.Probability.LargeDeviations.Cramer.Basic
 public import Mathlib.Probability.CentralLimitTheorem
 public import Mathlib.Probability.Independence.CharacteristicFunction
 
+import Mathlib.MeasureTheory.Constructions.Pi.Tilted
 import Mathlib.MeasureTheory.Measure.LevyConvergence
-import Mathlib.Probability.Independence.Integration
 
 /-!
 # Cramér's theorem: CLT over tilted measures
@@ -214,381 +214,66 @@ lemma Cramer.memLp_id_stdTiltedLaw (t : ℝ) :
 
 Under the tilted measure `tiltedMeasure = μ.tilted(t · Sₙ)`, the coordinates
 `X₀, …, Xₙ₋₁` are still independent and each has law `tiltedLaw`.
-These follow from factoring the tilting density `exp(t Sₙ) = ∏ᵢ exp(t Xᵢ)`. -/
+These are corollaries of general facts about exponential tilting: tilting commutes with
+pushforward along the tilting function (`MeasureTheory.map_tilted_comp`), and tilting a finite
+product measure by a sum of coordinate functions yields the product of the tilted factors
+(`MeasureTheory.tilted_pi`). -/
 
-private lemma measurable_ennreal_ofReal_exp_t_mul (t : ℝ) :
-    Measurable (fun x : ℝ => ENNReal.ofReal (Real.exp (t * x))) :=
-  (measurable_id.const_mul t |>.exp).ennreal_ofReal
-
-/-- `↑e^(t · Sₙ) = ∏ᵢ ↑e^(t Xᵢ)` where `↑` is coercion to extended reals. -/
-private lemma ennreal_ofReal_exp_t_partialSum_eq_prod (t : ℝ) (n : ℕ) (ω : Ω) :
-    ENNReal.ofReal (Real.exp (t * partialSum X n ω)) =
-    ∏ j ∈ Finset.range n, ENNReal.ofReal (Real.exp (t * X j ω)) := by
-  rw [show Real.exp (t * partialSum X n ω) = ∏ j ∈ Finset.range n, Real.exp (t * X j ω) by
-    simp [partialSum, Finset.sum_apply, Finset.mul_sum, Real.exp_sum],
-    ENNReal.ofReal_prod_of_nonneg (fun _ _ => (Real.exp_pos _).le)]
-
-include h_meas in
-/-- `↑e^(t Xᵢ)` is measurable for each `i`. -/
-private lemma measurable_ennreal_ofReal_exp_t_mul_X (t : ℝ) (j : ℕ) :
-    Measurable (fun ω => ENNReal.ofReal (Real.exp (t * X j ω))) :=
-  (measurable_ennreal_ofReal_exp_t_mul t).comp (h_meas j)
-
-omit [IsProbabilityMeasure μ] in
-include h_indep in
-/-- The family `↑e^(t Xᵢ)` is independent. -/
-private lemma iIndepFun_ennreal_ofReal_exp_t_mul_X (t : ℝ) :
-    iIndepFun (fun j ω => ENNReal.ofReal (Real.exp (t * X j ω))) μ :=
-  h_indep.comp (fun _ x => ENNReal.ofReal (Real.exp (t * x)))
-    (fun _ => measurable_ennreal_ofReal_exp_t_mul t)
-
-omit [IsProbabilityMeasure μ] in
-include h_ident h_mgf in
-/-- The integral of `↑e^(t Xᵢ)` against `μ` is `↑ mgf(X 0)(t)`. -/
-private lemma lintegral_ennreal_ofReal_exp_t_mul_X (t : ℝ) (j : ℕ) :
-    ∫⁻ ω, ENNReal.ofReal (Real.exp (t * X j ω)) ∂μ = ENNReal.ofReal (mgf (X 0) μ t) :=
-  ((h_ident j).comp (measurable_ennreal_ofReal_exp_t_mul t)).lintegral_eq.trans
-    (ofReal_integral_eq_lintegral_ofReal (h_mgf t)
-      (ae_of_all _ fun _ => (Real.exp_pos _).le)).symm
-
-include h_indep h_ident h_meas h_mgf in
-/-- `MGF(X₁)` and `MGF(Sₙ)` are positive and `↑MGF(Sₙ) = (↑MGF(X₁))ⁿ` -/
-private lemma mgf_preamble (n : ℕ) (t : ℝ) :
-    0 < mgf (X 0) μ t ∧
-    0 < mgf (partialSum X n) μ t ∧
-    ENNReal.ofReal (mgf (partialSum X n) μ t) = (ENNReal.ofReal (mgf (X 0) μ t)) ^ n := by
-  have hM₀_pos : 0 < mgf (X 0) μ t := integral_exp_pos (h_mgf t)
-  refine ⟨hM₀_pos,
-    integral_exp_pos (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n), ?_⟩
-  rw [show mgf (partialSum X n) μ t = (mgf (X 0) μ t) ^ n by
-      rw [mgf_partialSum X h_indep h_ident h_meas h_mgf n t, cgf, ← Real.log_pow,
-        Real.exp_log (pow_pos hM₀_pos n)],
-    ENNReal.ofReal_pow hM₀_pos.le]
+include h_indep h_ident h_meas in
+/-- Under `tiltedMeasure`, the joint law of `(Xᵢ)_{i ∈ range n}` is the product of `n` copies
+of `tiltedLaw`. -/
+private lemma Cramer.map_range_tiltedMeasure (t : ℝ) (n : ℕ) :
+    (tiltedMeasure X μ n t).map (fun ω (i : Finset.range n) => X i.val ω) =
+      Measure.pi (fun _ : Finset.range n => tiltedLaw X μ t) := by
+  have h_fun : (fun ω => t * partialSum X n ω) = (fun v : Finset.range n → ℝ => ∑ i, t * v i) ∘
+      (fun ω (i : Finset.range n) => X i.val ω) := by
+    funext ω
+    simp only [Function.comp_apply, partialSum, Finset.sum_apply, Finset.mul_sum,
+      Finset.univ_eq_attach]
+    exact (Finset.sum_attach (Finset.range n) fun j => t * X j ω).symm
+  have h_tilt : tiltedMeasure X μ n t =
+      μ.tilted ((fun v : Finset.range n → ℝ => ∑ i, t * v i) ∘
+        (fun ω (i : Finset.range n) => X i.val ω)) := congrArg μ.tilted h_fun
+  have h_pi : μ.map (fun ω (i : Finset.range n) => X i.val ω) =
+      Measure.pi (fun i : Finset.range n => μ.map (X i.val)) :=
+    (h_indep.precomp Subtype.val_injective).map_fun_eq_pi_map fun i => (h_meas i.val).aemeasurable
+  have hT : AEMeasurable (fun ω (i : Finset.range n) => X i.val ω) μ :=
+    Measurable.aemeasurable (measurable_pi_lambda _ fun i => h_meas i.val)
+  have hg : AEMeasurable (fun v : Finset.range n → ℝ => ∑ i, t * v i)
+      (μ.map (fun ω (i : Finset.range n) => X i.val ω)) :=
+    Measurable.aemeasurable (Finset.measurable_sum _ fun i _ =>
+      (measurable_pi_apply i : Measurable fun v : Finset.range n → ℝ => v i).const_mul t)
+  rw [h_tilt, map_tilted_comp hT hg, h_pi,
+    show (fun i : Finset.range n => μ.map (X i.val)) = fun _ => μ.map (X 0) from
+      funext fun i => (h_ident i.val).map_eq]
+  exact tilted_pi _ fun _ x => t * x
 
 include h_indep h_ident h_meas h_mgf in
 /-- Under `tiltedMeasure`, each `Xᵢ` (for `i < n`) has the same law `tiltedLaw`. -/
 lemma Cramer.map_X_tiltedMeasure (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) :
     (tiltedMeasure X μ n t).map (X i) = tiltedLaw X μ t := by
-  obtain ⟨hM₀_pos, hMₙ_pos, hMₙ_pow⟩ := mgf_preamble X h_indep h_ident h_meas h_mgf n t
-  have hi_mem : i ∈ Finset.range n := Finset.mem_range.mpr hi
-  have hn_pos : 0 < n := Nat.lt_of_le_of_lt (Nat.zero_le _) hi
-  set M₀ := mgf (X 0) μ t with hM₀_def
-  set Mₙ := mgf (partialSum X n) μ t with hMₙ_def
-  have hM₀_nn : ENNReal.ofReal M₀ ≠ 0 := (ENNReal.ofReal_pos.mpr hM₀_pos).ne'
-  have hMₙ_nn : ENNReal.ofReal Mₙ ≠ 0 := (ENNReal.ofReal_pos.mpr hMₙ_pos).ne'
-  have hMₙ_inv_ne_top : (ENNReal.ofReal Mₙ)⁻¹ ≠ ∞ := ENNReal.inv_ne_top.mpr hMₙ_nn
-  have hM₀_inv_ne_top : (ENNReal.ofReal M₀)⁻¹ ≠ ∞ := ENNReal.inv_ne_top.mpr hM₀_nn
-  have hk_meas : Measurable (fun x : ℝ => ENNReal.ofReal (Real.exp (t * x))) :=
-    measurable_ennreal_ofReal_exp_t_mul t
-  set e : ℕ → Ω → ℝ≥0∞ := fun j ω => ENNReal.ofReal (Real.exp (t * X j ω))
-  have he_meas := measurable_ennreal_ofReal_exp_t_mul_X X h_meas t
-  have he_indep := iIndepFun_ennreal_ofReal_exp_t_mul_X X h_indep t
-  have he_lint := lintegral_ennreal_ofReal_exp_t_mul_X X h_ident h_mgf t
-  apply Measure.ext_of_lintegral
-  intro g hg
-  have hg_exp : Measurable (fun x : ℝ => g x * ENNReal.ofReal (Real.exp (t * x))) :=
-    hg.mul hk_meas
-  set I₀ : ℝ≥0∞ := ∫⁻ ω, g (X 0 ω) * e 0 ω ∂μ with hI₀_def
-  have hI_eq : (∫⁻ ω, g (X i ω) * e i ω ∂μ) = I₀ :=
-    ((h_ident i).comp hg_exp).lintegral_eq
-  have hmeas_gxe : Measurable (fun ω : Ω => g (X i ω) * e i ω) :=
-    (hg.comp (h_meas i)).mul (he_meas i)
-  have hmeas_prod : Measurable fun ω => ∏ j ∈ (Finset.range n).erase i, e j ω :=
-    Finset.measurable_prod _ fun j _ => he_meas j
-  set ψ : ℕ → ℝ → ℝ≥0∞ := fun j x =>
-    if j = i then g x * ENNReal.ofReal (Real.exp (t * x))
-    else ENNReal.ofReal (Real.exp (t * x))
-  have hψ_meas : ∀ j, Measurable (ψ j) := fun j => by
-    simp only [ψ]; split_ifs; exacts [hg_exp, hk_meas]
-  have hindep : IndepFun (fun ω => g (X i ω) * e i ω)
-      (fun ω => ∏ j ∈ (Finset.range n).erase i, e j ω) μ := by
-    have h : IndepFun (∏ j ∈ (Finset.range n).erase i, (ψ j ∘ X j)) (ψ i ∘ X i) μ :=
-      (h_indep.comp ψ hψ_meas).indepFun_finsetProd_of_notMem
-        (fun j => (hψ_meas j).comp (h_meas j)) (Finset.notMem_erase i _)
-    convert h.symm using 1
-    · ext ω; simp [ψ, e]
-    · ext ω; rw [Finset.prod_apply]
-      exact Finset.prod_congr rfl fun j hj => by simp [ψ, e, Finset.ne_of_mem_erase hj]
-  rw [lintegral_map hg (h_meas i)]
-  simp only [tiltedMeasure, tiltedLaw, lintegral_tilted]
-  have hsum_prod : ∀ ω, ENNReal.ofReal (Real.exp (t * partialSum X n ω) /
-      ∫ x, Real.exp (t * partialSum X n x) ∂μ) * g (X i ω) =
-      (g (X i ω) * e i ω) * (∏ j ∈ (Finset.range n).erase i, e j ω) *
-        (ENNReal.ofReal Mₙ)⁻¹ := fun ω => by
-    rw [show (∫ x, Real.exp (t * partialSum X n x) ∂μ) = Mₙ from rfl,
-      ENNReal.ofReal_div_of_pos hMₙ_pos, div_eq_mul_inv,
-      ennreal_ofReal_exp_t_partialSum_eq_prod X t n ω,
-      ← Finset.mul_prod_erase _ (e · ω) hi_mem]
-    ring
-  simp_rw [hsum_prod]
-  rw [lintegral_mul_const' _ _ hMₙ_inv_ne_top,
-    lintegral_mul_eq_lintegral_mul_lintegral_of_indepFun''
-      hmeas_gxe.aemeasurable hmeas_prod.aemeasurable hindep,
-    lintegral_prod_eq_prod_lintegral_of_indepFun _ _ he_indep he_meas,
-    Finset.prod_congr rfl (fun j _ => he_lint j), Finset.prod_const,
-    Finset.card_erase_of_mem hi_mem, Finset.card_range, hI_eq, hMₙ_pow]
-  have hmap_mgf : (∫ x : ℝ, Real.exp (t * x) ∂Measure.map (X 0) μ) = M₀ :=
-    integral_map (h_meas 0).aemeasurable ((measurable_id.const_mul t).exp).aestronglyMeasurable
-  conv_rhs => rw [show (fun x : ℝ => ENNReal.ofReal (Real.exp (t * x) /
-      ∫ y, Real.exp (t * y) ∂Measure.map (X 0) μ) * g x) = fun x =>
-    (g x * ENNReal.ofReal (Real.exp (t * x))) * (ENNReal.ofReal M₀)⁻¹ from funext fun x => by
-      rw [hmap_mgf, ENNReal.ofReal_div_of_pos hM₀_pos, div_eq_mul_inv]; ring]
-  rw [lintegral_mul_const' _ _ hM₀_inv_ne_top, lintegral_map hg_exp (h_meas 0), ← hI₀_def]
-  rw [show (ENNReal.ofReal M₀) ^ n = (ENNReal.ofReal M₀) ^ (n - 1) * ENNReal.ofReal M₀ by
-      conv_lhs => rw [show n = (n - 1) + 1 from (Nat.sub_add_cancel hn_pos).symm, pow_succ],
-    ENNReal.mul_inv (Or.inl (pow_ne_zero _ hM₀_nn))
-      (Or.inl (ENNReal.pow_ne_top ENNReal.ofReal_lt_top.ne)),
-    mul_assoc, ← mul_assoc ((ENNReal.ofReal M₀) ^ (n - 1)),
-    ENNReal.mul_inv_cancel (pow_ne_zero _ hM₀_nn) (ENNReal.pow_ne_top ENNReal.ofReal_lt_top.ne),
-    one_mul]
+  haveI := isProbabilityMeasure_tiltedLaw X h_meas h_mgf t
+  calc (tiltedMeasure X μ n t).map (X i)
+      = ((tiltedMeasure X μ n t).map (fun ω (j : Finset.range n) => X j.val ω)).map
+          (Function.eval ⟨i, Finset.mem_range.mpr hi⟩) :=
+        (Measure.map_map (g := Function.eval (⟨i, Finset.mem_range.mpr hi⟩ : Finset.range n))
+          (f := fun ω (j : Finset.range n) => X j.val ω) (measurable_pi_apply _)
+          (measurable_pi_lambda _ fun j => h_meas j.val)).symm
+    _ = (Measure.pi fun _ : Finset.range n => tiltedLaw X μ t).map
+          (Function.eval ⟨i, Finset.mem_range.mpr hi⟩) := by
+        rw [map_range_tiltedMeasure X h_indep h_ident h_meas t n]
+    _ = tiltedLaw X μ t := (measurePreserving_eval _ _).map_eq
 
 include h_indep h_ident h_meas h_mgf in
 /-- Under `tiltedMeasure`, `Xᵢ` (for `i < n`) are independent. -/
 lemma Cramer.iIndepFun_range_tiltedMeasure (t : ℝ) (n : ℕ) :
     iIndepFun (fun i : Finset.range n => X i.val) (tiltedMeasure X μ n t) := by
-  classical
-  obtain ⟨hM₀_pos, hMₙ_pos, hMₙ_pow⟩ := mgf_preamble X h_indep h_ident h_meas h_mgf n t
-  set M₀ := mgf (X 0) μ t with hM₀_def
-  set Mₙ := mgf (partialSum X n) μ t with hMₙ_def
-  have hM₀_nn : ENNReal.ofReal M₀ ≠ 0 := (ENNReal.ofReal_pos.mpr hM₀_pos).ne'
-  have hM₀_top : ENNReal.ofReal M₀ ≠ ∞ := ENNReal.ofReal_lt_top.ne
-  have hMₙ_nn : ENNReal.ofReal Mₙ ≠ 0 := (ENNReal.ofReal_pos.mpr hMₙ_pos).ne'
-  have hMₙ_inv_ne_top : (ENNReal.ofReal Mₙ)⁻¹ ≠ ∞ := ENNReal.inv_ne_top.mpr hMₙ_nn
-  set e : ℕ → Ω → ℝ≥0∞ := fun j ω => ENNReal.ofReal (Real.exp (t * X j ω))
-    with he_def
-  have he_meas := measurable_ennreal_ofReal_exp_t_mul_X X h_meas t
-  have he_indep := iIndepFun_ennreal_ofReal_exp_t_mul_X X h_indep t
-  have he_lint := lintegral_ennreal_ofReal_exp_t_mul_X X h_ident h_mgf t
-  have hsum_eq : ∀ ω,
-      ENNReal.ofReal (Real.exp (t * partialSum X n ω)) =
-      ∏ j ∈ Finset.range n, e j ω :=
-    fun ω => ennreal_ofReal_exp_t_partialSum_eq_prod X t n ω
-  rw [iIndepFun_iff_measure_inter_preimage_eq_mul]
-  intro S sets hsets
-  let A' : ℕ → Set ℝ := fun j =>
-    if hj : j < n then
-      if h : ⟨j, Finset.mem_range.mpr hj⟩ ∈ S then sets ⟨j, Finset.mem_range.mpr hj⟩
-      else Set.univ
-    else Set.univ
-  have hA'_meas : ∀ j, MeasurableSet (A' j) := fun j => by
-    simp only [A']; split_ifs with hj hjS
-    exacts [hsets _ hjS, MeasurableSet.univ, MeasurableSet.univ]
-  have hA'_inS : ∀ (i : Finset.range n), i ∈ S → A' (i : ℕ) = sets i := by
-    intro i hi
-    have hi_lt : (i : ℕ) < n := Finset.mem_range.mp i.2
-    have heq : (⟨(i : ℕ), Finset.mem_range.mpr hi_lt⟩ : Finset.range n) = i := Subtype.ext rfl
-    simp only [A', dif_pos hi_lt]
-    rw [dif_pos (by rw [heq]; exact hi), heq]
-  let φ : ℕ → ℝ → ℝ≥0∞ := fun j x =>
-    (A' j).indicator (fun _ => (1 : ℝ≥0∞)) x * ENNReal.ofReal (Real.exp (t * x))
-  have hφ_meas : ∀ j, Measurable (φ j) := fun j =>
-    (measurable_const.indicator (hA'_meas j)).mul (measurable_ennreal_ofReal_exp_t_mul t)
-  have hφ_comp_indep : iIndepFun (fun j => φ j ∘ X j) μ := h_indep.comp φ hφ_meas
-  have hφ_meas' : ∀ j, Measurable (fun ω => φ j (X j ω)) :=
-    fun j => (hφ_meas j).comp (h_meas j)
-  have hφ_lint_not_inS : ∀ j, (∀ hj : j < n, ⟨j, Finset.mem_range.mpr hj⟩ ∉ S) →
-      ∫⁻ ω, φ j (X j ω) ∂μ = ENNReal.ofReal M₀ := by
-    intro j hj_notmem
-    refine (lintegral_congr fun ω => ?_).trans (he_lint j)
-    simp only [φ, A']; split_ifs with hj hjS
-    · exact absurd hjS (hj_notmem hj)
-    · rw [Set.indicator_univ]; simp
-    · rw [Set.indicator_univ]; simp
-  have hprod_indicator : ∀ ω,
-      ∏ j ∈ Finset.range n, φ j (X j ω) =
-      (⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i).indicator
-        (fun _ => (1 : ℝ≥0∞)) ω *
-        ∏ j ∈ Finset.range n, e j ω := by
-    intro ω
-    by_cases hω : ω ∈ ⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i
-    · rw [Set.indicator_of_mem hω, one_mul]
-      refine Finset.prod_congr rfl fun j hj => ?_
-      have hjn : j < n := Finset.mem_range.mp hj
-      change (A' j).indicator _ (X j ω) * _ = e j ω
-      by_cases hjS : (⟨j, Finset.mem_range.mpr hjn⟩ : Finset.range n) ∈ S
-      · rw [hA'_inS ⟨j, Finset.mem_range.mpr hjn⟩ hjS]
-        have hmem : X j ω ∈ sets ⟨j, Finset.mem_range.mpr hjn⟩ :=
-          Set.mem_iInter₂.mp hω _ hjS
-        rw [Set.indicator_of_mem hmem, one_mul]
-      · have hA'_univ : A' j = Set.univ := by
-          simp only [A', dif_pos hjn, dif_neg hjS]
-        rw [hA'_univ, Set.indicator_univ, one_mul]
-    · rw [Set.indicator_of_notMem hω, zero_mul]
-      have : ∃ i ∈ S, X (i : ℕ) ω ∉ sets i := by
-        by_contra! h_all
-        exact hω (Set.mem_iInter₂.mpr h_all)
-      obtain ⟨i, hiS, hi⟩ := this
-      apply Finset.prod_eq_zero (i.2 : (i : ℕ) ∈ Finset.range n)
-      change (A' (i : ℕ)).indicator _ (X (i : ℕ) ω) * _ = 0
-      rw [hA'_inS i hiS, Set.indicator_of_notMem hi, zero_mul]
-  have hIcap_meas : MeasurableSet
-      (⋂ i ∈ S, (fun ω => X (i : ℕ) ω) ⁻¹' sets i) :=
-    .biInter (Set.to_countable _) fun i hi => (h_meas _) (hsets i hi)
-  have hfun_eq : ∀ ω,
-      ENNReal.ofReal (Real.exp (t * partialSum X n ω) / Mₙ) =
-      ENNReal.ofReal (Real.exp (t * partialSum X n ω)) * (ENNReal.ofReal Mₙ)⁻¹ := fun ω => by
-    rw [ENNReal.ofReal_div_of_pos hMₙ_pos, div_eq_mul_inv]
-  have hLHS :
-      (tiltedMeasure X μ n t) (⋂ i ∈ S, (fun ω => X i.val ω) ⁻¹' sets i) =
-      (ENNReal.ofReal Mₙ)⁻¹ *
-        ∫⁻ ω, ∏ j ∈ Finset.range n, φ j (X j ω) ∂μ := by
-    simp only [tiltedMeasure]
-    rw [tilted_apply' _ _ hIcap_meas]
-    change ∫⁻ ω in _, ENNReal.ofReal (Real.exp (t * partialSum X n ω) / Mₙ) ∂μ = _
-    rw [setLIntegral_congr_fun hIcap_meas (fun ω _ => hfun_eq ω),
-      lintegral_mul_const' _ _ hMₙ_inv_ne_top, mul_comm, ← lintegral_indicator hIcap_meas]
-    congr 1
-    refine lintegral_congr fun ω => ?_
-    rw [hprod_indicator ω]
-    by_cases hω : ω ∈ ⋂ i ∈ S, (fun ω' => X (i : ℕ) ω') ⁻¹' sets i
-    · rw [Set.indicator_of_mem hω, Set.indicator_of_mem hω, one_mul, hsum_eq ω]
-    · rw [Set.indicator_of_notMem hω, Set.indicator_of_notMem hω, zero_mul]
-  have hLHS_factor :
-      ∫⁻ ω, ∏ j ∈ Finset.range n, φ j (X j ω) ∂μ =
-      ∏ j ∈ Finset.range n, ∫⁻ ω, φ j (X j ω) ∂μ :=
-    lintegral_prod_eq_prod_lintegral_of_indepFun _ _ hφ_comp_indep hφ_meas'
-  have hAᵢ_meas : ∀ i ∈ S, MeasurableSet ((X (i : ℕ)) ⁻¹' sets i) := fun i hi =>
-    (h_meas _) (hsets i hi)
-  have h_single : ∀ (i : Finset.range n) (hi : i ∈ S),
-      (tiltedMeasure X μ n t) ((X (i : ℕ)) ⁻¹' sets i) =
-      (ENNReal.ofReal Mₙ)⁻¹ *
-        (∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
-          e (i : ℕ) ω ∂μ) *
-        ∏ j ∈ (Finset.range n).erase (i : ℕ), ENNReal.ofReal M₀ := by
-    intro i hi
-    have hmeas_i : MeasurableSet ((X (i : ℕ)) ⁻¹' sets i) := hAᵢ_meas _ hi
-    simp only [tiltedMeasure]
-    rw [tilted_apply' _ _ hmeas_i]
-    change ∫⁻ ω in _, ENNReal.ofReal (Real.exp (t * partialSum X n ω) / Mₙ) ∂μ = _
-    rw [setLIntegral_congr_fun hmeas_i (fun ω _ => hfun_eq ω),
-      lintegral_mul_const' _ _ hMₙ_inv_ne_top, mul_right_comm, ← lintegral_indicator hmeas_i]
-    have hi_range : (i : ℕ) ∈ Finset.range n := i.2
-    have hrewrite : ∀ ω,
-        ((X (i : ℕ)) ⁻¹' sets i).indicator
-          (fun a => ENNReal.ofReal (Real.exp (t * partialSum X n a))) ω =
-        ((sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) * e (i : ℕ) ω) *
-          ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω := by
-      intro ω
-      rw [Set.indicator]
-      by_cases hω : X (i : ℕ) ω ∈ sets i
-      · rw [hsum_eq ω]
-        have hhω : ω ∈ (X (i : ℕ)) ⁻¹' sets i := hω
-        simp only [hhω, if_true]
-        rw [Set.indicator_of_mem hω]
-        rw [← Finset.mul_prod_erase _ _ hi_range]
-        ring
-      · have hhω : ω ∉ (X (i : ℕ)) ⁻¹' sets i := hω
-        simp only [hhω, if_false]
-        rw [Set.indicator_of_notMem hω]
-        simp
-    rw [lintegral_congr hrewrite]
-    have hmeas_first : AEMeasurable
-        (fun ω => (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
-          e (i : ℕ) ω) μ :=
-      ((measurable_const.indicator (hsets _ hi)).comp (h_meas _)).mul
-        (he_meas _) |>.aemeasurable
-    have hmeas_rest : AEMeasurable
-        (fun ω => ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω) μ :=
-      (Finset.measurable_prod _ (fun j _ => he_meas j)).aemeasurable
-    have hindep_first_rest :
-        IndepFun (fun ω => (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
-            e (i : ℕ) ω)
-          (fun ω => ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω) μ := by
-      let ψ : ℕ → ℝ → ℝ≥0∞ := fun j x =>
-        if j = (i : ℕ) then
-          (sets i).indicator (fun _ => (1 : ℝ≥0∞)) x * ENNReal.ofReal (Real.exp (t * x))
-        else ENNReal.ofReal (Real.exp (t * x))
-      have hψ_meas : ∀ j, Measurable (ψ j) := by
-        intro j
-        simp only [ψ]
-        split_ifs
-        · exact (measurable_const.indicator (hsets _ hi)).mul
-            (measurable_ennreal_ofReal_exp_t_mul t)
-        · exact measurable_ennreal_ofReal_exp_t_mul t
-      convert ((h_indep.comp ψ hψ_meas).indepFun_finsetProd_of_notMem
-        (fun j => (hψ_meas j).comp (h_meas j))
-        (Finset.notMem_erase (i : ℕ) (Finset.range n))).symm using 1
-      · ext ω
-        show (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) * e (i : ℕ) ω
-             = (ψ (i : ℕ) ∘ X (i : ℕ)) ω
-        simp [ψ, e]
-      · ext ω
-        show ∏ j ∈ (Finset.range n).erase (i : ℕ), e j ω
-             = (∏ j ∈ (Finset.range n).erase (i : ℕ), (ψ j ∘ X j)) ω
-        rw [Finset.prod_apply]
-        apply Finset.prod_congr rfl
-        intro j hj
-        have hj_ne : j ≠ (i : ℕ) := Finset.ne_of_mem_erase hj
-        simp [ψ, e, hj_ne]
-    rw [lintegral_mul_eq_lintegral_mul_lintegral_of_indepFun''
-      hmeas_first hmeas_rest hindep_first_rest]
-    rw [lintegral_prod_eq_prod_lintegral_of_indepFun _ e he_indep he_meas]
-    rw [Finset.prod_congr rfl (fun j _ => he_lint j)]
-    ring
-  rw [hLHS, hLHS_factor]
-  rw [show (∏ i ∈ S, (tiltedMeasure X μ n t) ((fun ω => X i.val ω) ⁻¹' sets i)) =
-      ∏ i ∈ S, (tiltedMeasure X μ n t) ((X (i : ℕ)) ⁻¹' sets i) from rfl]
-  rw [Finset.prod_congr rfl (fun i hi => h_single i hi)]
-  have hprod_const_erase : ∀ (i : Finset.range n),
-      (∏ j ∈ (Finset.range n).erase (i : ℕ), ENNReal.ofReal M₀) =
-        (ENNReal.ofReal M₀) ^ (n - 1) := fun i => by
-    rw [Finset.prod_const, Finset.card_erase_of_mem i.2, Finset.card_range]
-  have h_image_S : (S.image (Subtype.val : Finset.range n → ℕ)) ⊆ Finset.range n :=
-    fun j hj => by obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hj; exact i.2
-  have h_g_inS : ∀ (i : Finset.range n) (hi : i ∈ S),
-      ∫⁻ ω, φ (i : ℕ) (X (i : ℕ) ω) ∂μ =
-      ∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
-        e (i : ℕ) ω ∂μ := fun i hi =>
-    lintegral_congr fun ω => by
-      change (A' (i : ℕ)).indicator _ _ * _ = _; rw [hA'_inS i hi]
-  have h_g_notinS : ∀ j ∈ Finset.range n,
-      j ∉ S.image (Subtype.val : Finset.range n → ℕ) →
-      ∫⁻ ω, φ j (X j ω) ∂μ = ENNReal.ofReal M₀ := fun j _ hj_notmem =>
-    hφ_lint_not_inS j fun hj hjS =>
-      hj_notmem (Finset.mem_image.mpr ⟨⟨j, Finset.mem_range.mpr hj⟩, hjS, rfl⟩)
-  rw [show ∏ j ∈ Finset.range n, ∫⁻ ω, φ j (X j ω) ∂μ =
-      (∏ j ∈ S.image (Subtype.val : Finset.range n → ℕ), ∫⁻ ω, φ j (X j ω) ∂μ) *
-        (∏ j ∈ Finset.range n \ S.image (Subtype.val : Finset.range n → ℕ),
-          ∫⁻ ω, φ j (X j ω) ∂μ) from by rw [← Finset.prod_sdiff h_image_S, mul_comm],
-    Finset.prod_congr rfl (fun j hj => h_g_notinS j (Finset.mem_sdiff.mp hj).1
-      (Finset.mem_sdiff.mp hj).2), Finset.prod_const,
-    show ∏ j ∈ S.image (Subtype.val : Finset.range n → ℕ), ∫⁻ ω, φ j (X j ω) ∂μ =
-        ∏ i ∈ S, ∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞)) (X (i : ℕ) ω) *
-          e (i : ℕ) ω ∂μ from by
-      rw [Finset.prod_image (fun _ _ _ _ => Subtype.ext)]
-      exact Finset.prod_congr rfl h_g_inS,
-    show (Finset.range n \ S.image (Subtype.val : Finset.range n → ℕ)).card = n - S.card from by
-      rw [Finset.card_sdiff_of_subset h_image_S, Finset.card_range,
-        Finset.card_image_of_injective _ fun _ _ hxy => Subtype.ext hxy]]
-  simp_rw [hprod_const_erase, Finset.prod_mul_distrib, Finset.prod_const, hMₙ_pow,
-    ENNReal.inv_pow]
-  have hS_card_le : S.card ≤ n :=
-    (Finset.card_le_card (Finset.subset_univ _)).trans_eq <| by
-      rw [Finset.card_univ, Fintype.card_coe, Finset.card_range]
-  have hcancel : (ENNReal.ofReal M₀)⁻¹ * ENNReal.ofReal M₀ = 1 :=
-    ENNReal.inv_mul_cancel hM₀_nn hM₀_top
-  have hcancel_pow : ∀ k, (ENNReal.ofReal M₀)⁻¹ ^ k * (ENNReal.ofReal M₀) ^ k = 1 :=
-    fun k => by rw [← mul_pow, hcancel, one_pow]
-  set s := S.card with hs_def
-  set P : ℝ≥0∞ := ∏ i ∈ S, ∫⁻ ω, (sets i).indicator (fun _ => (1 : ℝ≥0∞))
-    (X (i : ℕ) ω) * e (i : ℕ) ω ∂μ
-  conv_lhs => rw [show (ENNReal.ofReal M₀)⁻¹ ^ n =
-      (ENNReal.ofReal M₀)⁻¹ ^ s * (ENNReal.ofReal M₀)⁻¹ ^ (n - s) by
-    rw [← pow_add, Nat.add_sub_cancel' hS_card_le]]
-  rw [mul_assoc, ← mul_assoc ((ENNReal.ofReal M₀)⁻¹ ^ (n - s)), mul_comm _ P, mul_assoc,
-    hcancel_pow, mul_one]
-  rw [← pow_mul, ← pow_mul]
-  have h_expand : n * s = s + (n - 1) * s := by
-    rcases Nat.eq_zero_or_pos n with hn | hn
-    · have hs0 : s = 0 := Nat.le_zero.mp (hn ▸ hS_card_le)
-      simp [hn, hs0]
-    · conv_lhs => rw [show n = 1 + (n - 1) from (Nat.add_sub_cancel' hn).symm]
-      rw [Nat.add_mul, one_mul]
-  rw [h_expand, pow_add,
-    show (ENNReal.ofReal M₀)⁻¹ ^ s * (ENNReal.ofReal M₀)⁻¹ ^ ((n - 1) * s) *
-      P * ENNReal.ofReal M₀ ^ ((n - 1) * s) = (ENNReal.ofReal M₀)⁻¹ ^ s * P *
-      ((ENNReal.ofReal M₀)⁻¹ ^ ((n - 1) * s) * ENNReal.ofReal M₀ ^ ((n - 1) * s)) by ring,
-    hcancel_pow, mul_one]
+  haveI := isProbabilityMeasure_tiltedMeasure X h_indep h_ident h_meas h_mgf t n
+  rw [iIndepFun_iff_map_fun_eq_pi_map (f := fun i : Finset.range n => X i.val)
+      fun i => (h_meas i.val).aemeasurable,
+    map_range_tiltedMeasure X h_indep h_ident h_meas t n]
+  exact congrArg Measure.pi <| funext fun i =>
+    (map_X_tiltedMeasure X h_indep h_ident h_meas h_mgf t n (Finset.mem_range.mp i.2)).symm
 
 /-! ### Characteristic function of `stdPartialSum` under `tiltedMeasure` -/
 
