@@ -48,13 +48,12 @@ variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
 variable (h_exposed : ∀ a : ℝ, μ[X 0] ≤ a → ∃ t, deriv (cgf (X 0) μ) t = a)
 
 /-- `0 ≤ t` and `Sₙ/n ∈ [a, a + δ]` implies `exp(-t · n · (a + δ)) ≤ exp(-t · Sₙ)` -/
-private lemma exp_le_exp_neg_mul_partialSum (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
-    (ω : Ω) (hω : empiricalMean X n ω ∈ Set.Icc a (a + δ)) :
-    Real.exp (-t * n * (a + δ)) ≤ Real.exp (-t * partialSum X n ω) := by
+private lemma exp_le_exp_neg_mul_sum_range (t : ℝ) (n : ℕ) (a δ : ℝ) (ht : 0 ≤ t)
+    (ω : Ω) (hω : (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)) :
+    Real.exp (-t * n * (a + δ)) ≤ Real.exp (-t * ∑ i ∈ Finset.range n, X i ω) := by
   apply Real.exp_le_exp.mpr
-  rw [empiricalMean] at hω
   rcases eq_or_ne n 0 with hn | hn
-  · simp [hn, partialSum]
+  · simp [hn]
   · have hn' : (0 : ℝ) < n := Nat.cast_pos.mpr (Nat.pos_of_ne_zero hn)
     nlinarith [(div_le_iff₀ hn').mp hω.2, mul_nonneg ht hn'.le]
 
@@ -146,22 +145,25 @@ include h_indep h_ident h_meas h_mgf in
 /-- `exp(-n(ta - Λ(t))) · tiltedMeasure(Sₙ/n ∈ [a, a + δ]) ≤
 μ(Sₙ/n ∈ [a, a + δ])` -/
 lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
-    (h_int : Integrable (fun ω => Real.exp (t * partialSum X n ω)) μ) :
+    (h_int : Integrable (fun ω => Real.exp (t * ∑ i ∈ Finset.range n, X i ω)) μ) :
     Real.exp (-n * (t * (a + δ) - cgf (X 0) μ t)) *
-      ((tiltedMeasure X μ n t) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal ≤
-      (μ {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-  set E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
+      ((tiltedMeasure X μ n t)
+        {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}).toReal ≤
+      (μ {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}).toReal := by
+  set E := {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}
   have hE : MeasurableSet E :=
-    measurableSet_Icc.preimage (measurable_empiricalMean h_meas n)
-  rw [measure_eq_integral_exp_neg_tilted (fun ω => t * partialSum X n ω) E h_int hE]
-  change _ ≤ mgf (partialSum X n) μ t * _
-  rw [mgf_partialSum h_indep h_ident h_meas h_mgf n t]
+    measurableSet_Icc.preimage (measurable_sum_div h_meas n)
+  rw [measure_eq_integral_exp_neg_tilted (fun ω => t * ∑ i ∈ Finset.range n, X i ω) E h_int hE]
+  rw [show μ[fun ω => Real.exp (t * ∑ i ∈ Finset.range n, X i ω)] =
+      Real.exp (n * cgf (X 0) μ t) from by
+    simp_rw [← Finset.sum_apply]
+    exact mgf_sum_range h_indep h_ident h_meas h_mgf n t]
   haveI : IsProbabilityMeasure (tiltedMeasure X μ n t) :=
     isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
   have h_bound :
       Real.exp (-t * n * (a + δ)) *
         ((tiltedMeasure X μ n t) E).toReal ≤
-      ∫ ω in E, Real.exp (-t * partialSum X n ω)
+      ∫ ω in E, Real.exp (-t * ∑ i ∈ Finset.range n, X i ω)
         ∂(tiltedMeasure X μ n t) := by
     calc Real.exp (-t * n * (a + δ)) *
             ((tiltedMeasure X μ n t) E).toReal
@@ -170,15 +172,15 @@ lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
           rw [Measure.real, smul_eq_mul]; ring
       _ = ∫ ω in E, Real.exp (-t * n * (a + δ))
           ∂(tiltedMeasure X μ n t) := (setIntegral_const _).symm
-      _ ≤ ∫ ω in E, Real.exp (-t * partialSum X n ω)
+      _ ≤ ∫ ω in E, Real.exp (-t * ∑ i ∈ Finset.range n, X i ω)
           ∂(tiltedMeasure X μ n t) :=
           setIntegral_mono_on (integrable_const _).integrableOn
             (Integrable.integrableOn <| by
               rw [show (tiltedMeasure X μ n t) =
-                  Measure.tilted μ (fun ω => t * partialSum X n ω) from rfl,
+                  Measure.tilted μ (fun ω => t * ∑ i ∈ Finset.range n, X i ω) from rfl,
                 integrable_tilted_iff h_int]
               simp [← Real.exp_add])
-            hE (exp_le_exp_neg_mul_partialSum t n a δ ht.le)
+            hE (exp_le_exp_neg_mul_sum_range t n a δ ht.le)
   have key : Real.exp (n * cgf (X 0) μ t) *
       (Real.exp (-t * n * (a + δ)) *
         ((tiltedMeasure X μ n t) E).toReal) =
@@ -195,16 +197,17 @@ private lemma Cramer.error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
     (ht_deriv : deriv (cgf (X 0) μ) t = a) :
     Tendsto (fun n : ℕ =>
       ((1 : ℝ) / n : EReal) * ENNReal.log ((tiltedMeasure X μ n t)
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})) atTop (𝓝 0) := by
+        {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)})) atTop (𝓝 0) := by
   haveI : ∀ m, IsProbabilityMeasure (tiltedMeasure X μ m t) := fun m =>
     isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t m
   have h_bounded : ∀ᶠ n in atTop, (1 / 4 : ℝ) ≤
-      ((tiltedMeasure X μ n t) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-    filter_upwards [eventually_tiltedMeasure_empiricalMean_mem_Icc_ge h_indep h_ident h_meas
+      ((tiltedMeasure X μ n t)
+        {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}).toReal := by
+    filter_upwards [eventually_tiltedMeasure_sum_div_mem_Icc_ge h_indep h_ident h_meas
       h_mgf h_non_deg t a δ hδ (1/4) (by norm_num) ht_deriv] with n hn
     linarith
   exact tendsto_inv_mul_log_of_eventually_le (fun n => tiltedMeasure X μ n t)
-    (fun n => {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}) (by norm_num) h_bounded
+    (fun n => {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}) (by norm_num) h_bounded
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- For `0 < δ` and `0 < t` with `Λ'(t) = a`, we have
@@ -213,21 +216,23 @@ private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 
     (ht_deriv : deriv (cgf (X 0) μ) t = a) :
     (-(t * a - cgf (X 0) μ t) : EReal) - (t * δ : EReal)
     ≤ liminf (fun n : ℕ =>
-      ((1 : ℝ) / n : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop := by
+      ((1 : ℝ) / n : EReal) *
+        ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})) atTop := by
   -- `(ta - Λ(t)) - tδ + n⁻¹ log tiltedMeasure(Sₙ/n ∈ [a, a + δ])
   --   ≤ n⁻¹ log μ(a ≤ Sₙ/n)`
   have h_pointwise : ∀ n : ℕ, 1 ≤ n →
       (-(t * a - cgf (X 0) μ t) - t * δ : EReal)
         + ((1 : ℝ) / n : EReal) * ENNReal.log ((tiltedMeasure X μ n t)
-            {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})
-      ≤ ((1 : ℝ) / n : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}) := by
+            {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)})
+      ≤ ((1 : ℝ) / n : EReal) *
+          ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}) := by
     intro n hn
     haveI : IsProbabilityMeasure (tiltedMeasure X μ n t) :=
       isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
-    have h_subset : {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} ⊆
-        {ω | a ≤ empiricalMean X n ω} := fun _ hω => hω.1
-    let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
-    let F := {ω | a ≤ empiricalMean X n ω}
+    have h_subset : {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)} ⊆
+        {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} := fun _ hω => hω.1
+    let E := {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}
+    let F := {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}
     have h_prob_mono : (μ E).toReal ≤ (μ F).toReal :=
       ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono h_subset)
     have h_log_ineq :
@@ -236,7 +241,7 @@ private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 
       apply ENNReal.log_le_log
       rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
       linarith [h_prob_mono, change_of_measure_lower_bound h_indep h_ident h_meas h_mgf
-        a δ t n ht (integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf t n)]
+        a δ t n ht (integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf t n)]
     calc (-(t * a - cgf (X 0) μ t) - t * δ : EReal)
           + ((1 : ℝ) / n : EReal) *
             ENNReal.log ((tiltedMeasure X μ n t) E)
@@ -262,14 +267,15 @@ private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 
   let rhs_seq : ℕ → EReal := fun n =>
     (-(t * a - cgf (X 0) μ t) - t * δ : EReal)
     + ((1 : ℝ) / n : EReal) * ENNReal.log ((tiltedMeasure X μ n t)
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})
+        {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)})
   have h_rhs_limit : Tendsto rhs_seq atTop
       (𝓝 ((-(t * a - cgf (X 0) μ t) : EReal) - (t * δ : EReal))) :=
     tendsto_const_add_vanishing _ _ h_error_vanish
   -- Combine the pointwise inequality and vanishing error term to conclude
   have h_eventually : ∀ᶠ (n : ℕ) in atTop,
       rhs_seq n ≤
-      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}) :=
+      ((1 : ℝ) / (n : ℝ) : EReal) *
+        ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}) :=
     Filter.eventually_atTop.mpr ⟨1, h_pointwise⟩
   rw [← h_rhs_limit.liminf_eq]
   exact liminf_le_liminf h_eventually
@@ -332,33 +338,34 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
     (0 : EReal) ≤
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) *
-          ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop := by
+          ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})) atTop := by
   -- `∃ c > 0` such that for all sufficiently large `n`, `c ≤ μ(a ≤ Sₙ/n)`
   -- i.e. the asymptotic lower bound `μ(a ≤ Sₙ/n)` is greater than 0, which we derive from CLT
   -- on the tilted measures, noting that at `t = 0`, the tilted measures `tiltedMeasure`
   -- coincide with `μ`.
   have h_prob_lower_bound : ∃ c > 0, ∀ᶠ n in atTop,
-      c ≤ (μ {ω | a ≤ empiricalMean X n ω}).toReal := by
-    have h_bound := eventually_tiltedMeasure_empiricalMean_mem_Icc_ge h_indep h_ident h_meas h_mgf
+      c ≤ (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).toReal := by
+    have h_bound := eventually_tiltedMeasure_sum_div_mem_Icc_ge h_indep h_ident h_meas h_mgf
       h_non_deg 0 a 1 (by norm_num) (1/4) (by norm_num) ht_deriv
     refine ⟨1/4, by norm_num, ?_⟩
     filter_upwards [h_bound] with n hn
     have h_eq_meas : tiltedMeasure X μ n 0 = μ := by
-      change Measure.tilted μ (fun ω => 0 * partialSum X n ω) = μ
+      change Measure.tilted μ (fun ω => 0 * ∑ i ∈ Finset.range n, X i ω) = μ
       simp_rw [zero_mul]; exact tilted_zero μ
     rw [h_eq_meas] at hn
     calc (1 / 4 : ℝ)
         = 1 / 2 - 1 / 4 := by norm_num
-      _ ≤ (μ {ω | empiricalMean X n ω ∈ Set.Icc a (a + 1)}).toReal := hn
-      _ ≤ (μ {ω | a ≤ empiricalMean X n ω}).toReal :=
+      _ ≤ (μ {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + 1)}).toReal := hn
+      _ ≤ (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).toReal :=
         ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono fun _ hω => hω.1)
   obtain ⟨c, hc_pos, h_eventually_lower⟩ := h_prob_lower_bound
   have h_tendsto :
       Tendsto (fun n : ℕ =>
-          ((1 : ℝ) / n : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}))
+          ((1 : ℝ) / n : EReal) *
+            ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}))
         atTop (𝓝 0) :=
     tendsto_inv_mul_log_of_eventually_le (fun _ => μ)
-      (fun n => {ω | a ≤ empiricalMean X n ω}) hc_pos h_eventually_lower
+      (fun n => {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}) hc_pos h_eventually_lower
   exact h_tendsto.liminf_eq.symm.le
 
 include h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed in
@@ -368,7 +375,7 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
     (- rateFunction X μ a : EReal) ≤
       liminf (fun n : ℕ =>
         ((1 : ℝ) / (n : ℝ) : EReal) *
-          ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop := by
+          ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})) atTop := by
   -- Get the `t` such that `Λ'(t) = a`.
   obtain ⟨t, ht_deriv⟩ := h_exposed a h_mean
   have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_integral_le h_mgf h_non_deg a h_mean t ht_deriv
@@ -377,7 +384,8 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
   rw [h_rate_eq]
   let LHS_val :=
     liminf (fun n : ℕ =>
-      ((1 : ℝ) / n : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}))
+      ((1 : ℝ) / n : EReal) *
+        ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}))
       atTop
   -- Casework on whether `t = 0`
   by_cases ht_zero : t = 0

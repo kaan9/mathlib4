@@ -35,7 +35,7 @@ An immediate corollary is a concentration statement used in `LowerBound.lean`.
 
 * `Cramer.tendsto_charFun_stdPartialSum`: under `tiltedMeasure`, the characteristic function of
   `Zₙ` converges pointwise to that of `𝒩(0,1)`.
-* `Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge`: the concentration statement for the
+* `Cramer.eventually_tiltedMeasure_sum_div_mem_Icc_ge`: the concentration statement for the
   lower bound proof: For every `0 < δ`, `0 < ε` and `t` with `Λ'(t) = a`, eventually
   `1/2 - ε ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])`.
 
@@ -62,7 +62,7 @@ noncomputable def Cramer.stdTiltedLaw (X : ℕ → Ω → ℝ) (μ : Measure Ω)
 
 /-- The standardized partial sum under `tiltedMeasure`: `Z = (Sₙ - n Λ'(t)) / √(n Λ''(t))`. -/
 noncomputable def Cramer.stdPartialSum (X : ℕ → Ω → ℝ) (μ : Measure Ω) (t : ℝ) (n : ℕ) : Ω → ℝ :=
-  fun ω => (partialSum X n ω - n * deriv (cgf (X 0) μ) t) /
+  fun ω => ((∑ i ∈ Finset.range n, X i ω) - n * deriv (cgf (X 0) μ) t) /
     Real.sqrt (n * iteratedDeriv 2 (cgf (X 0) μ) t)
 
 variable {X : ℕ → Ω → ℝ}
@@ -123,13 +123,13 @@ lemma Cramer.memLp_id_tiltedLaw (t : ℝ) : MemLp (id : ℝ → ℝ) 2 (tiltedLa
 
 /-- Algebraic identity: for `t` with `Λ'(t) = a` and `0 < n`, the event
 `{Sₙ/n ∈ [a, a+δ]}` is exactly `{Zₙ ∈ [0, δ · √(n / Λ''(t))]}`. -/
-lemma Cramer.empiricalMean_mem_Icc_iff_stdPartialSum_mem_Icc (t a δ : ℝ) (n : ℕ) (hn : 0 < n)
+lemma Cramer.sum_div_mem_Icc_iff_stdPartialSum_mem_Icc (t a δ : ℝ) (n : ℕ) (hn : 0 < n)
     (h_non_deg_t : 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
     (ht_deriv : deriv (cgf (X 0) μ) t = a) (ω : Ω) :
-    empiricalMean X n ω ∈ Set.Icc a (a + δ) ↔
+    (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ) ↔
       stdPartialSum X μ t n ω ∈ Set.Icc (0 : ℝ)
         (δ * Real.sqrt (n / iteratedDeriv 2 (cgf (X 0) μ) t)) := by
-  rw [Set.mem_Icc, Set.mem_Icc, empiricalMean, stdPartialSum, ht_deriv]
+  rw [Set.mem_Icc, Set.mem_Icc, stdPartialSum, ht_deriv]
   set v := iteratedDeriv 2 (cgf (X 0) μ) t
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   have hnv : (0 : ℝ) < Real.sqrt (n * v) := Real.sqrt_pos.mpr (by positivity)
@@ -225,11 +225,11 @@ of `tiltedLaw`. -/
 private lemma Cramer.map_range_tiltedMeasure (t : ℝ) (n : ℕ) :
     (tiltedMeasure X μ n t).map (fun ω (i : Finset.range n) => X i.val ω) =
       Measure.pi (fun _ : Finset.range n => tiltedLaw X μ t) := by
-  have h_fun : (fun ω => t * partialSum X n ω) = (fun v : Finset.range n → ℝ => ∑ i, t * v i) ∘
-      (fun ω (i : Finset.range n) => X i.val ω) := by
+  have h_fun : (fun ω => t * ∑ i ∈ Finset.range n, X i ω) =
+      (fun v : Finset.range n → ℝ => ∑ i, t * v i) ∘
+        (fun ω (i : Finset.range n) => X i.val ω) := by
     funext ω
-    simp only [Function.comp_apply, partialSum, Finset.sum_apply, Finset.mul_sum,
-      Finset.univ_eq_attach]
+    simp only [Function.comp_apply, Finset.mul_sum, Finset.univ_eq_attach]
     exact (Finset.sum_attach (Finset.range n) fun j => t * X j ω).symm
   have h_tilt : tiltedMeasure X μ n t =
       μ.tilted ((fun v : Finset.range n → ℝ => ∑ i, t * v i) ∘
@@ -294,7 +294,7 @@ lemma Cramer.charFun_map_stdPartialSum (t : ℝ) (n : ℕ) (s : ℝ) :
   have hZ_eq : stdPartialSum X μ t n =
       fun ω => (Real.sqrt n)⁻¹ * ∑ k ∈ Finset.range n, Y k ω := by
     ext ω
-    simp only [stdPartialSum, hY_def, partialSum, Finset.sum_apply,
+    simp only [stdPartialSum, hY_def,
       Real.sqrt_mul (Nat.cast_nonneg _), ← Finset.sum_div, Finset.sum_sub_distrib,
       Finset.sum_const, Finset.card_range, nsmul_eq_mul]
     ring
@@ -362,7 +362,7 @@ lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM
     isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
   haveI : ∀ n, IsProbabilityMeasure ((tiltedMeasure X μ n t).map (stdPartialSum X μ t n)) :=
     fun n => Measure.isProbabilityMeasure_map
-      (((measurable_partialSum h_meas n).sub_const _).div_const _).aemeasurable
+      (((measurable_sum_range h_meas n).sub_const _).div_const _).aemeasurable
   haveI : NullSingletonClass (gaussianReal 0 1) := nullSingletonClass_gaussianReal one_ne_zero
   set ν_n : ℕ → ProbabilityMeasure ℝ := fun n =>
     ⟨(tiltedMeasure X μ n t).map (stdPartialSum X μ t n), inferInstance⟩
@@ -386,11 +386,11 @@ lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- **Corollary of Tilted CLT:** Given `Λ'(t) = a`, for all `0 < δ` and `0 < ε`,
  `1/2 - ε ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])` holds for all sufficiently large `n`. -/
-lemma Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ)
+lemma Cramer.eventually_tiltedMeasure_sum_div_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ)
     (ε : ℝ) (hε : 0 < ε) (ht_deriv : deriv (cgf (X 0) μ) t = a) :
     ∀ᶠ n in atTop,
       (1 / 2 - ε : ℝ) ≤ ((tiltedMeasure X μ n t)
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
+        {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}).toReal := by
   -- Let `v := Λ''(t)`
   set v := iteratedDeriv 2 (cgf (X 0) μ) t with hv_def
   have hv_pos : 0 < v := h_non_deg t
@@ -398,7 +398,7 @@ lemma Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge (t a δ : ℝ) (h
     isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
   have hZ_meas : ∀ n, Measurable (stdPartialSum X μ t n) := fun n => by
     unfold stdPartialSum
-    exact ((measurable_partialSum h_meas n).sub_const _).div_const _
+    exact ((measurable_sum_range h_meas n).sub_const _).div_const _
   -- Pick `0 ≤ M₀` with `1/2 - ε/2 < N([0, M₀])`.
   have h_gauss_half : Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
       atTop (𝓝 (1 / 2)) := by
@@ -425,10 +425,10 @@ lemma Cramer.eventually_tiltedMeasure_empiricalMean_mem_Icc_ge (t a δ : ℝ) (h
   -- Rewrite the preimage of `Z([0, Mₙ])` as `{ω | Sₙ(ω)/n ∈ [a, a+δ]}`
   have h_set_eq :
       (stdPartialSum X μ t n) ⁻¹' Set.Icc (0 : ℝ) M_n =
-        {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} := by
+        {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)} := by
     ext ω
     simp only [Set.mem_preimage, Set.mem_setOf_eq]
-    rw [empiricalMean_mem_Icc_iff_stdPartialSum_mem_Icc t a δ n hn_pos (h_non_deg t) ht_deriv ω]
+    rw [sum_div_mem_Icc_iff_stdPartialSum_mem_Icc t a δ n hn_pos (h_non_deg t) ht_deriv ω]
   -- `[0, M₀] ⊆ [0, M_n]` implies `Zₙ([0, M₀]) ≤ Zₙ([0, M_n])` under `tiltedMeasure`.
   have h_toReal_mono :
       (((tiltedMeasure X μ n t).map (stdPartialSum X μ t n)) (Set.Icc (0 : ℝ) M₀)).toReal ≤

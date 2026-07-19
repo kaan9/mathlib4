@@ -29,8 +29,6 @@ and the two bounds are assembled in `Theorem.lean`.
 
 ## Main definitions
 
-* `partialSum X n`: the partial sum `Sₙ = X₀ + ⋯ + Xₙ₋₁`.
-* `empiricalMean X n`: the empirical mean `Sₙ / n`.
 * `Cramer.rateFunction X μ`: the Legendre transform `x ↦ ⨆ t, t * x - cgf (X 0) μ t` of the
   cumulant-generating function; this is the rate function of Cramér's theorem.
 * `Cramer.upperTailRateFunction X μ`: the rate function for the upper tail `μ(a ≤ Sₙ / n)`, equal
@@ -39,9 +37,9 @@ and the two bounds are assembled in `Theorem.lean`.
 
 ## Main results
 
-* `mgf_partialSum` and `cgf_partialSum`: the moment- and cumulant-generating functions of `Sₙ`
-  factor as `mgf (partialSum X n) μ t = exp (n * cgf (X 0) μ t)` and
-  `cgf (partialSum X n) μ t = n * cgf (X 0) μ t`.
+* `mgf_sum_range` and `cgf_sum_range`: the moment- and cumulant-generating functions of `Sₙ`
+  factor as `mgf (∑ i ∈ Finset.range n, X i) μ t = exp (n * cgf (X 0) μ t)` and
+  `cgf (∑ i ∈ Finset.range n, X i) μ t = n * cgf (X 0) μ t`.
 * `Cramer.isProbabilityMeasure_tiltedMeasure`: the tilted measure `tiltedMeasure X μ n t` is a
   probability measure.
 * `Cramer.rateFunction_eq_iSup_nonneg`: for `μ[X 0] ≤ a` the supremum defining the rate function
@@ -88,17 +86,11 @@ namespace ProbabilityTheory
 variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω}
 variable {X : ℕ → Ω → ℝ}
 
-/-- The partial sum X₁ + ... + Xₙ. -/
-def partialSum (X : ℕ → Ω → ℝ) (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
-
-/-- The empirical mean Sₙ / n. -/
-noncomputable def empiricalMean (X : ℕ → Ω → ℝ) (n : ℕ) : Ω → ℝ := fun ω => partialSum X n ω / n
-
 /-- The Legendre transform of the CGF. This is the rate function for Cramér's theorem. -/
 noncomputable def Cramer.rateFunction (X : ℕ → Ω → ℝ) (μ : Measure Ω) (x : ℝ) : ℝ :=
   ⨆ t : ℝ, t * x - cgf (X 0) μ t
 
-/-- The "Effective" Rate Function for the upper tail probability `μ(a ≤ empiricalMean X n)`.
+/-- The "Effective" Rate Function for the upper tail probability `μ(a ≤ Sₙ / n)`.
 Cramér's theorem only holds when `μ[X 0] ≤ a`, so to state a general Large Deviation Principle
 for all `a`, we define the rate function to be `rateFunction X μ a` for `μ[X 0] ≤ a`, and `0`
 otherwise. -/
@@ -108,7 +100,7 @@ noncomputable def Cramer.upperTailRateFunction (X : ℕ → Ω → ℝ) (μ : Me
 /-- The exponentially tilted measure, tilted by `t · Sₙ`. -/
 noncomputable def Cramer.tiltedMeasure (X : ℕ → Ω → ℝ) (μ : Measure Ω) (n : ℕ)
     (t : ℝ) : Measure Ω :=
-  Measure.tilted μ (fun ω => t * partialSum X n ω)
+  Measure.tilted μ (fun ω => t * ∑ i ∈ Finset.range n, X i ω)
 
 /- Assumptions for Cramér's theorem; see the module docstring for a discussion. -/
 -- The random variables Xᵢ are independent.
@@ -132,14 +124,13 @@ lemma integrable_exp_mul_of_identDistrib (i : ℕ) (t : ℝ) :
 
 include h_meas in
 /-- The partial sum `Sₙ` is measurable. -/
-lemma measurable_partialSum (n : ℕ) : Measurable (partialSum X n) := by
-  simpa [partialSum, ← Finset.sum_apply] using
-    Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)
+lemma measurable_sum_range (n : ℕ) : Measurable (fun ω => ∑ i ∈ Finset.range n, X i ω) :=
+  Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)
 
 include h_meas in
 /-- The empirical mean `Sₙ/n` is measurable. -/
-lemma measurable_empiricalMean (n : ℕ) : Measurable (empiricalMean X n) :=
-  (measurable_partialSum h_meas n).div_const (n : ℝ)
+lemma measurable_sum_div (n : ℕ) : Measurable (fun ω => (∑ i ∈ Finset.range n, X i ω) / n) :=
+  (measurable_sum_range h_meas n).div_const (n : ℝ)
 
 include h_mgf in
 /-- All `t ∈ ℝ` lie in the interior of the domain for which `exp(tX₀)` is integrable. -/
@@ -184,24 +175,26 @@ lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (h_int : Integrable Y μ)
 
 include h_indep h_ident h_meas h_mgf in
 /-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
-lemma integrable_exp_mul_partialSum (t : ℝ) (n : ℕ) :
-    Integrable (fun ω => Real.exp (t * partialSum X n ω)) μ :=
-  h_indep.integrable_exp_mul_sum h_meas
+lemma integrable_exp_mul_sum_range (t : ℝ) (n : ℕ) :
+    Integrable (fun ω => Real.exp (t * ∑ i ∈ Finset.range n, X i ω)) μ := by
+  simpa using h_indep.integrable_exp_mul_sum h_meas
     fun i _ => integrable_exp_mul_of_identDistrib h_ident h_mgf i t
 
 include h_indep h_ident h_meas h_mgf in
 /-- The tilted measure by `t · Sₙ` is a probability measure. -/
 lemma Cramer.isProbabilityMeasure_tiltedMeasure (t : ℝ) (n : ℕ) :
     IsProbabilityMeasure (tiltedMeasure X μ n t) :=
-  isProbabilityMeasure_tilted (integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf t n)
+  isProbabilityMeasure_tilted (integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf t n)
 
 include h_indep h_ident h_meas h_mgf in
 /-- Every `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
-lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
-    t ∈ interior (integrableExpSet (partialSum X n) μ) := by
-  simp [Set.eq_univ_of_forall
-    (fun s => integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf s n)
-    (s := integrableExpSet (partialSum X n) μ)]
+lemma mem_interior_integrableExpSet_sum_range (t : ℝ) (n : ℕ) :
+    t ∈ interior (integrableExpSet (∑ i ∈ Finset.range n, X i) μ) := by
+  have h_univ : integrableExpSet (∑ i ∈ Finset.range n, X i) μ = Set.univ :=
+    Set.eq_univ_of_forall fun s => by
+      simpa [integrableExpSet, Finset.sum_apply] using
+        integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf s n
+  simp [h_univ]
 
 include h_bdd h_mgf in
 /-- For `μ[X] ≤ a`, the supremum in the rate function is achieved by non-negative `t`.
@@ -227,11 +220,10 @@ lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : μ[X 0] ≤ a) :
 
 include h_indep h_ident h_meas h_mgf in
 /-- `M_Sₙ(t) = exp(n · Λ_X₀(t))` -/
-lemma mgf_partialSum (n : ℕ) (t : ℝ) :
-    mgf (partialSum X n) μ t = Real.exp (n * cgf (X 0) μ t) := by
+lemma mgf_sum_range (n : ℕ) (t : ℝ) :
+    mgf (∑ i ∈ Finset.range n, X i) μ t = Real.exp (n * cgf (X 0) μ t) := by
   rcases n with _ | n
-  · simp [partialSum, cgf]
-  change mgf (∑ i ∈ Finset.range (n + 1), X i) μ t = _
+  · simp [cgf]
   rw [mgf_sum_of_identDistrib h_meas h_indep
       (fun i _ j _ => (h_ident i).trans (h_ident j).symm)
       (Finset.mem_range.mpr n.succ_pos) t,
@@ -241,8 +233,8 @@ lemma mgf_partialSum (n : ℕ) (t : ℝ) :
 
 include h_indep h_ident h_meas h_mgf in
 /-- `Λ_Sₙ(t) = n · Λ_X₀(t)` -/
-lemma cgf_partialSum (n : ℕ) (t : ℝ) :
-    cgf (partialSum X n) μ t = (n : ℝ) * cgf (X 0) μ t := by
-  rw [cgf, mgf_partialSum h_indep h_ident h_meas h_mgf, Real.log_exp]
+lemma cgf_sum_range (n : ℕ) (t : ℝ) :
+    cgf (∑ i ∈ Finset.range n, X i) μ t = (n : ℝ) * cgf (X 0) μ t := by
+  rw [cgf, mgf_sum_range h_indep h_ident h_meas h_mgf, Real.log_exp]
 
 end ProbabilityTheory

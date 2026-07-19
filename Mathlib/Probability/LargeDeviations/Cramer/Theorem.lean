@@ -65,47 +65,42 @@ variable [IsProbabilityMeasure μ]
 
 include h_indep h_meas h_ident h_mgf in
 /-- If `a < μ[X 0]`, `μ(a ≤ Sₙ/n) → 1` by the strong law of large numbers. -/
-private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (h : a < μ[X 0]) :
-  Tendsto (fun n : ℕ => (μ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
+private lemma Cramer.tendsto_measure_sum_div_ge_of_lt_integral (a : ℝ) (h : a < μ[X 0]) :
+  Tendsto (fun n : ℕ => (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} : ENNReal))
+    atTop (𝓝 1) := by
   have h_int := Cramer.integrable_of_forall_integrable_exp h_mgf
   have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) μ) :=
     fun i j hij => h_indep.indepFun hij
   -- Almost sure convergence: `μ(limₙ Sₙ/n = μ[X]) = 1`
   have h_strong_law :
-      ∀ᵐ ω ∂μ, Tendsto (fun n : ℕ => empiricalMean X n ω) atTop (𝓝 μ[X 0]) := by
-    have h_orig := strong_law_ae_real X h_int h_pairwise h_ident
-    filter_upwards [h_orig] with ω hω
-    have h_eq : (fun n : ℕ => empiricalMean X n ω) =
-        (fun n => (∑ i ∈ Finset.range n, X i ω) / n) := by
-      ext n
-      unfold empiricalMean partialSum
-      rw [Finset.sum_apply]
-    rwa [h_eq]
-  have h_eventually_large : ∀ᵐ ω ∂μ, ∀ᶠ n in atTop, a ≤ empiricalMean X n ω := by
+      ∀ᵐ ω ∂μ, Tendsto (fun n : ℕ => (∑ i ∈ Finset.range n, X i ω) / n) atTop (𝓝 μ[X 0]) :=
+    strong_law_ae_real X h_int h_pairwise h_ident
+  have h_eventually_large :
+      ∀ᵐ ω ∂μ, ∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n := by
     filter_upwards [h_strong_law] with ω hω
     exact hω.eventually (eventually_ge_nhds h)
-  let S : ℕ → Set Ω := fun k => {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
+  let S : ℕ → Set Ω := fun k => {ω | ∀ n ≥ k, a ≤ (∑ i ∈ Finset.range n, X i ω) / n}
   have h_mono : Monotone S := by
     intro k₁ k₂ hk ω hω n hn
     exact hω n (le_trans hk hn)
-  have h_union : ⋃ k, S k = {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
+  have h_union : ⋃ k, S k = {ω | ∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} := by
     ext ω
     simp only [Set.mem_iUnion, Set.mem_setOf_eq, Filter.eventually_atTop, S]
   have h_union_meas : μ (⋃ k, S k) = 1 := by
     have h_union_meas_set : MeasurableSet (⋃ k, S k) := by
       refine MeasurableSet.iUnion fun k => ?_
-      change MeasurableSet {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω}
-      have : {ω | ∀ n ≥ k, a ≤ empiricalMean X n ω} =
-          ⋂ n, ⋂ (_ : k ≤ n), {ω | a ≤ empiricalMean X n ω} := by
+      change MeasurableSet {ω | ∀ n ≥ k, a ≤ (∑ i ∈ Finset.range n, X i ω) / n}
+      have : {ω | ∀ n ≥ k, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} =
+          ⋂ n, ⋂ (_ : k ≤ n), {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} := by
         ext; simp
       rw [this]
       refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
-      exact measurableSet_le measurable_const (measurable_empiricalMean h_meas n)
+      exact measurableSet_le measurable_const (measurable_sum_div h_meas n)
     rw [h_union]
-    have h_compl : μ {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} = 0 :=
+    have h_compl : μ {ω | ¬∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} = 0 :=
       ae_iff.mp h_eventually_large
-    have h_compl_eq : {ω | ∀ᶠ n in atTop, a ≤ empiricalMean X n ω}ᶜ =
-        {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} := by
+    have h_compl_eq : {ω | ∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n}ᶜ =
+        {ω | ¬∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} := by
       ext; simp
     rw [← prob_add_prob_compl (μ := μ) (h_union ▸ h_union_meas_set), h_compl_eq, h_compl,
       add_zero]
@@ -123,7 +118,7 @@ function, i.e. for every `a`,
 `limsupₙ (1/n) log μ(a ≤ Sₙ/n) ≤ -upperTailRateFunction X μ a`. -/
 theorem Cramer.limsup_le_neg_upperTailRateFunction : ∀ a : ℝ,
     limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) *
-      ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop
+      ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})) atTop
       ≤ (- Cramer.upperTailRateFunction X μ a : EReal) := by
   intro a
   by_cases h : μ[X 0] ≤ a
@@ -132,9 +127,9 @@ theorem Cramer.limsup_le_neg_upperTailRateFunction : ∀ a : ℝ,
   · norm_cast
     rw [Cramer.upperTailRateFunction, if_neg h]
     have h_prob_bound_2 : ∀ n : ℕ, n ≠ 0 →
-        1 / ↑n * (μ {ω | a ≤ empiricalMean X n ω}).log ≤ 0 := by
+        1 / ↑n * (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log ≤ 0 := by
       intro n h_n_nonneg
-      have h_log_nonpos : (μ {ω | a ≤ empiricalMean X n ω}).log ≤ 0 := by
+      have h_log_nonpos : (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log ≤ 0 := by
         rw [ENNReal.log_le_zero_iff]
         exact prob_le_one
       rw [EReal.mul_nonpos_iff]
@@ -161,7 +156,7 @@ function, i.e. for every `a`,
 theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
     (- Cramer.upperTailRateFunction X μ a : EReal) ≤
       liminf (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) *
-        ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop := by
+        ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})) atTop := by
   intro a
   by_cases h : μ[X 0] ≤ a
   · rw [Cramer.upperTailRateFunction, if_pos h]
@@ -170,13 +165,15 @@ theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
   · rw [Cramer.upperTailRateFunction, if_neg h, EReal.coe_zero, neg_zero]
     have h_a_lt_mean : a < μ[X 0] := not_le.mp h
     have h_prob_to_one :
-        Tendsto (fun n => (μ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
-      Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral h_indep h_ident h_meas h_mgf a
+        Tendsto (fun n => (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} : ENNReal))
+          atTop (𝓝 1) :=
+      Cramer.tendsto_measure_sum_div_ge_of_lt_integral h_indep h_ident h_meas h_mgf a
         h_a_lt_mean
-    have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
-        ((1 : ℝ) / (n : ℝ) : EReal) * (μ {ω | a ≤ empiricalMean X n ω}).log) atTop
+    have h_seq_to_zero : Tendsto (fun (n : ℕ) => ((1 : ℝ) / (n : ℝ) : EReal) *
+        (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log) atTop
         (𝓝 (0 : EReal)) := by
-      have h_log_to_zero : Tendsto (fun n => (μ {ω | a ≤ empiricalMean X n ω}).log) atTop
+      have h_log_to_zero : Tendsto
+          (fun n => (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log) atTop
           (𝓝 (0 : EReal)) := by
         simpa [ENNReal.log_one, Function.comp_def] using
           (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one

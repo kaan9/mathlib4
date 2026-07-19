@@ -16,9 +16,9 @@ the empirical mean `Sₙ / n` exceeds a level `a ≥ μ[X 0]` is asymptotically 
 `I` is the rate function `Cramer.rateFunction`.
 
 The proof applies Markov's inequality to `exp (t * Sₙ)` for each `0 ≤ t`, takes the infimum over
-`t`, and uses the scaling identity `cgf (partialSum X n) μ = n * cgf (X 0) μ` from `Basic.lean`.
-We use `ProbabilityTheory.measure_ge_le_exp_cgf`, the Chernoff bound for the upper tail of a
-real-valued random variable.
+`t`, and uses the scaling identity `cgf (∑ i ∈ Finset.range n, X i) μ = n * cgf (X 0) μ` from
+`Basic.lean`. We use `ProbabilityTheory.measure_ge_le_exp_cgf`, the Chernoff bound for the upper
+tail of a real-valued random variable.
 
 ## Main results
 
@@ -44,15 +44,16 @@ variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) �
 include h_indep h_meas h_ident h_mgf in
 /-- **Chernoff bound** for the empirical mean.
 `μ(a ≤ Sₙ/n) ≤ exp(-n · (t · a - Λ_X₀(t)))` for `0 ≤ t`. -/
-lemma measure_empiricalMean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
-  (μ {ω | a ≤ empiricalMean X n ω}).toReal
-    ≤ Real.exp ( - (n : ℝ) * (t * a - cgf (X 0) μ t)) := by
+lemma measure_sum_div_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
+    (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).toReal
+      ≤ Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t)) := by
   have h_n_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn_pos
-  rw [show { ω | a ≤ empiricalMean X n ω } = { ω | (n : ℝ) * a ≤ partialSum X n ω }
-      from by ext ω; simp [empiricalMean, le_div_iff₀ h_n_pos, mul_comm]]
-  refine (measure_ge_le_exp_cgf _ ht
-    (integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf t n)).trans ?_
-  rw [cgf_partialSum h_indep h_ident h_meas h_mgf n t]
+  rw [show { ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n } =
+      { ω | (n : ℝ) * a ≤ (∑ i ∈ Finset.range n, X i) ω }
+      from by ext ω; simp [le_div_iff₀ h_n_pos, mul_comm]]
+  refine (measure_ge_le_exp_cgf _ ht (by
+    simpa using integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf t n)).trans ?_
+  rw [cgf_sum_range h_indep h_ident h_meas h_mgf n t]
   apply le_of_eq; congr 1; ring
 
 include h_indep h_meas h_ident h_mgf h_bdd in
@@ -61,12 +62,12 @@ that the empirical mean exceeds `a` is bounded above by the negative rate functi
 `limsup_{n→∞} log(μ(a ≤ Sₙ/n)) / n ≤ -rateFunction X μ a`.
 This uses `ENNReal.log` to handle the case when the probability is `0` (giving `-∞`). -/
 theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
-    limsup (fun n : ℕ =>
-      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}))
+    limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) *
+      ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}))
         atTop ≤ (- rateFunction X μ a : EReal) := by
   unfold rateFunction
-  set L := limsup (fun n : ℕ =>
-      ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop
+  set L := limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) *
+      ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})) atTop
   set f : {x : ℝ | 0 ≤ x} → ℝ := fun t => t.val * a - cgf (X 0) μ t
   have h0 : (0 : ℝ) ∈ {x : ℝ | 0 ≤ x} := by simp
   haveI : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, h0⟩⟩
@@ -99,17 +100,18 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
     (eventually_atTop.mpr ⟨1, fun n hn => ?_⟩)
   have hn_pos : 0 < n := hn
   have hn_ne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn_pos.ne'
-  have h_ennreal : μ {ω | a ≤ empiricalMean X n ω} ≤
+  have h_ennreal : μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} ≤
       ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))) :=
     (ENNReal.ofReal_toReal_eq_iff.mpr (measure_ne_top _ _)).symm.le.trans
       (ENNReal.ofReal_le_ofReal
-        (measure_empiricalMean_ge_le_exp h_indep h_ident h_meas h_mgf t a ht n hn_pos))
+        (measure_sum_div_ge_le_exp h_indep h_ident h_meas h_mgf t a ht n hn_pos))
   have h_log_exp : ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))))
       = (((-(n : ℝ) * (t * a - cgf (X 0) μ t)) : ℝ) : EReal) := by
     rw [ENNReal.log_ofReal_of_pos (Real.exp_pos _), Real.log_exp]
   have h_arith : (1 : ℝ) / (n : ℝ) * (-(n : ℝ) * (t * a - cgf (X 0) μ t))
       = -(t * a - cgf (X 0) μ t) := by field_simp
-  calc ((1 : ℝ) / (n : ℝ) : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})
+  calc ((1 : ℝ) / (n : ℝ) : EReal) *
+      ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})
       ≤ ((1 : ℝ) / (n : ℝ) : EReal) *
           (((-(n : ℝ) * (t * a - cgf (X 0) μ t)) : ℝ) : EReal) := by
         rw [← h_log_exp]; gcongr
