@@ -29,12 +29,12 @@ real-valued random variable.
 open ProbabilityTheory MeasureTheory Filter Topology
 open scoped ENNReal
 
-@[expose] public section
+public section
 
 namespace ProbabilityTheory
 
 variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
-variable (X : ℕ → Ω → ℝ)
+variable {X : ℕ → Ω → ℝ}
 variable (h_indep : iIndepFun X μ)
 variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
 variable (h_meas : ∀ n, Measurable (X n))
@@ -51,8 +51,8 @@ lemma measure_empiricalMean_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_p
   rw [show { ω | a ≤ empiricalMean X n ω } = { ω | (n : ℝ) * a ≤ partialSum X n ω }
       from by ext ω; simp [empiricalMean, le_div_iff₀ h_n_pos, mul_comm]]
   refine (measure_ge_le_exp_cgf _ ht
-    (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n)).trans ?_
-  rw [cgf_partialSum X h_indep h_ident h_meas h_mgf n t]
+    (integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf t n)).trans ?_
+  rw [cgf_partialSum h_indep h_ident h_meas h_mgf n t]
   apply le_of_eq; congr 1; ring
 
 include h_indep h_meas h_ident h_mgf h_bdd in
@@ -93,7 +93,7 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
             ← EReal.coe_sInf h_ne h_bdd_neg, h_real, EReal.coe_neg]
       _ = (- rateFunction X μ a : EReal) := by
           norm_cast
-          exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg X h_mgf h_bdd a h_mean).symm
+          exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg h_mgf h_bdd a h_mean).symm
   intro t ht
   refine limsup_le_of_le (isCoboundedUnder_le_of_le atTop (fun _ => bot_le))
     (eventually_atTop.mpr ⟨1, fun n hn => ?_⟩)
@@ -103,7 +103,7 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
       ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))) :=
     (ENNReal.ofReal_toReal_eq_iff.mpr (measure_ne_top _ _)).symm.le.trans
       (ENNReal.ofReal_le_ofReal
-        (measure_empiricalMean_ge_le_exp X h_indep h_ident h_meas h_mgf t a ht n hn_pos))
+        (measure_empiricalMean_ge_le_exp h_indep h_ident h_meas h_mgf t a ht n hn_pos))
   have h_log_exp : ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))))
       = (((-(n : ℝ) * (t * a - cgf (X 0) μ t)) : ℝ) : EReal) := by
     rw [ENNReal.log_ofReal_of_pos (Real.exp_pos _), Real.log_exp]

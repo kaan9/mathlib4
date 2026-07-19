@@ -31,12 +31,12 @@ bound.
 open ProbabilityTheory MeasureTheory Filter Topology
 open scoped ENNReal
 
-@[expose] public section
+public section
 
 namespace ProbabilityTheory
 
 variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω}
-variable (X : ℕ → Ω → ℝ)
+variable {X : ℕ → Ω → ℝ}
 
 /- Assumptions for Cramér's theorem -/
 variable (h_indep : iIndepFun X μ)
@@ -152,12 +152,12 @@ lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
       (μ {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
   set E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
   have hE : MeasurableSet E :=
-    measurableSet_Icc.preimage (measurable_empiricalMean X h_meas n)
+    measurableSet_Icc.preimage (measurable_empiricalMean h_meas n)
   rw [measure_eq_integral_exp_neg_tilted (fun ω => t * partialSum X n ω) E h_int hE]
   change _ ≤ mgf (partialSum X n) μ t * _
-  rw [mgf_partialSum X h_indep h_ident h_meas h_mgf n t]
+  rw [mgf_partialSum h_indep h_ident h_meas h_mgf n t]
   haveI : IsProbabilityMeasure (tiltedMeasure X μ n t) :=
-    isProbabilityMeasure_tiltedMeasure X h_indep h_ident h_meas h_mgf t n
+    isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
   have h_bound :
       Real.exp (-t * n * (a + δ)) *
         ((tiltedMeasure X μ n t) E).toReal ≤
@@ -178,7 +178,7 @@ lemma Cramer.change_of_measure_lower_bound (a δ t : ℝ) (n : ℕ) (ht : 0 < t)
                   Measure.tilted μ (fun ω => t * partialSum X n ω) from rfl,
                 integrable_tilted_iff h_int]
               simp [← Real.exp_add])
-            hE (exp_le_exp_neg_mul_partialSum X t n a δ ht.le)
+            hE (exp_le_exp_neg_mul_partialSum t n a δ ht.le)
   have key : Real.exp (n * cgf (X 0) μ t) *
       (Real.exp (-t * n * (a + δ)) *
         ((tiltedMeasure X μ n t) E).toReal) =
@@ -197,10 +197,10 @@ private lemma Cramer.error_term_vanishes (a t δ : ℝ) (hδ : 0 < δ)
       ((1 : ℝ) / n : EReal) * ENNReal.log ((tiltedMeasure X μ n t)
         {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)})) atTop (𝓝 0) := by
   haveI : ∀ m, IsProbabilityMeasure (tiltedMeasure X μ m t) := fun m =>
-    isProbabilityMeasure_tiltedMeasure X h_indep h_ident h_meas h_mgf t m
+    isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t m
   have h_bounded : ∀ᶠ n in atTop, (1 / 4 : ℝ) ≤
       ((tiltedMeasure X μ n t) {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}).toReal := by
-    filter_upwards [eventually_tiltedMeasure_empiricalMean_mem_Icc_ge X h_indep h_ident h_meas
+    filter_upwards [eventually_tiltedMeasure_empiricalMean_mem_Icc_ge h_indep h_ident h_meas
       h_mgf h_non_deg t a δ hδ (1/4) (by norm_num) ht_deriv] with n hn
     linarith
   exact tendsto_inv_mul_log_of_eventually_le (fun n => tiltedMeasure X μ n t)
@@ -223,7 +223,7 @@ private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 
       ≤ ((1 : ℝ) / n : EReal) * ENNReal.log (μ {ω | a ≤ empiricalMean X n ω}) := by
     intro n hn
     haveI : IsProbabilityMeasure (tiltedMeasure X μ n t) :=
-      isProbabilityMeasure_tiltedMeasure X h_indep h_ident h_meas h_mgf t n
+      isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
     have h_subset : {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)} ⊆
         {ω | a ≤ empiricalMean X n ω} := fun _ hω => hω.1
     let E := {ω | empiricalMean X n ω ∈ Set.Icc a (a + δ)}
@@ -235,8 +235,8 @@ private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 
           ((tiltedMeasure X μ n t) E).toReal)) ≤ ENNReal.log (μ F) := by
       apply ENNReal.log_le_log
       rw [ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)]
-      linarith [h_prob_mono, change_of_measure_lower_bound X h_indep h_ident h_meas h_mgf
-        a δ t n ht (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n)]
+      linarith [h_prob_mono, change_of_measure_lower_bound h_indep h_ident h_meas h_mgf
+        a δ t n ht (integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf t n)]
     calc (-(t * a - cgf (X 0) μ t) - t * δ : EReal)
           + ((1 : ℝ) / n : EReal) *
             ENNReal.log ((tiltedMeasure X μ n t) E)
@@ -257,7 +257,7 @@ private lemma Cramer.lower_bound_via_tilted (a t δ : ℝ) (hδ : 0 < δ) (ht : 
           mul_le_mul_of_nonneg_left (by exact_mod_cast h_log_ineq)
             (ereal_one_div_nat_nonneg n)
   -- The error term `n⁻¹ log tiltedMeasure(Sₙ/n ∈ [a, a + δ])` vanishes as `n → ∞`.
-  have h_error_vanish := error_term_vanishes X h_indep h_ident h_meas h_mgf h_non_deg
+  have h_error_vanish := error_term_vanishes h_indep h_ident h_meas h_mgf h_non_deg
     a t δ hδ ht_deriv
   let rhs_seq : ℕ → EReal := fun n =>
     (-(t * a - cgf (X 0) μ t) - t * δ : EReal)
@@ -283,7 +283,7 @@ private lemma Cramer.deriv_cgf_nonneg_of_integral_le (a : ℝ) (h_mean : μ[X 0]
   have h_strict_mono : StrictMono (deriv (cgf (X 0) μ)) :=
     strictMono_of_deriv_pos fun x => by simpa [iteratedDeriv_succ] using h_non_deg x
   have := h_strict_mono ht_neg
-  rw [ht_deriv, deriv_cgf_zero (mem_interior_integrableExpSet X h_mgf 0)] at this
+  rw [ht_deriv, deriv_cgf_zero (mem_interior_integrableExpSet h_mgf 0)] at this
   simp at this
   linarith
 
@@ -291,7 +291,7 @@ omit [IsProbabilityMeasure μ] in
 include h_mgf in
 /-- The CGF of `X 0` is analytic on all of `ℝ`. -/
 private lemma analyticOn_cgf_univ : AnalyticOn ℝ (cgf (X 0) μ) Set.univ :=
-  Set.eq_univ_of_forall (Cramer.mem_interior_integrableExpSet X h_mgf) ▸ analyticOn_cgf
+  Set.eq_univ_of_forall (Cramer.mem_interior_integrableExpSet h_mgf) ▸ analyticOn_cgf
 
 omit [IsProbabilityMeasure μ] in
 include h_mgf h_bdd h_non_deg in
@@ -300,7 +300,7 @@ private lemma Cramer.rateFunction_eq_of_deriv_eq (a t : ℝ)
     (ht_deriv : deriv (cgf (X 0) μ) t = a) :
     rateFunction X μ a = t * a - cgf (X 0) μ t := by
   rw [rateFunction]
-  have h_analytic : AnalyticOn ℝ (cgf (X 0) μ) Set.univ := analyticOn_cgf_univ X h_mgf
+  have h_analytic : AnalyticOn ℝ (cgf (X 0) μ) Set.univ := analyticOn_cgf_univ h_mgf
   -- We proceed by proving inequality in both directions
   refine le_antisymm (ciSup_le fun s => ?_) (le_ciSup (h_bdd a) t)
   -- Sub-goal `sa - Λ(s) ≤ ta - Λ(t)`, i.e. `Λ(t) + a(s - t) ≤ Λ(s)`: the CGF is above its
@@ -339,7 +339,7 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
   -- coincide with `μ`.
   have h_prob_lower_bound : ∃ c > 0, ∀ᶠ n in atTop,
       c ≤ (μ {ω | a ≤ empiricalMean X n ω}).toReal := by
-    have h_bound := eventually_tiltedMeasure_empiricalMean_mem_Icc_ge X h_indep h_ident h_meas h_mgf
+    have h_bound := eventually_tiltedMeasure_empiricalMean_mem_Icc_ge h_indep h_ident h_meas h_mgf
       h_non_deg 0 a 1 (by norm_num) (1/4) (by norm_num) ht_deriv
     refine ⟨1/4, by norm_num, ?_⟩
     filter_upwards [h_bound] with n hn
@@ -371,9 +371,9 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
           ENNReal.log (μ {ω | a ≤ empiricalMean X n ω})) atTop := by
   -- Get the `t` such that `Λ'(t) = a`.
   obtain ⟨t, ht_deriv⟩ := h_exposed a h_mean
-  have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_integral_le X h_mgf h_non_deg a h_mean t ht_deriv
+  have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_integral_le h_mgf h_non_deg a h_mean t ht_deriv
   have h_rate_eq : rateFunction X μ a = t * a - cgf (X 0) μ t :=
-    rateFunction_eq_of_deriv_eq X h_mgf h_bdd h_non_deg a t ht_deriv
+    rateFunction_eq_of_deriv_eq h_mgf h_bdd h_non_deg a t ht_deriv
   rw [h_rate_eq]
   let LHS_val :=
     liminf (fun n : ℕ =>
@@ -384,12 +384,12 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
   · -- `t = 0` (which implies `a = μ[X]` from solving `a = Λ'(t) = Λ'(0)`).
     subst ht_zero
     simp only [zero_mul, cgf_zero, sub_zero, EReal.coe_zero, neg_zero]
-    exact liminf_nonneg_at_mean X h_indep h_ident h_meas h_mgf h_non_deg a ht_deriv
+    exact liminf_nonneg_at_mean h_indep h_ident h_meas h_mgf h_non_deg a ht_deriv
   have ht_pos : 0 < t := lt_of_le_of_ne ht_nonneg (Ne.symm ht_zero)
   -- Bound the liminf from below for any fixed positive `δ` using the tilted measure bounds.
   have h_bound_for_all_delta : ∀ (δ : ℝ), 0 < δ →
       (-(t * a - cgf (X 0) μ t) - t * δ : EReal) ≤ LHS_val := fun δ hδ =>
-    lower_bound_via_tilted X h_indep h_ident h_meas h_mgf h_non_deg a t δ hδ ht_pos ht_deriv
+    lower_bound_via_tilted h_indep h_ident h_meas h_mgf h_non_deg a t δ hδ ht_pos ht_deriv
   -- Conclude the lower bound by taking `δ → 0`.
   refine EReal.le_of_forall_sub_le fun ε hε => ?_
   have h := h_bound_for_all_delta (ε / t) (div_pos hε ht_pos)

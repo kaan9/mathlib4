@@ -3,7 +3,6 @@ Copyright (c) 2025 Kaan Erdoğmuş. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Kaan Erdoğmuş
 -/
-
 module
 
 public import Mathlib.Probability.IdentDistrib
@@ -87,13 +86,13 @@ open scoped ENNReal
 namespace ProbabilityTheory
 
 variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω}
-variable (X : ℕ → Ω → ℝ)
+variable {X : ℕ → Ω → ℝ}
 
 /-- The partial sum X₁ + ... + Xₙ. -/
-def partialSum (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
+def partialSum (X : ℕ → Ω → ℝ) (n : ℕ) : Ω → ℝ := ∑ i ∈ Finset.range n, X i
 
 /-- The empirical mean Sₙ / n. -/
-noncomputable def empiricalMean (n : ℕ) : Ω → ℝ := fun ω => partialSum X n ω / n
+noncomputable def empiricalMean (X : ℕ → Ω → ℝ) (n : ℕ) : Ω → ℝ := fun ω => partialSum X n ω / n
 
 /-- The Legendre transform of the CGF. This is the rate function for Cramér's theorem. -/
 noncomputable def Cramer.rateFunction (X : ℕ → Ω → ℝ) (μ : Measure Ω) (x : ℝ) : ℝ :=
@@ -140,7 +139,7 @@ lemma measurable_partialSum (n : ℕ) : Measurable (partialSum X n) := by
 include h_meas in
 /-- The empirical mean `Sₙ/n` is measurable. -/
 lemma measurable_empiricalMean (n : ℕ) : Measurable (empiricalMean X n) :=
-  (measurable_partialSum X h_meas n).div_const (n : ℝ)
+  (measurable_partialSum h_meas n).div_const (n : ℝ)
 
 include h_mgf in
 /-- All `t ∈ ℝ` lie in the interior of the domain for which `exp(tX₀)` is integrable. -/
@@ -151,7 +150,7 @@ lemma Cramer.mem_interior_integrableExpSet (t : ℝ) :
 include h_mgf in
 /-- Integrability of `X 0` follows from finiteness of the MGF on all of `ℝ`. -/
 lemma Cramer.integrable_of_forall_integrable_exp : Integrable (X 0) μ :=
-  integrable_of_mem_interior_integrableExpSet (Cramer.mem_interior_integrableExpSet X h_mgf 0)
+  integrable_of_mem_interior_integrableExpSet (Cramer.mem_interior_integrableExpSet h_mgf 0)
 
 /-! ### Lemmas requiring `IsProbabilityMeasure` -/
 
@@ -186,41 +185,22 @@ lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (h_int : Integrable Y μ)
 include h_indep h_ident h_meas h_mgf in
 /-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
 lemma integrable_exp_mul_partialSum (t : ℝ) (n : ℕ) :
-    Integrable (fun ω => Real.exp (t * partialSum X n ω)) μ := by
-  have h_rw : (fun ω => Real.exp (t * partialSum X n ω)) =
-      fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω) := by
-    ext ω; simp [partialSum, Finset.sum_apply, Finset.mul_sum, Real.exp_sum]
-  rw [h_rw]; clear h_rw
-  induction n with
-  | zero => simp
-  | succ n ih =>
-      -- Show product `e^(t * Xᵢ)` over range `n + 1`
-      --   = (product `e^(t * Xᵢ)` over range `n`) * `e^(t * Xₙ)`
-    simp only [Finset.prod_range_succ]
-    have h_indep_exp : iIndepFun (fun i ω => Real.exp (t * X i ω)) μ := by
-      simpa [Function.comp_def] using h_indep.comp (fun _ x => Real.exp (t * x))
-        (fun _ => (measurable_const.mul measurable_id).exp)
-    -- `∏ᵢⁿ⁻¹ e^{t * Xᵢ}` is independent of `e^{t * Xₙ}`
-    have h_indep_prod : IndepFun (fun ω => ∏ i ∈ Finset.range n, Real.exp (t * X i ω))
-        (fun ω => Real.exp (t * X n ω)) μ := by
-      convert h_indep_exp.indepFun_finsetProd_of_notMem
-        (fun i => (h_meas i).const_mul t |>.exp) (by simp : n ∉ Finset.range n) using 2
-      simp [Finset.prod_apply]
-    exact h_indep_prod.integrable_mul ih
-      (integrable_exp_mul_of_identDistrib X h_ident h_mgf n t)
+    Integrable (fun ω => Real.exp (t * partialSum X n ω)) μ :=
+  h_indep.integrable_exp_mul_sum h_meas
+    fun i _ => integrable_exp_mul_of_identDistrib h_ident h_mgf i t
 
 include h_indep h_ident h_meas h_mgf in
 /-- The tilted measure by `t · Sₙ` is a probability measure. -/
 lemma Cramer.isProbabilityMeasure_tiltedMeasure (t : ℝ) (n : ℕ) :
     IsProbabilityMeasure (tiltedMeasure X μ n t) :=
-  isProbabilityMeasure_tilted (integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf t n)
+  isProbabilityMeasure_tilted (integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf t n)
 
 include h_indep h_ident h_meas h_mgf in
 /-- Every `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
 lemma mem_interior_integrableExpSet_partialSum (t : ℝ) (n : ℕ) :
     t ∈ interior (integrableExpSet (partialSum X n) μ) := by
   simp [Set.eq_univ_of_forall
-    (fun s => integrable_exp_mul_partialSum X h_indep h_ident h_meas h_mgf s n)
+    (fun s => integrable_exp_mul_partialSum h_indep h_ident h_meas h_mgf s n)
     (s := integrableExpSet (partialSum X n) μ)]
 
 include h_bdd h_mgf in
@@ -228,7 +208,7 @@ include h_bdd h_mgf in
 That is, `rateFunction X μ a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
 lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : μ[X 0] ≤ a) :
     rateFunction X μ a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) μ t := by
-  have h_int := Cramer.integrable_of_forall_integrable_exp X h_mgf
+  have h_int := Cramer.integrable_of_forall_integrable_exp h_mgf
   rw [rateFunction]
   have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
   have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} =>
@@ -263,6 +243,6 @@ include h_indep h_ident h_meas h_mgf in
 /-- `Λ_Sₙ(t) = n · Λ_X₀(t)` -/
 lemma cgf_partialSum (n : ℕ) (t : ℝ) :
     cgf (partialSum X n) μ t = (n : ℝ) * cgf (X 0) μ t := by
-  rw [cgf, mgf_partialSum X h_indep h_ident h_meas h_mgf, Real.log_exp]
+  rw [cgf, mgf_partialSum h_indep h_ident h_meas h_mgf, Real.log_exp]
 
 end ProbabilityTheory

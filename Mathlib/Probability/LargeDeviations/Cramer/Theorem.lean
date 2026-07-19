@@ -43,12 +43,12 @@ The statement and its proof follow Theorem 2.2.3 of
 open ProbabilityTheory MeasureTheory Filter Topology
 open scoped ENNReal
 
-@[expose] public section
+public section
 
 namespace ProbabilityTheory
 
 variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω}
-variable (X : ℕ → Ω → ℝ)
+variable {X : ℕ → Ω → ℝ}
 
 /- Assumptions for Cramér's theorem -/
 variable (h_indep : iIndepFun X μ)
@@ -67,7 +67,7 @@ include h_indep h_meas h_ident h_mgf in
 /-- If `a < μ[X 0]`, `μ(a ≤ Sₙ/n) → 1` by the strong law of large numbers. -/
 private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (h : a < μ[X 0]) :
   Tendsto (fun n : ℕ => (μ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) := by
-  have h_int := Cramer.integrable_of_forall_integrable_exp X h_mgf
+  have h_int := Cramer.integrable_of_forall_integrable_exp h_mgf
   have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) μ) :=
     fun i j hij => h_indep.indepFun hij
   -- Almost sure convergence: `μ(limₙ Sₙ/n = μ[X]) = 1`
@@ -100,7 +100,7 @@ private lemma Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral (a : ℝ) (
         ext; simp
       rw [this]
       refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
-      exact measurableSet_le measurable_const (measurable_empiricalMean X h_meas n)
+      exact measurableSet_le measurable_const (measurable_empiricalMean h_meas n)
     rw [h_union]
     have h_compl : μ {ω | ¬∀ᶠ n in atTop, a ≤ empiricalMean X n ω} = 0 :=
       ae_iff.mp h_eventually_large
@@ -128,7 +128,7 @@ theorem Cramer.limsup_le_neg_upperTailRateFunction : ∀ a : ℝ,
   intro a
   by_cases h : μ[X 0] ≤ a
   · rw [Cramer.upperTailRateFunction, if_pos h]
-    exact Cramer.limsup_le_neg_rateFunction X h_indep h_ident h_meas h_mgf h_bdd a h
+    exact Cramer.limsup_le_neg_rateFunction h_indep h_ident h_meas h_mgf h_bdd a h
   · norm_cast
     rw [Cramer.upperTailRateFunction, if_neg h]
     have h_prob_bound_2 : ∀ n : ℕ, n ≠ 0 →
@@ -165,35 +165,27 @@ theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
   intro a
   by_cases h : μ[X 0] ≤ a
   · rw [Cramer.upperTailRateFunction, if_pos h]
-    exact Cramer.neg_rateFunction_le_liminf X h_indep h_ident h_meas h_mgf h_bdd h_non_deg
+    exact Cramer.neg_rateFunction_le_liminf h_indep h_ident h_meas h_mgf h_bdd h_non_deg
       h_exposed a h
-  · rw [Cramer.upperTailRateFunction, if_neg h]
-    norm_cast
-    rw [neg_zero]
+  · rw [Cramer.upperTailRateFunction, if_neg h, EReal.coe_zero, neg_zero]
     have h_a_lt_mean : a < μ[X 0] := not_le.mp h
     have h_prob_to_one :
         Tendsto (fun n => (μ {ω | a ≤ empiricalMean X n ω} : ENNReal)) atTop (𝓝 1) :=
-      Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral X h_indep h_ident h_meas h_mgf a
+      Cramer.tendsto_measure_empiricalMean_ge_of_lt_integral h_indep h_ident h_meas h_mgf a
         h_a_lt_mean
     have h_seq_to_zero : Tendsto (fun (n : ℕ) =>
-        1 / ((n : ℝ) : EReal) * (μ {ω | a ≤ empiricalMean X n ω}).log) atTop
+        ((1 : ℝ) / (n : ℝ) : EReal) * (μ {ω | a ≤ empiricalMean X n ω}).log) atTop
         (𝓝 (0 : EReal)) := by
       have h_log_to_zero : Tendsto (fun n => (μ {ω | a ≤ empiricalMean X n ω}).log) atTop
           (𝓝 (0 : EReal)) := by
         simpa [ENNReal.log_one, Function.comp_def] using
           (ENNReal.continuous_log.tendsto 1).comp h_prob_to_one
-      have h_inv_to_zero : Tendsto (fun n : ℕ => 1 / ((n : ℝ) : EReal)) atTop (𝓝 0) := by
+      have h_inv_to_zero : Tendsto (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal)) atTop (𝓝 0) := by
         simpa using EReal.tendsto_const_div_atTop_nhds_zero_nat
           (C := ((1 : ℝ) : EReal)) (EReal.coe_ne_bot _) (EReal.coe_ne_top _)
       simpa using EReal.Tendsto.mul h_inv_to_zero h_log_to_zero
         (Or.inr (EReal.coe_ne_bot 0)) (Or.inr (EReal.coe_ne_top 0))
         (Or.inl (EReal.coe_ne_bot 0)) (Or.inl (EReal.coe_ne_top 0))
-    have h_lim_eq : liminf (fun (n : ℕ) =>
-        1 / ((n : ℝ) : EReal) * (μ {ω | a ≤ empiricalMean X n ω}).log) atTop
-        = (0 : EReal) := Filter.Tendsto.liminf_eq h_seq_to_zero
-    have : liminf (fun n : ℕ =>
-        1 / (n : EReal) * (μ {ω | a ≤ empiricalMean X n ω}).log) atTop = 0 := h_lim_eq
-    rw [this]
-    norm_cast
+    exact h_seq_to_zero.liminf_eq.ge
 
 end ProbabilityTheory
