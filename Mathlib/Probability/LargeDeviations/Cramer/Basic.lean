@@ -186,16 +186,6 @@ lemma Cramer.isProbabilityMeasure_tiltedMeasure (t : ℝ) (n : ℕ) :
     IsProbabilityMeasure (tiltedMeasure X μ n t) :=
   isProbabilityMeasure_tilted (integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf t n)
 
-include h_indep h_ident h_meas h_mgf in
-/-- Every `t ∈ ℝ` is in the interior of the domain where `e^{t Sₙ}` is integrable. -/
-lemma mem_interior_integrableExpSet_sum_range (t : ℝ) (n : ℕ) :
-    t ∈ interior (integrableExpSet (∑ i ∈ Finset.range n, X i) μ) := by
-  have h_univ : integrableExpSet (∑ i ∈ Finset.range n, X i) μ = Set.univ :=
-    Set.eq_univ_of_forall fun s => by
-      simpa [integrableExpSet, Finset.sum_apply] using
-        integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf s n
-  simp [h_univ]
-
 include h_bdd h_mgf in
 /-- For `μ[X] ≤ a`, the supremum in the rate function is achieved by non-negative `t`.
 That is, `rateFunction X μ a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
