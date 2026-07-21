@@ -74,16 +74,6 @@ variable (h_meas : ∀ n, Measurable (X n))
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
 variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
 
-include h_meas in
-/-- The MGF of the identity under `tiltedLaw` at `u` equals `mgf(X₀)(t + u)/mgf(X₀)(t)`. -/
-lemma Cramer.mgf_id_tiltedLaw (t u : ℝ) :
-    mgf id (tiltedLaw X μ t) u = mgf (X 0) μ (t + u) / mgf (X 0) μ t := by
-  have hX0 : AEMeasurable (X 0) μ := (h_meas 0).aemeasurable
-  simp only [mgf, tiltedLaw, id]
-  rw [integral_exp_tilted (fun x => t * x) (fun x => u * x),
-    integral_map hX0 (by fun_prop), integral_map hX0 (by fun_prop)]
-  simp [add_mul]
-
 include h_meas h_mgf in
 private lemma Cramer.t_mem_interior_integrableExpSet_id (t : ℝ) :
     t ∈ interior (integrableExpSet id (μ.map (X 0))) := by
@@ -140,24 +130,44 @@ lemma Cramer.sum_div_mem_Icc_iff_stdPartialSum_mem_Icc (t a δ : ℝ) (n : ℕ) 
   refine ⟨fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩,
     fun ⟨h1, h2⟩ => ⟨by linarith, ?_⟩⟩ <;> nlinarith [key]
 
+/-! ### Standardization of a measure on `ℝ`
+
+The following two lemmas are general facts about the push-forward of a measure `ν : Measure ℝ`
+under the standardizing map `x ↦ (x - m) / c`, phrased in terms of the mean and variance of `ν`.
+They are instantiated below with `ν := tiltedLaw X μ t` to obtain the moments of `stdTiltedLaw`.
+
+These are not specific to exponential tilting; once upstreamed they would fit best in
+`Mathlib/Probability/Moments/Variance.lean`. -/
+
+/-- If `ν` is a probability measure on `ℝ` with mean `m` and integrable identity, then the
+push-forward of `ν` under `x ↦ (x - m) / c` has mean `0`. -/
+private lemma integral_id_map_sub_div {ν : Measure ℝ} [IsProbabilityMeasure ν] {m c : ℝ}
+    (hint : Integrable (fun x : ℝ => x) ν) (hm : ∫ x, x ∂ν = m) :
+    ∫ x, x ∂(ν.map (fun x => (x - m) / c)) = 0 := by
+  rw [integral_map (by fun_prop) (by fun_prop), integral_div,
+    integral_sub hint (integrable_const _), integral_const, probReal_univ, one_smul, hm,
+    sub_self, zero_div]
+
+/-- If `ν` is a measure on `ℝ` with mean `m`, variance `0 < v` and square-integrable identity, then
+the push-forward of `ν` under `x ↦ (x - m) / √v` has second moment `1`. -/
+private lemma integral_sq_id_map_sub_div {ν : Measure ℝ} {m v : ℝ} (hv : 0 < v)
+    (hm : ∫ x, x ∂ν = m) (hvar : Var[id; ν] = v) :
+    ∫ x, x ^ 2 ∂(ν.map (fun x => (x - m) / Real.sqrt v)) = 1 := by
+  rw [integral_map (by fun_prop) (by fun_prop)]
+  have hint_sq : ∫ x, (x - m) ^ 2 ∂ν = v := by
+    rw [← hvar, variance_eq_integral aemeasurable_id]
+    congr 1 with x
+    simp [hm]
+  rw [show (fun x : ℝ => ((x - m) / Real.sqrt v) ^ 2) = fun x => (x - m) ^ 2 / v from
+    funext fun x => by rw [div_pow, Real.sq_sqrt hv.le], integral_div, hint_sq, div_self hv.ne']
+
 include h_meas h_mgf h_non_deg in
 /-- The second moment of `stdTiltedLaw` is `1`. -/
 lemma Cramer.integral_sq_id_stdTiltedLaw (t : ℝ) :
     ∫ x, x ^ 2 ∂(stdTiltedLaw X μ t) = 1 := by
-  have hv := h_non_deg t
-  set m := deriv (cgf (X 0) μ) t
-  set v := iteratedDeriv 2 (cgf (X 0) μ) t
   simp only [stdTiltedLaw]
-  rw [integral_map (by fun_prop) (by fun_prop)]
-  have hμ_mean : ∫ x, x ∂tiltedLaw X μ t = m :=
-    integral_id_tiltedLaw h_meas h_mgf t
-  have hvar : Var[id; tiltedLaw X μ t] = v :=
-    variance_id_tiltedLaw h_meas h_mgf t
-  have hint_sq : ∫ x, (x - m) ^ 2 ∂tiltedLaw X μ t = v := by
-    rw [← hvar, variance_eq_integral aemeasurable_id]
-    congr 1; ext x; simp [hμ_mean]
-  rw [show (fun x : ℝ => ((x - m) / Real.sqrt v) ^ 2) = fun x => (x - m) ^ 2 / v from
-    funext fun x => by rw [div_pow, Real.sq_sqrt hv.le], integral_div, hint_sq, div_self hv.ne']
+  exact integral_sq_id_map_sub_div (h_non_deg t) (integral_id_tiltedLaw h_meas h_mgf t)
+    (variance_id_tiltedLaw h_meas h_mgf t)
 
 /-! ### Lemmas requiring `μ` to be a probability measure -/
 
@@ -185,30 +195,11 @@ include h_meas h_mgf in
 /-- The mean of `stdTiltedLaw` is `0`. -/
 lemma Cramer.integral_id_stdTiltedLaw (t : ℝ) :
     ∫ x, x ∂(stdTiltedLaw X μ t) = 0 := by
-  simp only [stdTiltedLaw]
   haveI : IsProbabilityMeasure (tiltedLaw X μ t) :=
     isProbabilityMeasure_tiltedLaw h_meas h_mgf t
-  have hid : Integrable (fun x : ℝ => x) (tiltedLaw X μ t) :=
-    (memLp_id_tiltedLaw h_meas h_mgf t).integrable (by norm_num)
-  rw [integral_map (by fun_prop) (by fun_prop), integral_div,
-    integral_sub hid (integrable_const _), integral_const, probReal_univ, one_smul,
-    integral_id_tiltedLaw h_meas h_mgf t, sub_self, zero_div]
-
-include h_meas h_mgf in
-/-- The identity is in `L²` under `stdTiltedLaw`. -/
-lemma Cramer.memLp_id_stdTiltedLaw (t : ℝ) :
-    MemLp (id : ℝ → ℝ) 2 (stdTiltedLaw X μ t) := by
   simp only [stdTiltedLaw]
-  rw [memLp_map_measure_iff (by fun_prop) (by fun_prop)]
-  haveI : IsProbabilityMeasure (tiltedLaw X μ t) :=
-    isProbabilityMeasure_tiltedLaw h_meas h_mgf t
-  have h_sub : MemLp (fun x : ℝ => x - deriv (cgf (X 0) μ) t) 2 (tiltedLaw X μ t) :=
-    (memLp_id_tiltedLaw h_meas h_mgf t).sub (memLp_const _)
-  have h_div : MemLp (fun x : ℝ => (x - deriv (cgf (X 0) μ) t) *
-      (Real.sqrt (iteratedDeriv 2 (cgf (X 0) μ) t))⁻¹) 2 (tiltedLaw X μ t) :=
-    h_sub.mul_const _
-  exact h_div.congr_norm (by fun_prop) (Eventually.of_forall fun x => by
-    simp [Function.comp, div_eq_mul_inv])
+  exact integral_id_map_sub_div ((memLp_id_tiltedLaw h_meas h_mgf t).integrable (by norm_num))
+    (integral_id_tiltedLaw h_meas h_mgf t)
 
 /-! ### Factorization of `X₀, …, Xₙ₋₁` under `tiltedMeasure`
 

@@ -17,6 +17,8 @@ of `X`.
 
 ## Main statements
 
+* `mgf_tilted_mul`: the moment-generating function of `X` under the tilted measure
+  `μ.tilted (t * X ·)` at `u` is `mgf X μ (t + u) / mgf X μ t`.
 * `integral_tilted_mul_self`: the integral of `X` against the tilted measure `μ.tilted (t * X ·)`
   is the first derivative of the cumulant-generating function of `X` at `t`.
   `(μ.tilted (t * X ·))[X] = deriv (cgf X μ) t`
@@ -87,6 +89,14 @@ lemma tilted_mul_apply_eq_ofReal_integral_cgf [SFinite μ] (s : Set Ω)
     rwa [exp_cgf]
 
 end Apply
+
+/-! ### Moment-generating function of a tilted measure. -/
+
+/-- The moment-generating function of `X` under the tilted measure `μ.tilted (t * X ·)` at `u`
+equals `mgf X μ (t + u) / mgf X μ t`. -/
+lemma mgf_tilted_mul (t u : ℝ) :
+    mgf X (μ.tilted (t * X ·)) u = mgf X μ (t + u) / mgf X μ t := by
+  simp only [mgf, integral_exp_tilted (t * X ·) (u * X ·), Pi.add_apply, add_mul]
 
 section Integral
 
