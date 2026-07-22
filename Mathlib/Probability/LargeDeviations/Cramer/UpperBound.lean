@@ -35,10 +35,10 @@ namespace ProbabilityTheory
 
 variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
 variable {X : ℕ → Ω → ℝ}
-variable (h_indep : iIndepFun X μ)
-variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
-variable (h_meas : ∀ n, Measurable (X n))
-variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
+variable (hindep : iIndepFun X μ)
+variable (hident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
+variable (hmeas : ∀ n, Measurable (X n))
+variable (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
 
 /-- For a probability measure, each scaled log-probability `(1 / n) * log (μ (s n))` is
 nonpositive, hence so is their `limsup` over `n`. -/
@@ -49,7 +49,7 @@ lemma Cramer.limsup_inv_mul_log_measure_nonpos (s : ℕ → Set Ω) :
       ⟨EReal.coe_nonneg.mpr (div_nonneg zero_le_one n.cast_nonneg),
         ENNReal.log_le_zero_iff.mpr prob_le_one⟩
 
-include h_indep h_meas h_ident h_mgf in
+include hindep hmeas hident hmgf in
 /-- **Chernoff bound** for the empirical mean.
 `μ(a ≤ Sₙ/n) ≤ exp(-n · (t · a - Λ_X₀(t)))` for `0 ≤ t`. -/
 lemma measure_sum_div_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0 < n) :
@@ -60,11 +60,11 @@ lemma measure_sum_div_ge_le_exp (t a : ℝ) (ht : 0 ≤ t) (n : ℕ) (hn_pos : 0
       { ω | (n : ℝ) * a ≤ (∑ i ∈ Finset.range n, X i) ω }
       from by ext ω; simp [le_div_iff₀ h_n_pos, mul_comm]]
   refine (measure_ge_le_exp_cgf _ ht (by
-    simpa using integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf t n)).trans ?_
-  rw [cgf_sum_range h_indep h_ident h_meas h_mgf n t]
+    simpa using integrable_exp_mul_sum_range hindep hident hmeas hmgf t n)).trans ?_
+  rw [cgf_sum_range hindep hident hmeas hmgf n t]
   apply le_of_eq; congr 1; ring
 
-include h_indep h_meas h_ident h_mgf in
+include hindep hmeas hident hmgf in
 /-- **Cramér's theorem** (upper bound): for any `a` with `μ[X 0] ≤ a`, the scaled log probability
 that the empirical mean exceeds `a` is bounded above by the negative rate function,
 `limsup_{n→∞} log(μ(a ≤ Sₙ/n)) / n ≤ -rateFunction X μ a`.
@@ -105,7 +105,7 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
               ← EReal.coe_sInf h_ne h_bdd_neg, h_real, EReal.coe_neg]
         _ = (- rateFunction X μ a : EReal) := by
             norm_cast
-            exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg h_mgf a h_mean hbdd).symm
+            exact congrArg Neg.neg (rateFunction_eq_iSup_nonneg hmgf a h_mean hbdd).symm
     intro t ht
     refine limsup_le_of_le (isCoboundedUnder_le_of_le atTop (fun _ => bot_le))
       (eventually_atTop.mpr ⟨1, fun n hn => ?_⟩)
@@ -115,7 +115,7 @@ theorem Cramer.limsup_le_neg_rateFunction (a : ℝ) (h_mean : μ[X 0] ≤ a) :
         ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))) :=
       (ENNReal.ofReal_toReal_eq_iff.mpr (measure_ne_top _ _)).symm.le.trans
         (ENNReal.ofReal_le_ofReal
-          (measure_sum_div_ge_le_exp h_indep h_ident h_meas h_mgf t a ht n hn_pos))
+          (measure_sum_div_ge_le_exp hindep hident hmeas hmgf t a ht n hn_pos))
     have h_log_exp :
         ENNReal.log (ENNReal.ofReal (Real.exp (-(n : ℝ) * (t * a - cgf (X 0) μ t))))
           = (((-(n : ℝ) * (t * a - cgf (X 0) μ t)) : ℝ) : EReal) := by

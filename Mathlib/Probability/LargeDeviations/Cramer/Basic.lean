@@ -50,19 +50,19 @@ and the two bounds are assembled in `Theorem.lean`.
 Throughout the development the random variables `Xᵢ` and the base measure `μ` are constrained by a
 fixed set of hypotheses, introduced as `variable`s in each file:
 
-* `h_indep`, `h_ident`, `h_meas`: the `Xᵢ` are independent, identically distributed, and
+* `hindep`, `hident`, `hmeas`: the `Xᵢ` are independent, identically distributed, and
   measurable.
-* `h_mgf`: `X₀` has a finite moment-generating function at every `t ∈ ℝ`; equivalently
+* `hmgf`: `X₀` has a finite moment-generating function at every `t ∈ ℝ`; equivalently
   `cgf (X 0) μ` is finite and analytic on all of `ℝ`.
-* `h_non_deg` (used from `TiltedCLT.lean` on): the cgf has strictly positive second derivative
+* `hnondeg` (used from `TiltedCLT.lean` on): the cgf has strictly positive second derivative
   everywhere, i.e. `X₀` is non-degenerate. This is used in the central limit theorem over the
   tilted measures and, through strict monotonicity of `deriv (cgf (X 0) μ)`, to show that the
   tilting parameter is nonnegative in the lower bound. (The tangent-line argument itself needs
   only convexity of the cgf, `convexOn_cgf`, which holds unconditionally.)
-* `h_exposed` (used from `LowerBound.lean` on): every `a` with `μ[X 0] ≤ a` is *exposed*, i.e.
+* `hexposed` (used from `LowerBound.lean` on): every `a` with `μ[X 0] ≤ a` is *exposed*, i.e.
   realized as `deriv (cgf (X 0) μ) t = a` for some `t`.
 
-The pair `h_non_deg` and `h_exposed` are genuinely strong assumptions: they exclude edge cases such
+The pair `hnondeg` and `hexposed` are genuinely strong assumptions: they exclude edge cases such
 as bounded-support variables, for which `deriv (cgf (X 0) μ)` is bounded and not every `a` is
 exposed.
 
@@ -72,7 +72,7 @@ supremum can genuinely be unbounded: for a constant random variable `X ≡ c` on
 `a ≠ c`. Since `rateFunction` is a `Real`-valued supremum, it then takes the junk value `0` by the
 `Real.iSup` convention; the upper bound handles this case directly, as the bound is trivial (the
 scaled log-probabilities are nonpositive). In the lower bound, boundedness is derived from the
-tangent-line argument: `h_exposed` provides `t` with `deriv (cgf (X 0) μ) t = a`, and convexity of
+tangent-line argument: `hexposed` provides `t` with `deriv (cgf (X 0) μ) t = a`, and convexity of
 the cgf places every `s * a - cgf (X 0) μ s` below `t * a - cgf (X 0) μ t`.
 
 ## References
@@ -109,42 +109,42 @@ noncomputable def Cramer.tiltedMeasure (X : ℕ → Ω → ℝ) (μ : Measure Ω
 
 /- Assumptions for Cramér's theorem; see the module docstring for a discussion. -/
 -- The random variables Xᵢ are independent.
-variable (h_indep : iIndepFun X μ)
+variable (hindep : iIndepFun X μ)
 -- The random variables Xᵢ are identically distributed.
-variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
+variable (hident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
 -- The random variables Xᵢ are measurable.
-variable (h_meas : ∀ n, Measurable (X n))
+variable (hmeas : ∀ n, Measurable (X n))
 -- The random variable X₀ has a finite moment generating function for all `t ∈ ℝ`.
-variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
+variable (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
 
 /-! ### Basic measurability and integrability helpers -/
 
-include h_ident h_mgf in
+include hident hmgf in
 /-- The random variables Xᵢ have finite moment generating functions. -/
 lemma integrable_exp_mul_of_identDistrib (i : ℕ) (t : ℝ) :
     Integrable (fun ω => Real.exp (t * X i ω)) μ :=
-  ((h_ident i).comp (measurable_const.mul measurable_id).exp).integrable_iff.mpr (h_mgf t)
+  ((hident i).comp (measurable_const.mul measurable_id).exp).integrable_iff.mpr (hmgf t)
 
-include h_meas in
+include hmeas in
 /-- The partial sum `Sₙ` is measurable. -/
 lemma measurable_sum_range (n : ℕ) : Measurable (fun ω => ∑ i ∈ Finset.range n, X i ω) :=
-  Finset.measurable_sum (Finset.range n) (fun i _ => h_meas i)
+  Finset.measurable_sum (Finset.range n) (fun i _ => hmeas i)
 
-include h_meas in
+include hmeas in
 /-- The empirical mean `Sₙ/n` is measurable. -/
 lemma measurable_sum_div (n : ℕ) : Measurable (fun ω => (∑ i ∈ Finset.range n, X i ω) / n) :=
-  (measurable_sum_range h_meas n).div_const (n : ℝ)
+  (measurable_sum_range hmeas n).div_const (n : ℝ)
 
-include h_mgf in
+include hmgf in
 /-- All `t ∈ ℝ` lie in the interior of the domain for which `exp(tX₀)` is integrable. -/
 lemma Cramer.mem_interior_integrableExpSet (t : ℝ) :
     t ∈ interior (integrableExpSet (X 0) μ) := by
-  simp [Set.eq_univ_of_forall h_mgf (s := integrableExpSet (X 0) μ)]
+  simp [Set.eq_univ_of_forall hmgf (s := integrableExpSet (X 0) μ)]
 
-include h_mgf in
+include hmgf in
 /-- Integrability of `X 0` follows from finiteness of the MGF on all of `ℝ`. -/
 lemma Cramer.integrable_of_forall_integrable_exp : Integrable (X 0) μ :=
-  integrable_of_mem_interior_integrableExpSet (Cramer.mem_interior_integrableExpSet h_mgf 0)
+  integrable_of_mem_interior_integrableExpSet (Cramer.mem_interior_integrableExpSet hmgf 0)
 
 /-! ### Lemmas requiring `IsProbabilityMeasure` -/
 
@@ -152,8 +152,8 @@ variable [IsProbabilityMeasure μ]
 
 /-- For a random variable Y with finite MGF, the CGF satisfies `t · μ[Y] ≤ Λ_Y(t)`.
 This follows from Jensen's inequality applied to the convex function `eᵗˣ` for fixed `t`. -/
-lemma mul_integral_le_cgf (Y : Ω → ℝ) (h_int : Integrable Y μ)
-    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) μ) (t : ℝ) :
+lemma mul_integral_le_cgf (Y : Ω → ℝ) (hint : Integrable Y μ)
+    (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) μ) (t : ℝ) :
     t * μ[Y] ≤ cgf Y μ t := by
   -- t μ[Y] = log exp(t μ[Y]) ≤ log μ[exp(tY)] = Λ(t)
   rw [cgf, mgf]
@@ -162,40 +162,40 @@ lemma mul_integral_le_cgf (Y : Ω → ℝ) (h_int : Integrable Y μ)
     (g := Real.exp) (s := Set.univ) (f := fun ω => t * Y ω)
     (convexOn_exp) Real.continuous_exp.continuousOn isClosed_univ
     (ae_of_all _ (fun _ => Set.mem_univ _))
-    (h_int.const_mul t) (h_mgf t)
+    (hint.const_mul t) (hmgf t)
   -- Extract t: t μ[Y] ≤ μ[exp(tY)]
   rw [integral_const_mul] at jensen
   -- Take log of both sides
   exact (Real.log_exp _).symm.trans_le (Real.log_le_log (Real.exp_pos _) jensen)
 
 /-- When `t < 0` and `μ[Y] ≤ a`, we have `t · a - Λ_Y(t) ≤ 0`. -/
-lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (h_int : Integrable Y μ)
-    (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) μ)
+lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (hint : Integrable Y μ)
+    (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) μ)
     (t a : ℝ) (ht : t < 0) (ha : μ[Y] ≤ a) :
     t * a - cgf Y μ t ≤ 0 := by
     -- t · a ≤ t · μ[Y] ≤ Λ(t)  (since t < 0, the first inequality flips)
-  nlinarith [mul_integral_le_cgf Y h_int h_mgf t, mul_le_mul_of_nonpos_left ha ht.le]
+  nlinarith [mul_integral_le_cgf Y hint hmgf t, mul_le_mul_of_nonpos_left ha ht.le]
 
-include h_indep h_ident h_meas h_mgf in
+include hindep hident hmeas hmgf in
 /-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
 lemma integrable_exp_mul_sum_range (t : ℝ) (n : ℕ) :
     Integrable (fun ω => Real.exp (t * ∑ i ∈ Finset.range n, X i ω)) μ := by
-  simpa using h_indep.integrable_exp_mul_sum h_meas
-    fun i _ => integrable_exp_mul_of_identDistrib h_ident h_mgf i t
+  simpa using hindep.integrable_exp_mul_sum hmeas
+    fun i _ => integrable_exp_mul_of_identDistrib hident hmgf i t
 
-include h_indep h_ident h_meas h_mgf in
+include hindep hident hmeas hmgf in
 /-- The tilted measure by `t · Sₙ` is a probability measure. -/
 lemma Cramer.isProbabilityMeasure_tiltedMeasure (t : ℝ) (n : ℕ) :
     IsProbabilityMeasure (tiltedMeasure X μ n t) :=
-  isProbabilityMeasure_tilted (integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf t n)
+  isProbabilityMeasure_tilted (integrable_exp_mul_sum_range hindep hident hmeas hmgf t n)
 
-include h_mgf in
+include hmgf in
 /-- For `μ[X] ≤ a`, if the supremum in the rate function is bounded above, it is achieved by
 non-negative `t`. That is, `rateFunction X μ a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
 lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : μ[X 0] ≤ a)
     (hbdd : BddAbove (Set.range fun t => t * a - cgf (X 0) μ t)) :
     rateFunction X μ a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) μ t := by
-  have h_int := Cramer.integrable_of_forall_integrable_exp h_mgf
+  have h_int := Cramer.integrable_of_forall_integrable_exp hmgf
   rw [rateFunction]
   have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
   have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} =>
@@ -208,27 +208,27 @@ lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : μ[X 0] ≤ a)
   · exact le_ciSup h_bdd_restrict ⟨t, ht⟩
   -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with 0 ≤ t
   · calc t * a - cgf (X 0) μ t
-        ≤ 0 := mul_sub_cgf_nonpos_of_neg (X 0) h_int h_mgf t a (not_le.mp ht) h_mean
+        ≤ 0 := mul_sub_cgf_nonpos_of_neg (X 0) h_int hmgf t a (not_le.mp ht) h_mean
       _ = (0 : ℝ) * a - cgf (X 0) μ 0 := by simp [cgf_zero]
       _ ≤ _ := le_ciSup h_bdd_restrict ⟨0, by simp⟩
 
-include h_indep h_ident h_meas h_mgf in
+include hindep hident hmeas hmgf in
 /-- `M_Sₙ(t) = exp(n · Λ_X₀(t))` -/
 lemma mgf_sum_range (n : ℕ) (t : ℝ) :
     mgf (∑ i ∈ Finset.range n, X i) μ t = Real.exp (n * cgf (X 0) μ t) := by
   rcases n with _ | n
   · simp [cgf]
-  rw [mgf_sum_of_identDistrib h_meas h_indep
-      (fun i _ j _ => (h_ident i).trans (h_ident j).symm)
+  rw [mgf_sum_of_identDistrib hmeas hindep
+      (fun i _ j _ => (hident i).trans (hident j).symm)
       (Finset.mem_range.mpr n.succ_pos) t,
     Finset.card_range, cgf, mgf]
-  conv_lhs => rw [← Real.exp_log (integral_exp_pos (h_mgf t))]
+  conv_lhs => rw [← Real.exp_log (integral_exp_pos (hmgf t))]
   rw [← Real.exp_nsmul, nsmul_eq_mul]
 
-include h_indep h_ident h_meas h_mgf in
+include hindep hident hmeas hmgf in
 /-- `Λ_Sₙ(t) = n · Λ_X₀(t)` -/
 lemma cgf_sum_range (n : ℕ) (t : ℝ) :
     cgf (∑ i ∈ Finset.range n, X i) μ t = (n : ℝ) * cgf (X 0) μ t := by
-  rw [cgf, mgf_sum_range h_indep h_ident h_meas h_mgf, Real.log_exp]
+  rw [cgf, mgf_sum_range hindep hident hmeas hmgf, Real.log_exp]
 
 end ProbabilityTheory

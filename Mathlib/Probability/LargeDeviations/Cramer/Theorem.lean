@@ -51,29 +51,29 @@ variable {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω}
 variable {X : ℕ → Ω → ℝ}
 
 /- Assumptions for Cramér's theorem -/
-variable (h_indep : iIndepFun X μ)
-variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
-variable (h_meas : ∀ n, Measurable (X n))
-variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
-variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
-variable (h_exposed : ∀ a : ℝ, μ[X 0] ≤ a → ∃ t, deriv (cgf (X 0) μ) t = a)
+variable (hindep : iIndepFun X μ)
+variable (hident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
+variable (hmeas : ∀ n, Measurable (X n))
+variable (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
+variable (hnondeg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
+variable (hexposed : ∀ a : ℝ, μ[X 0] ≤ a → ∃ t, deriv (cgf (X 0) μ) t = a)
 
 /-! ### Lemmas requiring `IsProbabilityMeasure` -/
 
 variable [IsProbabilityMeasure μ]
 
-include h_indep h_ident h_mgf in
+include hindep hident hmgf in
 /-- If `a < μ[X 0]`, `μ(a ≤ Sₙ/n) → 1` by the strong law of large numbers. -/
 private lemma Cramer.tendsto_measure_sum_div_ge_of_lt_integral (a : ℝ) (h : a < μ[X 0]) :
   Tendsto (fun n : ℕ => (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} : ENNReal))
     atTop (𝓝 1) := by
-  have h_int := Cramer.integrable_of_forall_integrable_exp h_mgf
+  have h_int := Cramer.integrable_of_forall_integrable_exp hmgf
   have h_pairwise : Pairwise (fun i j => IndepFun (X i) (X j) μ) :=
-    fun i j hij => h_indep.indepFun hij
+    fun i j hij => hindep.indepFun hij
   -- Almost sure convergence: `μ(limₙ Sₙ/n = μ[X]) = 1`
   have h_strong_law :
       ∀ᵐ ω ∂μ, Tendsto (fun n : ℕ => (∑ i ∈ Finset.range n, X i ω) / n) atTop (𝓝 μ[X 0]) :=
-    strong_law_ae_real X h_int h_pairwise h_ident
+    strong_law_ae_real X h_int h_pairwise hident
   have h_eventually_large :
       ∀ᵐ ω ∂μ, ∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n := by
     filter_upwards [h_strong_law] with ω hω
@@ -82,7 +82,7 @@ private lemma Cramer.tendsto_measure_sum_div_ge_of_lt_integral (a : ℝ) (h : a 
     (s := fun n => {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}) h_eventually_large
   rwa [measure_univ] at h_univ
 
-include h_indep h_meas h_ident h_mgf in
+include hindep hmeas hident hmgf in
 /-- **Cramér's theorem** (upper bound): for i.i.d. random variables with finite MGF, the scaled
 log-tail probability of the empirical mean is asymptotically bounded above by the negative rate
 function, i.e. for every `a`,
@@ -96,12 +96,12 @@ theorem Cramer.limsup_le_neg_upperTailRateFunction : ∀ a : ℝ,
   intro a
   by_cases h : μ[X 0] ≤ a
   · rw [Cramer.upperTailRateFunction, if_pos h]
-    exact Cramer.limsup_le_neg_rateFunction h_indep h_ident h_meas h_mgf a h
+    exact Cramer.limsup_le_neg_rateFunction hindep hident hmeas hmgf a h
   · rw [Cramer.upperTailRateFunction, if_neg h, EReal.coe_zero, neg_zero]
     exact limsup_inv_mul_log_measure_nonpos
       fun n => {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}
 
-include h_indep h_meas h_ident h_mgf h_non_deg h_exposed in
+include hindep hmeas hident hmgf hnondeg hexposed in
 /-- **Cramér's theorem** (lower bound): for i.i.d. random variables with finite MGF, the scaled
 log-tail probability of the empirical mean is asymptotically bounded below by the negative rate
 function, i.e. for every `a`,
@@ -113,14 +113,14 @@ theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
   intro a
   by_cases h : μ[X 0] ≤ a
   · rw [Cramer.upperTailRateFunction, if_pos h]
-    exact Cramer.neg_rateFunction_le_liminf h_indep h_ident h_meas h_mgf h_non_deg
-      h_exposed a h
+    exact Cramer.neg_rateFunction_le_liminf hindep hident hmeas hmgf hnondeg
+      hexposed a h
   · rw [Cramer.upperTailRateFunction, if_neg h, EReal.coe_zero, neg_zero]
     have h_a_lt_mean : a < μ[X 0] := not_le.mp h
     have h_prob_to_one :
         Tendsto (fun n => (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} : ENNReal))
           atTop (𝓝 1) :=
-      Cramer.tendsto_measure_sum_div_ge_of_lt_integral h_indep h_ident h_mgf a h_a_lt_mean
+      Cramer.tendsto_measure_sum_div_ge_of_lt_integral hindep hident hmgf a h_a_lt_mean
     have h_seq_to_zero : Tendsto (fun (n : ℕ) => ((1 : ℝ) / (n : ℝ) : EReal) *
         (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log) atTop
         (𝓝 (0 : EReal)) := by

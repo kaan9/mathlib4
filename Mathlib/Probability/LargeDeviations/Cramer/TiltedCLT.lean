@@ -68,46 +68,46 @@ noncomputable def Cramer.stdPartialSum (X : ℕ → Ω → ℝ) (μ : Measure Ω
 variable {X : ℕ → Ω → ℝ}
 
 /- Assumptions for Cramér's theorem -/
-variable (h_indep : iIndepFun X μ)
-variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
-variable (h_meas : ∀ n, Measurable (X n))
-variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
-variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
+variable (hindep : iIndepFun X μ)
+variable (hident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
+variable (hmeas : ∀ n, Measurable (X n))
+variable (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
+variable (hnondeg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
 
-include h_meas h_mgf in
+include hmeas hmgf in
 private lemma Cramer.t_mem_interior_integrableExpSet_id (t : ℝ) :
     t ∈ interior (integrableExpSet id (μ.map (X 0))) := by
   have h_univ : integrableExpSet id (μ.map (X 0)) = Set.univ := by
     ext s
     simp only [integrableExpSet, Set.mem_setOf_eq, Set.mem_univ, iff_true, id]
-    exact (integrable_map_measure (by fun_prop) (h_meas 0).aemeasurable).mpr (h_mgf s)
+    exact (integrable_map_measure (by fun_prop) (hmeas 0).aemeasurable).mpr (hmgf s)
   rw [h_univ, interior_univ]
   exact Set.mem_univ t
 
 private lemma t_mul_eq_mul_id (t : ℝ) : (fun x : ℝ => t * x) = (t * id ·) := rfl
 
-include h_meas h_mgf in
+include hmeas hmgf in
 /-- The mean of `tiltedLaw` is `Λ'(t)`. -/
 lemma Cramer.integral_id_tiltedLaw (t : ℝ) :
     ∫ x, x ∂(tiltedLaw X μ t) = deriv (cgf (X 0) μ) t := by
   simp only [tiltedLaw]
-  rw [t_mul_eq_mul_id, ← cgf_id_map (h_meas 0).aemeasurable]
-  exact integral_tilted_mul_self (t_mem_interior_integrableExpSet_id h_meas h_mgf t)
+  rw [t_mul_eq_mul_id, ← cgf_id_map (hmeas 0).aemeasurable]
+  exact integral_tilted_mul_self (t_mem_interior_integrableExpSet_id hmeas hmgf t)
 
-include h_meas h_mgf in
+include hmeas hmgf in
 /-- The variance of `tiltedLaw` is `Λ''(t)`. -/
 lemma Cramer.variance_id_tiltedLaw (t : ℝ) :
     Var[id; tiltedLaw X μ t] = iteratedDeriv 2 (cgf (X 0) μ) t := by
   simp only [tiltedLaw]
-  rw [t_mul_eq_mul_id, ← cgf_id_map (h_meas 0).aemeasurable]
-  exact variance_tilted_mul (t_mem_interior_integrableExpSet_id h_meas h_mgf t)
+  rw [t_mul_eq_mul_id, ← cgf_id_map (hmeas 0).aemeasurable]
+  exact variance_tilted_mul (t_mem_interior_integrableExpSet_id hmeas hmgf t)
 
-include h_meas h_mgf in
+include hmeas hmgf in
 /-- The identity is in `L²` under `tiltedLaw`. -/
 lemma Cramer.memLp_id_tiltedLaw (t : ℝ) : MemLp (id : ℝ → ℝ) 2 (tiltedLaw X μ t) := by
   simp only [tiltedLaw]
   rw [t_mul_eq_mul_id]
-  exact memLp_tilted_mul (t_mem_interior_integrableExpSet_id h_meas h_mgf t) 2
+  exact memLp_tilted_mul (t_mem_interior_integrableExpSet_id hmeas hmgf t) 2
 
 /-! ### Algebraic Identities -/
 
@@ -161,45 +161,45 @@ private lemma integral_sq_id_map_sub_div {ν : Measure ℝ} {m v : ℝ} (hv : 0 
   rw [show (fun x : ℝ => ((x - m) / Real.sqrt v) ^ 2) = fun x => (x - m) ^ 2 / v from
     funext fun x => by rw [div_pow, Real.sq_sqrt hv.le], integral_div, hint_sq, div_self hv.ne']
 
-include h_meas h_mgf h_non_deg in
+include hmeas hmgf hnondeg in
 /-- The second moment of `stdTiltedLaw` is `1`. -/
 lemma Cramer.integral_sq_id_stdTiltedLaw (t : ℝ) :
     ∫ x, x ^ 2 ∂(stdTiltedLaw X μ t) = 1 := by
   simp only [stdTiltedLaw]
-  exact integral_sq_id_map_sub_div (h_non_deg t) (integral_id_tiltedLaw h_meas h_mgf t)
-    (variance_id_tiltedLaw h_meas h_mgf t)
+  exact integral_sq_id_map_sub_div (hnondeg t) (integral_id_tiltedLaw hmeas hmgf t)
+    (variance_id_tiltedLaw hmeas hmgf t)
 
 /-! ### Lemmas requiring `μ` to be a probability measure -/
 
 variable [IsProbabilityMeasure μ]
 
-include h_meas h_mgf in
+include hmeas hmgf in
 /-- `tiltedLaw` is a probability measure. -/
 lemma Cramer.isProbabilityMeasure_tiltedLaw (t : ℝ) :
     IsProbabilityMeasure (tiltedLaw X μ t) := by
   haveI : IsProbabilityMeasure (μ.map (X 0)) :=
-    Measure.isProbabilityMeasure_map (h_meas 0).aemeasurable
+    Measure.isProbabilityMeasure_map (hmeas 0).aemeasurable
   exact isProbabilityMeasure_tilted
-    ((integrable_map_measure (by fun_prop) (h_meas 0).aemeasurable).mpr (h_mgf t))
+    ((integrable_map_measure (by fun_prop) (hmeas 0).aemeasurable).mpr (hmgf t))
 
 /-! ### Properties of `stdTiltedLaw` -/
 
-include h_meas h_mgf in
+include hmeas hmgf in
 /-- `stdTiltedLaw` is a probability measure. -/
 lemma Cramer.isProbabilityMeasure_stdTiltedLaw (t : ℝ) :
     IsProbabilityMeasure (stdTiltedLaw X μ t) :=
-  haveI := isProbabilityMeasure_tiltedLaw h_meas h_mgf t
+  haveI := isProbabilityMeasure_tiltedLaw hmeas hmgf t
   Measure.isProbabilityMeasure_map (by fun_prop)
 
-include h_meas h_mgf in
+include hmeas hmgf in
 /-- The mean of `stdTiltedLaw` is `0`. -/
 lemma Cramer.integral_id_stdTiltedLaw (t : ℝ) :
     ∫ x, x ∂(stdTiltedLaw X μ t) = 0 := by
   haveI : IsProbabilityMeasure (tiltedLaw X μ t) :=
-    isProbabilityMeasure_tiltedLaw h_meas h_mgf t
+    isProbabilityMeasure_tiltedLaw hmeas hmgf t
   simp only [stdTiltedLaw]
-  exact integral_id_map_sub_div ((memLp_id_tiltedLaw h_meas h_mgf t).integrable (by norm_num))
-    (integral_id_tiltedLaw h_meas h_mgf t)
+  exact integral_id_map_sub_div ((memLp_id_tiltedLaw hmeas hmgf t).integrable (by norm_num))
+    (integral_id_tiltedLaw hmeas hmgf t)
 
 /-! ### Factorization of `X₀, …, Xₙ₋₁` under `tiltedMeasure`
 
@@ -210,7 +210,7 @@ pushforward along the tilting function (`MeasureTheory.map_tilted_comp`), and ti
 product measure by a sum of coordinate functions yields the product of the tilted factors
 (`MeasureTheory.tilted_pi`). -/
 
-include h_indep h_ident h_meas in
+include hindep hident hmeas in
 /-- Under `tiltedMeasure`, the joint law of `(Xᵢ)_{i ∈ range n}` is the product of `n` copies
 of `tiltedLaw`. -/
 private lemma Cramer.map_range_tiltedMeasure (t : ℝ) (n : ℕ) :
@@ -227,58 +227,58 @@ private lemma Cramer.map_range_tiltedMeasure (t : ℝ) (n : ℕ) :
         (fun ω (i : Finset.range n) => X i.val ω)) := congrArg μ.tilted h_fun
   have h_pi : μ.map (fun ω (i : Finset.range n) => X i.val ω) =
       Measure.pi (fun i : Finset.range n => μ.map (X i.val)) :=
-    (h_indep.precomp Subtype.val_injective).map_fun_eq_pi_map fun i => (h_meas i.val).aemeasurable
+    (hindep.precomp Subtype.val_injective).map_fun_eq_pi_map fun i => (hmeas i.val).aemeasurable
   have hT : AEMeasurable (fun ω (i : Finset.range n) => X i.val ω) μ :=
-    Measurable.aemeasurable (measurable_pi_lambda _ fun i => h_meas i.val)
+    Measurable.aemeasurable (measurable_pi_lambda _ fun i => hmeas i.val)
   have hg : AEMeasurable (fun v : Finset.range n → ℝ => ∑ i, t * v i)
       (μ.map (fun ω (i : Finset.range n) => X i.val ω)) :=
     Measurable.aemeasurable (Finset.measurable_sum _ fun i _ =>
       (measurable_pi_apply i : Measurable fun v : Finset.range n → ℝ => v i).const_mul t)
   rw [h_tilt, map_tilted_comp hT hg, h_pi,
     show (fun i : Finset.range n => μ.map (X i.val)) = fun _ => μ.map (X 0) from
-      funext fun i => (h_ident i.val).map_eq]
+      funext fun i => (hident i.val).map_eq]
   exact tilted_pi _ fun _ x => t * x
 
-include h_indep h_ident h_meas h_mgf in
+include hindep hident hmeas hmgf in
 /-- Under `tiltedMeasure`, each `Xᵢ` (for `i < n`) has the same law `tiltedLaw`. -/
 lemma Cramer.map_X_tiltedMeasure (t : ℝ) (n : ℕ) {i : ℕ} (hi : i < n) :
     (tiltedMeasure X μ n t).map (X i) = tiltedLaw X μ t := by
-  haveI := isProbabilityMeasure_tiltedLaw h_meas h_mgf t
+  haveI := isProbabilityMeasure_tiltedLaw hmeas hmgf t
   calc (tiltedMeasure X μ n t).map (X i)
       = ((tiltedMeasure X μ n t).map (fun ω (j : Finset.range n) => X j.val ω)).map
           (Function.eval ⟨i, Finset.mem_range.mpr hi⟩) :=
         (Measure.map_map (g := Function.eval (⟨i, Finset.mem_range.mpr hi⟩ : Finset.range n))
           (f := fun ω (j : Finset.range n) => X j.val ω) (measurable_pi_apply _)
-          (measurable_pi_lambda _ fun j => h_meas j.val)).symm
+          (measurable_pi_lambda _ fun j => hmeas j.val)).symm
     _ = (Measure.pi fun _ : Finset.range n => tiltedLaw X μ t).map
           (Function.eval ⟨i, Finset.mem_range.mpr hi⟩) := by
-        rw [map_range_tiltedMeasure h_indep h_ident h_meas t n]
+        rw [map_range_tiltedMeasure hindep hident hmeas t n]
     _ = tiltedLaw X μ t := (measurePreserving_eval _ _).map_eq
 
-include h_indep h_ident h_meas h_mgf in
+include hindep hident hmeas hmgf in
 /-- Under `tiltedMeasure`, `Xᵢ` (for `i < n`) are independent. -/
 lemma Cramer.iIndepFun_range_tiltedMeasure (t : ℝ) (n : ℕ) :
     iIndepFun (fun i : Finset.range n => X i.val) (tiltedMeasure X μ n t) := by
-  haveI := isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
+  haveI := isProbabilityMeasure_tiltedMeasure hindep hident hmeas hmgf t n
   rw [iIndepFun_iff_map_fun_eq_pi_map (f := fun i : Finset.range n => X i.val)
-      fun i => (h_meas i.val).aemeasurable,
-    map_range_tiltedMeasure h_indep h_ident h_meas t n]
+      fun i => (hmeas i.val).aemeasurable,
+    map_range_tiltedMeasure hindep hident hmeas t n]
   exact congrArg Measure.pi <| funext fun i =>
-    (map_X_tiltedMeasure h_indep h_ident h_meas h_mgf t n (Finset.mem_range.mp i.2)).symm
+    (map_X_tiltedMeasure hindep hident hmeas hmgf t n (Finset.mem_range.mp i.2)).symm
 
 /-! ### Characteristic function of `stdPartialSum` under `tiltedMeasure` -/
 
-include h_indep h_ident h_meas h_mgf h_non_deg in
+include hindep hident hmeas hmgf hnondeg in
 /-- Under `tiltedMeasure`, the characteristic function of `Zₙ` at `s` is
 `[charFun stdTiltedLaw ((√n)⁻¹ · s)]ⁿ`. -/
 lemma Cramer.charFun_map_stdPartialSum (t : ℝ) (n : ℕ) (s : ℝ) :
     charFun ((tiltedMeasure X μ n t).map (stdPartialSum X μ t n)) s =
       (charFun (stdTiltedLaw X μ t) ((Real.sqrt n)⁻¹ * s)) ^ n := by
   haveI : IsProbabilityMeasure (tiltedMeasure X μ n t) :=
-    isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
+    isProbabilityMeasure_tiltedMeasure hindep hident hmeas hmgf t n
   set m := deriv (cgf (X 0) μ) t
   set v := iteratedDeriv 2 (cgf (X 0) μ) t
-  have hv_ne : Real.sqrt v ≠ 0 := (Real.sqrt_pos.mpr (h_non_deg t)).ne'
+  have hv_ne : Real.sqrt v ≠ 0 := (Real.sqrt_pos.mpr (hnondeg t)).ne'
   set Y : ℕ → Ω → ℝ := fun k ω => (X k ω - m) / Real.sqrt v with hY_def
   have hY_meas : ∀ k, Measurable (Y k) := fun _ => by fun_prop
   --  `Z = (√n)⁻¹ * ∑ⁿ Yᵢ`.
@@ -293,7 +293,7 @@ lemma Cramer.charFun_map_stdPartialSum (t : ℝ) (n : ℕ) (s : ℝ) :
     (Finset.aemeasurable_fun_sum _ fun k _ => (hY_meas k).aemeasurable)]
   -- Independence of the family `Yᵢ` under `tiltedMeasure`.
   have hY_indep : iIndepFun ((Finset.range n).restrict Y) (tiltedMeasure X μ n t) :=
-    (iIndepFun_range_tiltedMeasure h_indep h_ident h_meas h_mgf t n).comp
+    (iIndepFun_range_tiltedMeasure hindep hident hmeas hmgf t n).comp
       (fun _ : Finset.range n => fun x : ℝ => (x - m) / Real.sqrt v) (fun _ => by fun_prop)
   -- Apply the characteristic function factorization on `1..n`.
   rw [hY_indep.charFun_map_fun_finsetSum_eq_prod (fun k _ => (hY_meas k).aemeasurable)]
@@ -301,23 +301,23 @@ lemma Cramer.charFun_map_stdPartialSum (t : ℝ) (n : ℕ) (s : ℝ) :
   have hY_map : ∀ i ∈ Finset.range n,
       (tiltedMeasure X μ n t).map (Y i) = stdTiltedLaw X μ t := fun i hi => by
     rw [show Y i = (fun x : ℝ => (x - m) / Real.sqrt v) ∘ X i from rfl,
-      ← Measure.map_map (by fun_prop) (h_meas i),
-      map_X_tiltedMeasure h_indep h_ident h_meas h_mgf t n (Finset.mem_range.mp hi)]
+      ← Measure.map_map (by fun_prop) (hmeas i),
+      map_X_tiltedMeasure hindep hident hmeas hmgf t n (Finset.mem_range.mp hi)]
     rfl
   rw [Finset.prod_apply, Finset.prod_congr rfl fun i hi => by rw [hY_map i hi],
     Finset.prod_const, Finset.card_range]
 
-include h_meas h_mgf h_non_deg in
+include hmeas hmgf hnondeg in
 /-- `(charFun stdTiltedLaw ((√n)⁻¹ · s))ⁿ → e^(-s²/2)` as `n → ∞`,
 the characteristic function of `𝒩(0, 1)` -/
 lemma Cramer.tendsto_charFun_stdTiltedLaw_pow (t : ℝ) (s : ℝ) :
     Tendsto (fun n : ℕ => (charFun (stdTiltedLaw X μ t) ((Real.sqrt n)⁻¹ * s)) ^ n)
       atTop (𝓝 (Complex.exp (-s ^ 2 / 2))) := by
   haveI : IsProbabilityMeasure (stdTiltedLaw X μ t) :=
-    isProbabilityMeasure_stdTiltedLaw h_meas h_mgf t
-  have h0 : (stdTiltedLaw X μ t)[id] = 0 := integral_id_stdTiltedLaw h_meas h_mgf t
+    isProbabilityMeasure_stdTiltedLaw hmeas hmgf t
+  have h0 : (stdTiltedLaw X μ t)[id] = 0 := integral_id_stdTiltedLaw hmeas hmgf t
   have h1 : (stdTiltedLaw X μ t)[(id : ℝ → ℝ) ^ 2] = 1 := by
-    simpa using integral_sq_id_stdTiltedLaw h_meas h_mgf h_non_deg t
+    simpa using integral_sq_id_stdTiltedLaw hmeas hmgf hnondeg t
   have hmap : (stdTiltedLaw X μ t).map id = stdTiltedLaw X μ t := Measure.map_id
   have := tendsto_charFun_inv_sqrt_mul_pow (P := stdTiltedLaw X μ t) (X := id)
     aemeasurable_id h0 h1 s
@@ -325,15 +325,15 @@ lemma Cramer.tendsto_charFun_stdTiltedLaw_pow (t : ℝ) (s : ℝ) :
 
 /-! ### Central Limit Theorem under the tilted measures -/
 
-include h_indep h_ident h_meas h_mgf h_non_deg in
+include hindep hident hmeas hmgf hnondeg in
 /-- **CLT for tilted measures (characteristic function form):** under `tiltedMeasure`, the
 characteristic function of `Zₙ` converges pointwise to that of `𝒩(0, 1)` (i.e `e^(-s²/2)`). -/
 theorem Cramer.tendsto_charFun_stdPartialSum (t : ℝ) (s : ℝ) :
     Tendsto (fun n : ℕ => charFun ((tiltedMeasure X μ n t).map (stdPartialSum X μ t n)) s)
       atTop (𝓝 (Complex.exp (-s ^ 2 / 2))) := by
-  refine (tendsto_charFun_stdTiltedLaw_pow h_meas h_mgf h_non_deg t s).congr' ?_
+  refine (tendsto_charFun_stdTiltedLaw_pow hmeas hmgf hnondeg t s).congr' ?_
   exact Filter.Eventually.of_forall fun n =>
-    (charFun_map_stdPartialSum h_indep h_ident h_meas h_mgf h_non_deg t n s).symm
+    (charFun_map_stdPartialSum hindep hident hmeas hmgf hnondeg t n s).symm
 
 /-! ### Consequence: concentration of the empirical mean
 
@@ -342,7 +342,7 @@ which is used in the proof of the lower bound of Cramér's theorem, by demonstra
 is equivalent to `{Zₙ ∈ [0, δ · √(n/Λ''(t))]}` and using the convergence of `Zₙ`
 to `𝒩(0, 1)`. -/
 
-include h_indep h_ident h_meas h_mgf h_non_deg in
+include hindep hident hmeas hmgf hnondeg in
 /-- For `t` with `Λ'(t) = a` and any `0 ≤ M`, eventually the tilted probability that
 `Zₙ ∈ [0, M]` is at least `𝒩(0,1)([0, M]) - ε`. -/
 lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM : 0 ≤ M)
@@ -350,10 +350,10 @@ lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM
     ∀ᶠ n in atTop, ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal - ε ≤
       ((tiltedMeasure X μ n t).map (stdPartialSum X μ t n) (Set.Icc (0 : ℝ) M)).toReal := by
   haveI : ∀ n, IsProbabilityMeasure (tiltedMeasure X μ n t) := fun n =>
-    isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
+    isProbabilityMeasure_tiltedMeasure hindep hident hmeas hmgf t n
   haveI : ∀ n, IsProbabilityMeasure ((tiltedMeasure X μ n t).map (stdPartialSum X μ t n)) :=
     fun n => Measure.isProbabilityMeasure_map
-      (((measurable_sum_range h_meas n).sub_const _).div_const _).aemeasurable
+      (((measurable_sum_range hmeas n).sub_const _).div_const _).aemeasurable
   haveI : NullSingletonClass (gaussianReal 0 1) := nullSingletonClass_gaussianReal one_ne_zero
   set ν_n : ℕ → ProbabilityMeasure ℝ := fun n =>
     ⟨(tiltedMeasure X μ n t).map (stdPartialSum X μ t n), inferInstance⟩
@@ -364,7 +364,7 @@ lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM
       have h_gauss : charFun (gaussianReal 0 1 : Measure ℝ) s =
           Complex.exp (-s ^ 2 / 2) := by rw [charFun_gaussianReal]; push_cast; ring_nf
       simpa [ν_n, ν, h_gauss] using
-        tendsto_charFun_stdPartialSum h_indep h_ident h_meas h_mgf h_non_deg t s
+        tendsto_charFun_stdPartialSum hindep hident hmeas hmgf hnondeg t s
   have h_fr : (ν : Measure ℝ) (frontier (Set.Icc (0 : ℝ) M)) = 0 := by
     rw [show (ν : Measure ℝ) = gaussianReal 0 1 from rfl, frontier_Icc hM]
     exact Set.Finite.measure_zero (by simp) _
@@ -374,7 +374,7 @@ lemma Cramer.eventually_measure_stdPartialSum_mem_Icc_ge (t : ℝ) (M : ℝ) (hM
     (ProbabilityMeasure.tendsto_measure_of_null_frontier_of_tendsto'
       h_weak h_fr)).eventually_const_le h_lt
 
-include h_indep h_ident h_meas h_mgf h_non_deg in
+include hindep hident hmeas hmgf hnondeg in
 /-- **Corollary of Tilted CLT:** Given `Λ'(t) = a`, for all `0 < δ` and `0 < ε`,
  `1/2 - ε ≤ tiltedMeasure(Sₙ/n ∈ [a, a+δ])` holds for all sufficiently large `n`. -/
 lemma Cramer.eventually_tiltedMeasure_sum_div_mem_Icc_ge (t a δ : ℝ) (hδ : 0 < δ)
@@ -384,12 +384,12 @@ lemma Cramer.eventually_tiltedMeasure_sum_div_mem_Icc_ge (t a δ : ℝ) (hδ : 0
         {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)}).toReal := by
   -- Let `v := Λ''(t)`
   set v := iteratedDeriv 2 (cgf (X 0) μ) t with hv_def
-  have hv_pos : 0 < v := h_non_deg t
+  have hv_pos : 0 < v := hnondeg t
   haveI hℚ_prob : ∀ n, IsProbabilityMeasure (tiltedMeasure X μ n t) := fun n =>
-    isProbabilityMeasure_tiltedMeasure h_indep h_ident h_meas h_mgf t n
+    isProbabilityMeasure_tiltedMeasure hindep hident hmeas hmgf t n
   have hZ_meas : ∀ n, Measurable (stdPartialSum X μ t n) := fun n => by
     unfold stdPartialSum
-    exact ((measurable_sum_range h_meas n).sub_const _).div_const _
+    exact ((measurable_sum_range hmeas n).sub_const _).div_const _
   -- Pick `0 ≤ M₀` with `1/2 - ε/2 < N([0, M₀])`.
   have h_gauss_half : Tendsto (fun M : ℝ => ((gaussianReal 0 1) (Set.Icc (0 : ℝ) M)).toReal)
       atTop (𝓝 (1 / 2)) := by
@@ -400,8 +400,8 @@ lemma Cramer.eventually_tiltedMeasure_sum_div_mem_Icc_ge (t a δ : ℝ) (hδ : 0
     ((h_gauss_half.eventually_const_lt
         (show (1/2 - ε/2 : ℝ) < 1/2 by linarith)).and (Filter.eventually_ge_atTop 0)).exists
   -- Apply `eventually_measure_stdPartialSum_mem_Icc_ge` with `M₀` and `ε/2`.
-  have h_liminf := eventually_measure_stdPartialSum_mem_Icc_ge h_indep h_ident h_meas h_mgf
-    h_non_deg t M₀ hM₀_nonneg (ε/2) (by linarith)
+  have h_liminf := eventually_measure_stdPartialSum_mem_Icc_ge hindep hident hmeas hmgf
+    hnondeg t M₀ hM₀_nonneg (ε/2) (by linarith)
   -- `δ · √(n/v) → ∞` as `n → ∞`.
   have h_Mn_ge : ∀ᶠ n : ℕ in atTop, M₀ ≤ δ * Real.sqrt ((n : ℝ) / v) :=
     ((Real.tendsto_sqrt_atTop.comp
@@ -419,7 +419,7 @@ lemma Cramer.eventually_tiltedMeasure_sum_div_mem_Icc_ge (t a δ : ℝ) (hδ : 0
         {ω | (∑ i ∈ Finset.range n, X i ω) / n ∈ Set.Icc a (a + δ)} := by
     ext ω
     simp only [Set.mem_preimage, Set.mem_setOf_eq]
-    rw [sum_div_mem_Icc_iff_stdPartialSum_mem_Icc t a δ n hn_pos (h_non_deg t) ht_deriv ω]
+    rw [sum_div_mem_Icc_iff_stdPartialSum_mem_Icc t a δ n hn_pos (hnondeg t) ht_deriv ω]
   -- `[0, M₀] ⊆ [0, M_n]` implies `Zₙ([0, M₀]) ≤ Zₙ([0, M_n])` under `tiltedMeasure`.
   have h_toReal_mono :
       (((tiltedMeasure X μ n t).map (stdPartialSum X μ t n)) (Set.Icc (0 : ℝ) M₀)).toReal ≤
