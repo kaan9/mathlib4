@@ -299,31 +299,30 @@ private lemma analyticOn_cgf_univ : AnalyticOn ℝ (cgf (X 0) μ) Set.univ :=
   Set.eq_univ_of_forall (Cramer.mem_interior_integrableExpSet h_mgf) ▸ analyticOn_cgf
 
 omit [IsProbabilityMeasure μ] in
-include h_mgf h_non_deg in
+include h_mgf in
 /-- Given `Λ'(t) = a`, the rate function satisfies `rateFunction X μ a = ta - Λ(t)`. -/
 private lemma Cramer.rateFunction_eq_of_deriv_eq (a t : ℝ)
     (ht_deriv : deriv (cgf (X 0) μ) t = a) :
     rateFunction X μ a = t * a - cgf (X 0) μ t := by
   have h_analytic : AnalyticOn ℝ (cgf (X 0) μ) Set.univ := analyticOn_cgf_univ h_mgf
-  have h_convex : StrictConvexOn ℝ Set.univ (cgf (X 0) μ) :=
-    strictConvexOn_of_deriv2_pos' convex_univ h_analytic.continuousOn
-      fun x _ => by simpa [← iteratedDeriv_eq_iterate] using h_non_deg x
+  have h_convex : ConvexOn ℝ Set.univ (cgf (X 0) μ) :=
+    Set.eq_univ_of_forall h_mgf (s := integrableExpSet (X 0) μ) ▸ convexOn_cgf
   have h_diff : DifferentiableAt ℝ (cgf (X 0) μ) t :=
     h_analytic.differentiableOn.differentiableAt (isOpen_univ.mem_nhds (Set.mem_univ t))
   -- `sa - Λ(s) ≤ ta - Λ(t)` for every `s`, i.e. `Λ(t) + a(s - t) ≤ Λ(s)`: the CGF is above its
-  -- tangent line at `t`, as it is strictly convex (from `h_non_deg`: `0 < Λ''(x)`).
+  -- tangent line at `t`, as it is convex (`convexOn_cgf`).
   have h_le : ∀ s, s * a - cgf (X 0) μ s ≤ t * a - cgf (X 0) μ t := by
     intro s
     suffices h_tangent : cgf (X 0) μ t + a * (s - t) ≤ cgf (X 0) μ s by linarith
     rcases lt_trichotomy s t with hst | rfl | hts
-    · have h_slope := h_convex.convexOn.slope_le_of_hasDerivAt
+    · have h_slope := h_convex.slope_le_of_hasDerivAt
         (Set.mem_univ s) (Set.mem_univ t) hst h_diff.hasDerivAt
       rw [ht_deriv, slope_def_field] at h_slope
       rw [← sub_nonneg]
       have : 0 < t - s := sub_pos.mpr hst
       nlinarith [(div_le_iff₀ this).mp h_slope]
     · simp
-    · have h_slope := h_convex.convexOn.deriv_le_slope
+    · have h_slope := h_convex.deriv_le_slope
         (Set.mem_univ t) (Set.mem_univ s) hts h_diff
       rw [ht_deriv, slope_def_field] at h_slope
       rw [← sub_nonneg]
@@ -383,7 +382,7 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
   obtain ⟨t, ht_deriv⟩ := h_exposed a h_mean
   have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_integral_le h_mgf h_non_deg a h_mean t ht_deriv
   have h_rate_eq : rateFunction X μ a = t * a - cgf (X 0) μ t :=
-    rateFunction_eq_of_deriv_eq h_mgf h_non_deg a t ht_deriv
+    rateFunction_eq_of_deriv_eq h_mgf a t ht_deriv
   rw [h_rate_eq]
   let LHS_val :=
     liminf (fun n : ℕ =>

@@ -23,6 +23,8 @@ is analytic on the interior of `integrableExpSet X μ`, the interval on which it
 
 * `analyticOn_cgf`: the cumulant-generating function is analytic on the interior of the interval
   `integrableExpSet X μ`.
+* `convexOn_cgf`: the cumulant-generating function is convex on the interval
+  `integrableExpSet X μ`.
 
 -/
 
@@ -292,5 +294,67 @@ lemma exists_cgf_eq_iteratedDeriv_two_cgf_mul [IsZeroOrProbabilityMeasure μ] (h
     exact (analyticOn_cgf.mono hs).contDiffOn hu
 
 end DerivCGF
+
+section Convexity
+
+variable {a b s : ℝ}
+
+/-- Log-convexity of the moment-generating function (stated in multiplicative form): for `s, t` in
+`integrableExpSet X μ` and nonnegative weights `a, b` with `a + b = 1`,
+`mgf X μ (a * s + b * t) ≤ mgf X μ s ^ a * mgf X μ t ^ b`.
+This is Hölder's inequality applied to the functions `exp (s * X)` and `exp (t * X)` with
+conjugate exponents `1 / a` and `1 / b`. -/
+lemma mgf_mul_add_mul_le_rpow_mgf_mul_rpow_mgf (hs : s ∈ integrableExpSet X μ)
+    (ht : t ∈ integrableExpSet X μ) (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a + b = 1) :
+    mgf X μ (a * s + b * t) ≤ mgf X μ s ^ a * mgf X μ t ^ b := by
+  by_cases h_int : Integrable (fun ω ↦ exp ((a * s + b * t) * X ω)) μ
+  case neg =>
+    rw [mgf_undef h_int]
+    exact mul_nonneg (Real.rpow_nonneg mgf_nonneg a) (Real.rpow_nonneg mgf_nonneg b)
+  have hs_int := integrable_of_mem_integrableExpSet hs
+  have ht_int := integrable_of_mem_integrableExpSet ht
+  have h_ae (u : ℝ) : 0 ≤ᵐ[μ] fun ω ↦ exp (u * X ω) := .of_forall fun ω ↦ (exp_pos _).le
+  simp only [mgf]
+  rw [integral_eq_lintegral_of_nonneg_ae (h_ae _) h_int.1,
+    integral_eq_lintegral_of_nonneg_ae (h_ae _) hs_int.1,
+    integral_eq_lintegral_of_nonneg_ae (h_ae _) ht_int.1,
+    ENNReal.toReal_rpow, ENNReal.toReal_rpow, ← ENNReal.toReal_mul]
+  refine ENNReal.toReal_mono
+    (ENNReal.mul_ne_top
+      (ENNReal.rpow_lt_top_of_nonneg ha
+        ((hasFiniteIntegral_iff_ofReal (h_ae s)).mp hs_int.2).ne).ne
+      (ENNReal.rpow_lt_top_of_nonneg hb
+        ((hasFiniteIntegral_iff_ofReal (h_ae t)).mp ht_int.2).ne).ne) ?_
+  calc ∫⁻ ω, ENNReal.ofReal (exp ((a * s + b * t) * X ω)) ∂μ
+      = ∫⁻ ω, ENNReal.ofReal (exp (s * X ω)) ^ a * ENNReal.ofReal (exp (t * X ω)) ^ b ∂μ := by
+        refine lintegral_congr fun ω ↦ ?_
+        rw [ENNReal.ofReal_rpow_of_pos (exp_pos _), ENNReal.ofReal_rpow_of_pos (exp_pos _),
+          ← ENNReal.ofReal_mul (by positivity), ← Real.exp_mul, ← Real.exp_mul, ← Real.exp_add]
+        exact congrArg ENNReal.ofReal (congrArg exp (by ring))
+    _ ≤ _ := ENNReal.lintegral_mul_norm_pow_le hs_int.aemeasurable.ennreal_ofReal
+        ht_int.aemeasurable.ennreal_ofReal ha hb hab
+
+/-- The cumulant-generating function `cgf X μ` is convex on `integrableExpSet X μ`, the interval
+on which the moment-generating function is finite.
+This is a consequence of Hölder's inequality (log-convexity of `mgf X μ`,
+`mgf_mul_add_mul_le_rpow_mgf_mul_rpow_mgf`) and holds for arbitrary measures. -/
+theorem convexOn_cgf : ConvexOn ℝ (integrableExpSet X μ) (cgf X μ) := by
+  rcases eq_or_ne μ 0 with rfl | hμ
+  · exact ⟨convex_integrableExpSet, fun s _ t _ a b _ _ _ ↦ by simp [cgf_zero_measure]⟩
+  refine ⟨convex_integrableExpSet, fun s hs t ht a b ha hb hab ↦ ?_⟩
+  simp only [smul_eq_mul]
+  have hs_pos : 0 < mgf X μ s := mgf_pos' hμ (integrable_of_mem_integrableExpSet hs)
+  have ht_pos : 0 < mgf X μ t := mgf_pos' hμ (integrable_of_mem_integrableExpSet ht)
+  have h_mem : a * s + b * t ∈ integrableExpSet X μ := by
+    simpa using convex_integrableExpSet hs ht ha hb hab
+  calc cgf X μ (a * s + b * t)
+      ≤ log (mgf X μ s ^ a * mgf X μ t ^ b) :=
+        Real.log_le_log (mgf_pos' hμ (integrable_of_mem_integrableExpSet h_mem))
+          (mgf_mul_add_mul_le_rpow_mgf_mul_rpow_mgf hs ht ha hb hab)
+    _ = a * cgf X μ s + b * cgf X μ t := by
+        rw [Real.log_mul (Real.rpow_pos_of_pos hs_pos a).ne' (Real.rpow_pos_of_pos ht_pos b).ne',
+          Real.log_rpow hs_pos, Real.log_rpow ht_pos, cgf, cgf]
+
+end Convexity
 
 end ProbabilityTheory

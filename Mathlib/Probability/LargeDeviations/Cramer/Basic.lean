@@ -55,9 +55,10 @@ fixed set of hypotheses, introduced as `variable`s in each file:
 * `h_mgf`: `X₀` has a finite moment-generating function at every `t ∈ ℝ`; equivalently
   `cgf (X 0) μ` is finite and analytic on all of `ℝ`.
 * `h_non_deg` (used from `TiltedCLT.lean` on): the cgf has strictly positive second derivative
-  everywhere, i.e. `X₀` is non-degenerate. This gives strict convexity of the cgf, used both in the
-  central limit theorem over the tilted measures and in the tangent-line argument for the lower
-  bound.
+  everywhere, i.e. `X₀` is non-degenerate. This is used in the central limit theorem over the
+  tilted measures and, through strict monotonicity of `deriv (cgf (X 0) μ)`, to show that the
+  tilting parameter is nonnegative in the lower bound. (The tangent-line argument itself needs
+  only convexity of the cgf, `convexOn_cgf`, which holds unconditionally.)
 * `h_exposed` (used from `LowerBound.lean` on): every `a` with `μ[X 0] ≤ a` is *exposed*, i.e.
   realized as `deriv (cgf (X 0) μ) t = a` for some `t`.
 
