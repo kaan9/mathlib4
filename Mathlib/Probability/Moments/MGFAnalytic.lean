@@ -8,6 +8,7 @@ module
 public import Mathlib.Probability.Moments.ComplexMGF
 public import Mathlib.Analysis.SpecialFunctions.Complex.Analytic
 public import Mathlib.Analysis.Calculus.Taylor
+import Mathlib.Analysis.Convex.Integral
 
 /-!
 # The moment-generating function is analytic
@@ -25,6 +26,8 @@ is analytic on the interior of `integrableExpSet X μ`, the interval on which it
   `integrableExpSet X μ`.
 * `convexOn_cgf`: the cumulant-generating function is convex on the interval
   `integrableExpSet X μ`.
+* `mul_integral_le_cgf`: Jensen's lower bound `t * μ[X] ≤ cgf X μ t` on the cumulant-generating
+  function of an integrable random variable, for a probability measure.
 
 -/
 
@@ -354,6 +357,20 @@ theorem convexOn_cgf : ConvexOn ℝ (integrableExpSet X μ) (cgf X μ) := by
     _ = a * cgf X μ s + b * cgf X μ t := by
         rw [Real.log_mul (Real.rpow_pos_of_pos hs_pos a).ne' (Real.rpow_pos_of_pos ht_pos b).ne',
           Real.log_rpow hs_pos, Real.log_rpow ht_pos, cgf, cgf]
+
+/-- Jensen's lower bound on the cumulant-generating function: for a probability measure `μ` and a
+random variable `X` that is integrable and such that `ω ↦ exp (t * X ω)` is integrable, the value
+of the cgf at `t` is bounded below by `t * μ[X]`. This is Jensen's inequality applied to the convex
+function `exp` at the fixed point `t`: `exp (t * μ[X]) = exp μ[t • X] ≤ μ[exp (t • X)] = mgf X μ t`,
+then take logarithms. -/
+theorem mul_integral_le_cgf [IsProbabilityMeasure μ] (hint : Integrable X μ)
+    (ht : Integrable (fun ω ↦ exp (t * X ω)) μ) : t * μ[X] ≤ cgf X μ t := by
+  rw [cgf, mgf]
+  have jensen := ConvexOn.map_integral_le (g := exp) (s := Set.univ) (f := fun ω ↦ t * X ω)
+    convexOn_exp Real.continuous_exp.continuousOn isClosed_univ
+    (ae_of_all _ fun _ ↦ Set.mem_univ _) (hint.const_mul t) ht
+  rw [integral_const_mul] at jensen
+  exact (Real.log_exp _).symm.trans_le (Real.log_le_log (Real.exp_pos _) jensen)
 
 end Convexity
 

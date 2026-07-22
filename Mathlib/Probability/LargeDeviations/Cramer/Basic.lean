@@ -12,7 +12,6 @@ public import Mathlib.Probability.Moments.IntegrableExpMul
 public import Mathlib.Probability.Moments.Tilted
 
 import Mathlib.Probability.Independence.Integration
-import Mathlib.Analysis.Convex.Integral
 
 /-!
 # Cramér's theorem: basic definitions and infrastructure
@@ -150,31 +149,12 @@ lemma Cramer.integrable_of_forall_integrable_exp : Integrable (X 0) μ :=
 
 variable [IsProbabilityMeasure μ]
 
-/-- For a random variable Y with finite MGF, the CGF satisfies `t · μ[Y] ≤ Λ_Y(t)`.
-This follows from Jensen's inequality applied to the convex function `eᵗˣ` for fixed `t`. -/
-lemma mul_integral_le_cgf (Y : Ω → ℝ) (hint : Integrable Y μ)
-    (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) μ) (t : ℝ) :
-    t * μ[Y] ≤ cgf Y μ t := by
-  -- t μ[Y] = log exp(t μ[Y]) ≤ log μ[exp(tY)] = Λ(t)
-  rw [cgf, mgf]
-  -- Apply Jensen's inequality: exp(μ[tY]) ≤ μ[exp(tY)]
-  have jensen := ConvexOn.map_integral_le
-    (g := Real.exp) (s := Set.univ) (f := fun ω => t * Y ω)
-    (convexOn_exp) Real.continuous_exp.continuousOn isClosed_univ
-    (ae_of_all _ (fun _ => Set.mem_univ _))
-    (hint.const_mul t) (hmgf t)
-  -- Extract t: t μ[Y] ≤ μ[exp(tY)]
-  rw [integral_const_mul] at jensen
-  -- Take log of both sides
-  exact (Real.log_exp _).symm.trans_le (Real.log_le_log (Real.exp_pos _) jensen)
-
 /-- When `t < 0` and `μ[Y] ≤ a`, we have `t · a - Λ_Y(t) ≤ 0`. -/
-lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (hint : Integrable Y μ)
-    (hmgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * Y ω)) μ)
-    (t a : ℝ) (ht : t < 0) (ha : μ[Y] ≤ a) :
+lemma mul_sub_cgf_nonpos_of_neg (Y : Ω → ℝ) (hint : Integrable Y μ) (t a : ℝ)
+    (hexp : Integrable (fun ω => Real.exp (t * Y ω)) μ) (ht : t < 0) (ha : μ[Y] ≤ a) :
     t * a - cgf Y μ t ≤ 0 := by
     -- t · a ≤ t · μ[Y] ≤ Λ(t)  (since t < 0, the first inequality flips)
-  nlinarith [mul_integral_le_cgf Y hint hmgf t, mul_le_mul_of_nonpos_left ha ht.le]
+  nlinarith [mul_integral_le_cgf hint hexp, mul_le_mul_of_nonpos_left ha ht.le]
 
 include hindep hident hmeas hmgf in
 /-- If each `Xᵢ` has finite MGF, then `Sₙ` also has finite MGF. -/
@@ -208,7 +188,7 @@ lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : μ[X 0] ≤ a)
   · exact le_ciSup h_bdd_restrict ⟨t, ht⟩
   -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with 0 ≤ t
   · calc t * a - cgf (X 0) μ t
-        ≤ 0 := mul_sub_cgf_nonpos_of_neg (X 0) h_int hmgf t a (not_le.mp ht) h_mean
+        ≤ 0 := mul_sub_cgf_nonpos_of_neg (X 0) h_int t a (hmgf t) (not_le.mp ht) h_mean
       _ = (0 : ℝ) * a - cgf (X 0) μ 0 := by simp [cgf_zero]
       _ ≤ _ := le_ciSup h_bdd_restrict ⟨0, by simp⟩
 
