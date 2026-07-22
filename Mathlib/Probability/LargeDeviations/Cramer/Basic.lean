@@ -42,8 +42,8 @@ and the two bounds are assembled in `Theorem.lean`.
   `cgf (∑ i ∈ Finset.range n, X i) μ t = n * cgf (X 0) μ t`.
 * `Cramer.isProbabilityMeasure_tiltedMeasure`: the tilted measure `tiltedMeasure X μ n t` is a
   probability measure.
-* `Cramer.rateFunction_eq_iSup_nonneg`: for `μ[X 0] ≤ a` the supremum defining the rate function
-  is attained over `0 ≤ t`.
+* `Cramer.rateFunction_eq_iSup_nonneg`: for `μ[X 0] ≤ a`, if the supremum defining the rate
+  function is bounded above, it is attained over `0 ≤ t`.
 
 ## Implementation notes
 
@@ -54,11 +54,6 @@ fixed set of hypotheses, introduced as `variable`s in each file:
   measurable.
 * `h_mgf`: `X₀` has a finite moment-generating function at every `t ∈ ℝ`; equivalently
   `cgf (X 0) μ` is finite and analytic on all of `ℝ`.
-* `h_bdd`: the rate function is a *good* rate function, i.e. the supremum defining it is bounded
-  above. This is **not** implied by `h_mgf` alone: for a constant random variable `X ≡ c` one has
-  `cgf (X 0) μ t = t * c`, so `t * a - cgf (X 0) μ t = t * (a - c)` is unbounded above whenever
-  `a ≠ c`. It is, however, derivable from `h_exposed` together with convexity of the cgf for every
-  relevant `a` (those with `μ[X 0] ≤ a`); we keep it as a hypothesis to avoid that detour.
 * `h_non_deg` (used from `TiltedCLT.lean` on): the cgf has strictly positive second derivative
   everywhere, i.e. `X₀` is non-degenerate. This gives strict convexity of the cgf, used both in the
   central limit theorem over the tilted measures and in the tangent-line argument for the lower
@@ -69,6 +64,15 @@ fixed set of hypotheses, introduced as `variable`s in each file:
 The pair `h_non_deg` and `h_exposed` are genuinely strong assumptions: they exclude edge cases such
 as bounded-support variables, for which `deriv (cgf (X 0) μ)` is bounded and not every `a` is
 exposed.
+
+No boundedness ("goodness") assumption is made on the supremum defining `rateFunction`. The
+supremum can genuinely be unbounded: for a constant random variable `X ≡ c` one has
+`cgf (X 0) μ t = t * c`, so `t * a - cgf (X 0) μ t = t * (a - c)` is unbounded above whenever
+`a ≠ c`. Since `rateFunction` is a `Real`-valued supremum, it then takes the junk value `0` by the
+`Real.iSup` convention; the upper bound handles this case directly, as the bound is trivial (the
+scaled log-probabilities are nonpositive). In the lower bound, boundedness is derived from the
+tangent-line argument: `h_exposed` provides `t` with `deriv (cgf (X 0) μ) t = a`, and convexity of
+the cgf places every `s * a - cgf (X 0) μ s` below `t * a - cgf (X 0) μ t`.
 
 ## References
 
@@ -111,8 +115,6 @@ variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
 variable (h_meas : ∀ n, Measurable (X n))
 -- The random variable X₀ has a finite moment generating function for all `t ∈ ℝ`.
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
--- The rate function is "good": the supremum defining it is bounded above.
-variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) μ t)))
 
 /-! ### Basic measurability and integrability helpers -/
 
@@ -186,21 +188,22 @@ lemma Cramer.isProbabilityMeasure_tiltedMeasure (t : ℝ) (n : ℕ) :
     IsProbabilityMeasure (tiltedMeasure X μ n t) :=
   isProbabilityMeasure_tilted (integrable_exp_mul_sum_range h_indep h_ident h_meas h_mgf t n)
 
-include h_bdd h_mgf in
-/-- For `μ[X] ≤ a`, the supremum in the rate function is achieved by non-negative `t`.
-That is, `rateFunction X μ a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
-lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : μ[X 0] ≤ a) :
+include h_mgf in
+/-- For `μ[X] ≤ a`, if the supremum in the rate function is bounded above, it is achieved by
+non-negative `t`. That is, `rateFunction X μ a = sup_{t ∈ ℝ⁺} (tx - Λ(t))` -/
+lemma Cramer.rateFunction_eq_iSup_nonneg (a : ℝ) (h_mean : μ[X 0] ≤ a)
+    (hbdd : BddAbove (Set.range fun t => t * a - cgf (X 0) μ t)) :
     rateFunction X μ a = ⨆ t : {(x : ℝ) | 0 ≤ x}, (t : ℝ) * a - cgf (X 0) μ t := by
   have h_int := Cramer.integrable_of_forall_integrable_exp h_mgf
   rw [rateFunction]
   have : Nonempty {x : ℝ | 0 ≤ x} := ⟨⟨0, by simp⟩⟩
   have h_bdd_restrict : BddAbove (Set.range fun t : {x : ℝ | 0 ≤ x} =>
       (t : ℝ) * a - cgf (X 0) μ t) :=
-    let ⟨b, hb⟩ := h_bdd a
+    let ⟨b, hb⟩ := hbdd
     ⟨b, fun _ ⟨t, ht⟩ => ht ▸ hb ⟨t.val, rfl⟩⟩
-  refine le_antisymm (ciSup_le fun t => ?_) (ciSup_le fun t => le_ciSup (h_bdd a) (t : ℝ))
+  refine le_antisymm (ciSup_le fun t => ?_) (ciSup_le fun t => le_ciSup hbdd (t : ℝ))
   by_cases ht : 0 ≤ t
-  -- Case 0 ≤ t: It's in the restricted set so the supremum exists by h_bdd
+  -- Case 0 ≤ t: It's in the restricted set so the supremum exists by hbdd
   · exact le_ciSup h_bdd_restrict ⟨t, ht⟩
   -- Case t < 0: It's bound by the value at t=0, so the supremum is always achievable with 0 ≤ t
   · calc t * a - cgf (X 0) μ t

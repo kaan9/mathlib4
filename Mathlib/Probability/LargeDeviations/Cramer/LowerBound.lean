@@ -43,7 +43,6 @@ variable (h_indep : iIndepFun X μ)
 variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
 variable (h_meas : ∀ n, Measurable (X n))
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
-variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) μ t)))
 variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
 variable (h_exposed : ∀ a : ℝ, μ[X 0] ≤ a → ∃ t, deriv (cgf (X 0) μ) t = a)
 
@@ -300,37 +299,41 @@ private lemma analyticOn_cgf_univ : AnalyticOn ℝ (cgf (X 0) μ) Set.univ :=
   Set.eq_univ_of_forall (Cramer.mem_interior_integrableExpSet h_mgf) ▸ analyticOn_cgf
 
 omit [IsProbabilityMeasure μ] in
-include h_mgf h_bdd h_non_deg in
+include h_mgf h_non_deg in
 /-- Given `Λ'(t) = a`, the rate function satisfies `rateFunction X μ a = ta - Λ(t)`. -/
 private lemma Cramer.rateFunction_eq_of_deriv_eq (a t : ℝ)
     (ht_deriv : deriv (cgf (X 0) μ) t = a) :
     rateFunction X μ a = t * a - cgf (X 0) μ t := by
-  rw [rateFunction]
   have h_analytic : AnalyticOn ℝ (cgf (X 0) μ) Set.univ := analyticOn_cgf_univ h_mgf
-  -- We proceed by proving inequality in both directions
-  refine le_antisymm (ciSup_le fun s => ?_) (le_ciSup (h_bdd a) t)
-  -- Sub-goal `sa - Λ(s) ≤ ta - Λ(t)`, i.e. `Λ(t) + a(s - t) ≤ Λ(s)`: the CGF is above its
-  -- tangent line at `t`, as it is strictly convex (from `h_non_deg`: `0 < Λ''(x)`).
   have h_convex : StrictConvexOn ℝ Set.univ (cgf (X 0) μ) :=
     strictConvexOn_of_deriv2_pos' convex_univ h_analytic.continuousOn
       fun x _ => by simpa [← iteratedDeriv_eq_iterate] using h_non_deg x
   have h_diff : DifferentiableAt ℝ (cgf (X 0) μ) t :=
     h_analytic.differentiableOn.differentiableAt (isOpen_univ.mem_nhds (Set.mem_univ t))
-  suffices h_tangent : cgf (X 0) μ t + a * (s - t) ≤ cgf (X 0) μ s by linarith
-  rcases lt_trichotomy s t with hst | rfl | hts
-  · have h_slope := h_convex.convexOn.slope_le_of_hasDerivAt
-      (Set.mem_univ s) (Set.mem_univ t) hst h_diff.hasDerivAt
-    rw [ht_deriv, slope_def_field] at h_slope
-    rw [← sub_nonneg]
-    have : 0 < t - s := sub_pos.mpr hst
-    nlinarith [(div_le_iff₀ this).mp h_slope]
-  · simp
-  · have h_slope := h_convex.convexOn.deriv_le_slope
-      (Set.mem_univ t) (Set.mem_univ s) hts h_diff
-    rw [ht_deriv, slope_def_field] at h_slope
-    rw [← sub_nonneg]
-    have : 0 < s - t := sub_pos.mpr hts
-    nlinarith [(le_div_iff₀ this).mp h_slope]
+  -- `sa - Λ(s) ≤ ta - Λ(t)` for every `s`, i.e. `Λ(t) + a(s - t) ≤ Λ(s)`: the CGF is above its
+  -- tangent line at `t`, as it is strictly convex (from `h_non_deg`: `0 < Λ''(x)`).
+  have h_le : ∀ s, s * a - cgf (X 0) μ s ≤ t * a - cgf (X 0) μ t := by
+    intro s
+    suffices h_tangent : cgf (X 0) μ t + a * (s - t) ≤ cgf (X 0) μ s by linarith
+    rcases lt_trichotomy s t with hst | rfl | hts
+    · have h_slope := h_convex.convexOn.slope_le_of_hasDerivAt
+        (Set.mem_univ s) (Set.mem_univ t) hst h_diff.hasDerivAt
+      rw [ht_deriv, slope_def_field] at h_slope
+      rw [← sub_nonneg]
+      have : 0 < t - s := sub_pos.mpr hst
+      nlinarith [(div_le_iff₀ this).mp h_slope]
+    · simp
+    · have h_slope := h_convex.convexOn.deriv_le_slope
+        (Set.mem_univ t) (Set.mem_univ s) hts h_diff
+      rw [ht_deriv, slope_def_field] at h_slope
+      rw [← sub_nonneg]
+      have : 0 < s - t := sub_pos.mpr hts
+      nlinarith [(le_div_iff₀ this).mp h_slope]
+  -- The tangent bound is an upper bound on the supremum, and in particular a witness that the
+  -- supremum is bounded above, so the supremum is attained at `t`.
+  rw [rateFunction]
+  exact le_antisymm (ciSup_le h_le)
+    (le_ciSup ⟨t * a - cgf (X 0) μ t, fun _ ⟨s, hs⟩ => hs ▸ h_le s⟩ t)
 
 include h_indep h_ident h_meas h_mgf h_non_deg in
 /-- Edge-case of `Cramer.neg_rateFunction_le_liminf` at `a = μ[X 0]` -/
@@ -368,7 +371,7 @@ private lemma Cramer.liminf_nonneg_at_mean (a : ℝ) (ht_deriv : deriv (cgf (X 0
       (fun n => {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}) hc_pos h_eventually_lower
   exact h_tendsto.liminf_eq.symm.le
 
-include h_indep h_ident h_meas h_mgf h_bdd h_non_deg h_exposed in
+include h_indep h_ident h_meas h_mgf h_non_deg h_exposed in
 /-- **Cramér's theorem** (lower bound): given `μ[X 0] ≤ a`,
 `-rateFunction X μ a ≤ liminfₙ n⁻¹ log μ(a ≤ Sₙ/n)`. -/
 theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
@@ -380,7 +383,7 @@ theorem Cramer.neg_rateFunction_le_liminf (a : ℝ) (h_mean : μ[X 0] ≤ a) :
   obtain ⟨t, ht_deriv⟩ := h_exposed a h_mean
   have ht_nonneg : 0 ≤ t := deriv_cgf_nonneg_of_integral_le h_mgf h_non_deg a h_mean t ht_deriv
   have h_rate_eq : rateFunction X μ a = t * a - cgf (X 0) μ t :=
-    rateFunction_eq_of_deriv_eq h_mgf h_bdd h_non_deg a t ht_deriv
+    rateFunction_eq_of_deriv_eq h_mgf h_non_deg a t ht_deriv
   rw [h_rate_eq]
   let LHS_val :=
     liminf (fun n : ℕ =>

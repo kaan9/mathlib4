@@ -55,7 +55,6 @@ variable (h_indep : iIndepFun X μ)
 variable (h_ident : ∀ n, IdentDistrib (X n) (X 0) μ μ)
 variable (h_meas : ∀ n, Measurable (X n))
 variable (h_mgf : ∀ t : ℝ, Integrable (fun ω => Real.exp (t * X 0 ω)) μ)
-variable (h_bdd : ∀ a : ℝ, BddAbove (Set.range (fun t => t * a - cgf (X 0) μ t)))
 variable (h_non_deg : ∀ t : ℝ, 0 < iteratedDeriv 2 (cgf (X 0) μ) t)
 variable (h_exposed : ∀ a : ℝ, μ[X 0] ≤ a → ∃ t, deriv (cgf (X 0) μ) t = a)
 
@@ -111,11 +110,13 @@ private lemma Cramer.tendsto_measure_sum_div_ge_of_lt_integral (a : ℝ) (h : a 
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
     (fun n => measure_mono fun ω hω => hω n le_rfl) fun _ => prob_le_one
 
-include h_indep h_meas h_ident h_mgf h_bdd in
+include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's theorem** (upper bound): for i.i.d. random variables with finite MGF, the scaled
 log-tail probability of the empirical mean is asymptotically bounded above by the negative rate
 function, i.e. for every `a`,
-`limsupₙ (1/n) log μ(a ≤ Sₙ/n) ≤ -upperTailRateFunction X μ a`. -/
+`limsupₙ (1/n) log μ(a ≤ Sₙ/n) ≤ -upperTailRateFunction X μ a`.
+When the supremum defining the rate function is unbounded, the rate function takes the junk
+value `0` by the `Real.iSup` convention and the bound holds trivially. -/
 theorem Cramer.limsup_le_neg_upperTailRateFunction : ∀ a : ℝ,
     limsup (fun n : ℕ => ((1 : ℝ) / (n : ℝ) : EReal) *
       ENNReal.log (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n})) atTop
@@ -123,32 +124,12 @@ theorem Cramer.limsup_le_neg_upperTailRateFunction : ∀ a : ℝ,
   intro a
   by_cases h : μ[X 0] ≤ a
   · rw [Cramer.upperTailRateFunction, if_pos h]
-    exact Cramer.limsup_le_neg_rateFunction h_indep h_ident h_meas h_mgf h_bdd a h
-  · norm_cast
-    rw [Cramer.upperTailRateFunction, if_neg h]
-    have h_prob_bound_2 : ∀ n : ℕ, n ≠ 0 →
-        1 / ↑n * (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log ≤ 0 := by
-      intro n h_n_nonneg
-      have h_log_nonpos : (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log ≤ 0 := by
-        rw [ENNReal.log_le_zero_iff]
-        exact prob_le_one
-      rw [EReal.mul_nonpos_iff]
-      left
-      constructor
-      · rw [div_eq_mul_inv, one_mul]
-        apply EReal.inv_nonneg_of_nonneg
-        have : 0 < (n : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero h_n_nonneg)
-        exact EReal.coe_nonneg.mpr (le_of_lt this)
-      · exact h_log_nonpos
-    simp only [neg_zero]
-    apply Filter.limsup_le_of_le
-    · exact isCoboundedUnder_le_of_le atTop (fun _ => bot_le)
-    · apply Filter.eventually_atTop.mpr
-      use 1
-      intro n hn
-      exact h_prob_bound_2 n (Nat.one_le_iff_ne_zero.mp hn)
+    exact Cramer.limsup_le_neg_rateFunction h_indep h_ident h_meas h_mgf a h
+  · rw [Cramer.upperTailRateFunction, if_neg h, EReal.coe_zero, neg_zero]
+    exact limsup_inv_mul_log_measure_nonpos
+      fun n => {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}
 
-include h_indep h_meas h_ident h_mgf h_bdd h_non_deg h_exposed in
+include h_indep h_meas h_ident h_mgf h_non_deg h_exposed in
 /-- **Cramér's theorem** (lower bound): for i.i.d. random variables with finite MGF, the scaled
 log-tail probability of the empirical mean is asymptotically bounded below by the negative rate
 function, i.e. for every `a`,
@@ -160,7 +141,7 @@ theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
   intro a
   by_cases h : μ[X 0] ≤ a
   · rw [Cramer.upperTailRateFunction, if_pos h]
-    exact Cramer.neg_rateFunction_le_liminf h_indep h_ident h_meas h_mgf h_bdd h_non_deg
+    exact Cramer.neg_rateFunction_le_liminf h_indep h_ident h_meas h_mgf h_non_deg
       h_exposed a h
   · rw [Cramer.upperTailRateFunction, if_neg h, EReal.coe_zero, neg_zero]
     have h_a_lt_mean : a < μ[X 0] := not_le.mp h
