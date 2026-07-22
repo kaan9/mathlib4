@@ -62,7 +62,7 @@ variable (h_exposed : ∀ a : ℝ, μ[X 0] ≤ a → ∃ t, deriv (cgf (X 0) μ)
 
 variable [IsProbabilityMeasure μ]
 
-include h_indep h_meas h_ident h_mgf in
+include h_indep h_ident h_mgf in
 /-- If `a < μ[X 0]`, `μ(a ≤ Sₙ/n) → 1` by the strong law of large numbers. -/
 private lemma Cramer.tendsto_measure_sum_div_ge_of_lt_integral (a : ℝ) (h : a < μ[X 0]) :
   Tendsto (fun n : ℕ => (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} : ENNReal))
@@ -78,37 +78,9 @@ private lemma Cramer.tendsto_measure_sum_div_ge_of_lt_integral (a : ℝ) (h : a 
       ∀ᵐ ω ∂μ, ∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n := by
     filter_upwards [h_strong_law] with ω hω
     exact hω.eventually (eventually_ge_nhds h)
-  let S : ℕ → Set Ω := fun k => {ω | ∀ n ≥ k, a ≤ (∑ i ∈ Finset.range n, X i ω) / n}
-  have h_mono : Monotone S := by
-    intro k₁ k₂ hk ω hω n hn
-    exact hω n (le_trans hk hn)
-  have h_union : ⋃ k, S k = {ω | ∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} := by
-    ext ω
-    simp only [Set.mem_iUnion, Set.mem_setOf_eq, Filter.eventually_atTop, S]
-  have h_union_meas : μ (⋃ k, S k) = 1 := by
-    have h_union_meas_set : MeasurableSet (⋃ k, S k) := by
-      refine MeasurableSet.iUnion fun k => ?_
-      change MeasurableSet {ω | ∀ n ≥ k, a ≤ (∑ i ∈ Finset.range n, X i ω) / n}
-      have : {ω | ∀ n ≥ k, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} =
-          ⋂ n, ⋂ (_ : k ≤ n), {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} := by
-        ext; simp
-      rw [this]
-      refine MeasurableSet.iInter fun n => MeasurableSet.iInter fun _ => ?_
-      exact measurableSet_le measurable_const (measurable_sum_div h_meas n)
-    rw [h_union]
-    have h_compl : μ {ω | ¬∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} = 0 :=
-      ae_iff.mp h_eventually_large
-    have h_compl_eq : {ω | ∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n}ᶜ =
-        {ω | ¬∀ᶠ n in atTop, a ≤ (∑ i ∈ Finset.range n, X i ω) / n} := by
-      ext; simp
-    rw [← prob_add_prob_compl (μ := μ) (h_union ▸ h_union_meas_set), h_compl_eq, h_compl,
-      add_zero]
-  have h_tend_S : Tendsto (fun k => μ (S k)) atTop (𝓝 1) := by
-    have := tendsto_measure_iUnion_atTop (μ := μ) h_mono
-    rw [h_union_meas] at this
-    exact this
-  refine tendsto_of_tendsto_of_tendsto_of_le_of_le h_tend_S tendsto_const_nhds
-    (fun n => measure_mono fun ω hω => hω n le_rfl) fun _ => prob_le_one
+  have h_univ := tendsto_measure_of_ae_eventually_mem (μ := μ)
+    (s := fun n => {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}) h_eventually_large
+  rwa [measure_univ] at h_univ
 
 include h_indep h_meas h_ident h_mgf in
 /-- **Cramér's theorem** (upper bound): for i.i.d. random variables with finite MGF, the scaled
@@ -148,8 +120,7 @@ theorem Cramer.neg_upperTailRateFunction_le_liminf : ∀ a : ℝ,
     have h_prob_to_one :
         Tendsto (fun n => (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n} : ENNReal))
           atTop (𝓝 1) :=
-      Cramer.tendsto_measure_sum_div_ge_of_lt_integral h_indep h_ident h_meas h_mgf a
-        h_a_lt_mean
+      Cramer.tendsto_measure_sum_div_ge_of_lt_integral h_indep h_ident h_mgf a h_a_lt_mean
     have h_seq_to_zero : Tendsto (fun (n : ℕ) => ((1 : ℝ) / (n : ℝ) : EReal) *
         (μ {ω | a ≤ (∑ i ∈ Finset.range n, X i ω) / n}).log) atTop
         (𝓝 (0 : EReal)) := by

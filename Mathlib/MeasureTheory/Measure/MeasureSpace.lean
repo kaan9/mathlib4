@@ -667,6 +667,27 @@ theorem tendsto_measure_iUnion_accumulate {α ι : Type*}
   rw [measure_iUnion_eq_iSup_accumulate]
   exact tendsto_atTop_iSup fun i j hij ↦ by gcongr
 
+/-- If almost every point eventually belongs to `s n`, then the measures `μ (s n)` converge to
+`μ univ`. This is a form of continuity from below: the sets `⋂ m ≥ n, s m` increase to a set of
+full measure, so the sandwich `μ (⋂ m ≥ n, s m) ≤ μ (s n) ≤ μ univ` forces the limit.
+No measurability of the `s n` is required. -/
+theorem tendsto_measure_of_ae_eventually_mem {s : ℕ → Set α}
+    (h : ∀ᵐ x ∂μ, ∀ᶠ n in atTop, x ∈ s n) :
+    Tendsto (fun n ↦ μ (s n)) atTop (𝓝 (μ univ)) := by
+  let t : ℕ → Set α := fun k ↦ {x | ∀ n ≥ k, x ∈ s n}
+  have hmono : Monotone t := by
+    intro k₁ k₂ hk x hx n hn
+    exact hx n (hk.trans hn)
+  have hunion : ⋃ k, t k = {x | ∀ᶠ n in atTop, x ∈ s n} := by
+    ext x
+    simp only [Set.mem_iUnion, Set.mem_setOf_eq, Filter.eventually_atTop, t]
+  have hfull : μ {x | ∀ᶠ n in atTop, x ∈ s n} = μ univ := measure_congr (ae_eq_univ.2 h)
+  have hlim : Tendsto (fun k ↦ μ (t k)) atTop (𝓝 (μ univ)) := by
+    have h2 := tendsto_measure_iUnion_atTop (μ := μ) hmono
+    rwa [hunion, hfull] at h2
+  exact tendsto_of_tendsto_of_tendsto_of_le_of_le hlim tendsto_const_nhds
+    (fun k ↦ measure_mono fun x hx ↦ hx k le_rfl) fun _ ↦ measure_mono (subset_univ _)
+
 /-- Continuity from above: the measure of the intersection of a decreasing sequence of measurable
 sets is the limit of the measures. -/
 theorem tendsto_measure_iInter_atTop [Preorder ι]
